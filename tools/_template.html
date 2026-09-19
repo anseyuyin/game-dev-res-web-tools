@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工具模板 · 游戏开发资源工具集</title>
+<!--
+  ============================================================================
+  单一 HTML 工具模板
+  ----------------------------------------------------------------------------
+  规则：
+    1. 一个工具 = 一个 .html 文件，文件放在 tools/ 目录下。
+    2. 所有 CSS / JS / 图标内联，禁止引用外部 CDN 或本地资源文件。
+    3. 不依赖后端服务，全部逻辑在浏览器本地完成，不联网上传用户数据。
+    4. 复制本文件并重命名（建议 kebab-case，如 texture-packer.html），
+       然后到 tools_index.html 的 TOOLS 数组中登记一条记录。
+  ============================================================================
+-->
+<style>
+  :root{
+    --bg:#0d1117; --bg-soft:#161b22; --bg-card:#1a2029;
+    --border:#2a3340; --border-soft:#222a35;
+    --text:#e6edf3; --text-dim:#9aa7b4; --text-faint:#6b7683;
+    --accent:#4ea1ff; --accent-soft:rgba(78,161,255,.14);
+    --ok:#3fb950; --warn:#d29922; --err:#f85149;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Microsoft YaHei","PingFang SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:14px; line-height:1.6;
+  }
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+
+  header{
+    border-bottom:1px solid var(--border-soft);
+    background:linear-gradient(180deg,#141a23 0%,#0d1117 100%);
+    padding:20px;
+  }
+  .wrap{max-width:1000px;margin:0 auto;}
+  .crumb{font-size:12px;color:var(--text-faint);margin-bottom:10px;}
+  h1{margin:0;font-size:21px;display:flex;align-items:center;gap:9px;}
+  .subtitle{margin:8px 0 0;color:var(--text-dim);font-size:13px;}
+
+  main{max-width:1000px;margin:0 auto;padding:22px 20px 60px;}
+
+  .panel{
+    background:var(--bg-card);
+    border:1px solid var(--border-soft);
+    border-radius:var(--radius);
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .panel h2{
+    margin:0 0 12px; font-size:14px; font-weight:600;
+    color:var(--text-dim); letter-spacing:.5px;
+  }
+
+  button{
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:9px;
+    padding:8px 16px;
+    font-size:13px;
+    font-family:inherit;
+    cursor:pointer;
+    transition:all .15s;
+  }
+  button:hover{border-color:var(--accent);color:var(--accent);}
+  button.primary{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+
+  input[type=text], input[type=number], select, textarea{
+    background:var(--bg-soft); border:1px solid var(--border);
+    border-radius:9px; color:var(--text); padding:8px 12px;
+    font-size:13px; font-family:inherit; outline:none;
+  }
+  input:focus, select:focus, textarea:focus{
+    border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:5px;}
+
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .field{flex:1 1 160px;min-width:140px;}
+
+  .drop{
+    border:2px dashed var(--border);
+    border-radius:var(--radius);
+    padding:38px 20px;
+    text-align:center;
+    color:var(--text-faint);
+    cursor:pointer;
+    transition:all .15s;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
+
+  .log{
+    background:#0a0e14; border:1px solid var(--border-soft); border-radius:9px;
+    padding:12px; font-family:Consolas,Menlo,monospace; font-size:12px;
+    max-height:220px; overflow:auto; white-space:pre-wrap; color:var(--text-dim);
+  }
+  .log .ok{color:var(--ok);} .log .warn{color:var(--warn);} .log .err{color:var(--err);}
+
+  footer{
+    border-top:1px solid var(--border-soft);
+    padding:20px; color:var(--text-faint); font-size:12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="crumb"><a href="tools_index.html">← 返回工具索引</a></div>
+    <h1>🧩 <span>工具模板</span></h1>
+    <p class="subtitle">复制这个文件作为新工具的起点：删掉示例区，写你自己的逻辑。</p>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <h2>输入区</h2>
+    <div class="drop" id="drop">
+      点击选择文件，或把文件拖到这里
+      <input type="file" id="file" hidden multiple>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div class="field">
+        <label for="optText">文本参数</label>
+        <input type="text" id="optText" placeholder="例如：512">
+      </div>
+      <div class="field">
+        <label for="optNum">数值参数</label>
+        <input type="number" id="optNum" value="100" min="1" max="1000">
+      </div>
+      <div class="field">
+        <label for="optSel">下拉参数</label>
+        <select id="optSel">
+          <option value="a">选项 A</option>
+          <option value="b">选项 B</option>
+        </select>
+      </div>
+      <button class="primary" id="runBtn">开始处理</button>
+      <button id="resetBtn">重置</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>输出区</h2>
+    <div id="output" style="color:var(--text-faint);font-size:13px;">（这里显示处理结果 / 预览 / 下载按钮）</div>
+  </div>
+
+  <div class="panel">
+    <h2>日志</h2>
+    <div class="log" id="log">等待操作…</div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">游戏开发资源工具集 · 单文件工具模板 · 所有处理均在本地浏览器完成</div>
+</footer>
+
+<script>
+/* --------------------------- 工具函数 --------------------------- */
+const $ = (id) => document.getElementById(id);
+
+function log(msg, level){
+  const el = $("log");
+  const cls = level ? ` class="${level}"` : "";
+  const time = new Date().toLocaleTimeString("zh-CN", { hour12:false });
+  el.innerHTML += `\n[${time}] <span${cls}>${msg}</span>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+/** 触发浏览器下载 */
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* --------------------------- 文件选择 --------------------------- */
+let pickedFiles = [];
+
+$("drop").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", (e) => {
+  pickedFiles = [...e.target.files];
+  log(`已选择 ${pickedFiles.length} 个文件：${pickedFiles.map(f => f.name).join(", ")}`);
+});
+["dragover","dragenter"].forEach(ev =>
+  $("drop").addEventListener(ev, (e) => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave","drop"].forEach(ev =>
+  $("drop").addEventListener(ev, (e) => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", (e) => {
+  pickedFiles = [...e.dataTransfer.files];
+  log(`拖入 ${pickedFiles.length} 个文件：${pickedFiles.map(f => f.name).join(", ")}`);
+});
+
+/* --------------------------- 主逻辑 --------------------------- */
+$("runBtn").addEventListener("click", async () => {
+  const text = $("optText").value.trim();
+  const num  = Number($("optNum").value);
+  const sel  = $("optSel").value;
+
+  log(`开始处理 —— 文本="${text}" 数值=${num} 选项="${sel}" 文件数=${pickedFiles.length}`);
+
+  $("output").textContent = "处理中…";
+  // TODO: 在这里实现你的处理逻辑
+  await new Promise(r => setTimeout(r, 300));
+
+  $("output").innerHTML = `<b style="color:var(--ok)">完成</b>（此处为模板占位输出）`;
+  log("处理完成", "ok");
+});
+
+$("resetBtn").addEventListener("click", () => {
+  pickedFiles = [];
+  $("file").value = "";
+  $("optText").value = "";
+  $("optNum").value = 100;
+  $("optSel").value = "a";
+  $("output").textContent = "（这里显示处理结果 / 预览 / 下载按钮）";
+  $("log").textContent = "等待操作…";
+});
+
+log("模板已就绪");
+</script>
+</body>
+</html>

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游戏开发资源工具集 · 工具索引</title>
+<style>
+  :root{
+    --bg:#0d1117;
+    --bg-soft:#161b22;
+    --bg-card:#1a2029;
+    --border:#2a3340;
+    --border-soft:#222a35;
+    --text:#e6edf3;
+    --text-dim:#9aa7b4;
+    --text-faint:#6b7683;
+    --accent:#4ea1ff;
+    --accent-soft:rgba(78,161,255,.14);
+    --star:#ffc53d;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:14px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+
+  /* ---------- 顶部 ---------- */
+  header{
+    border-bottom:1px solid var(--border-soft);
+    background:linear-gradient(180deg,#141a23 0%,#0d1117 100%);
+    padding:28px 20px 22px;
+  }
+  .wrap{max-width:1120px;margin:0 auto;}
+  h1{
+    margin:0;
+    font-size:24px;
+    letter-spacing:.5px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  h1 .logo{
+    font-size:22px;
+  }
+  h1 .count{
+    font-size:12px;
+    font-weight:400;
+    color:var(--text-dim);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:2px 10px;
+  }
+  .subtitle{
+    margin:8px 0 18px;
+    color:var(--text-dim);
+    font-size:13px;
+  }
+
+  /* ---------- 搜索栏 ---------- */
+  .searchbar{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .search-input-wrap{
+    position:relative;
+    flex:1 1 320px;
+    min-width:220px;
+  }
+  .search-input-wrap .icon{
+    position:absolute;
+    left:12px;
+    top:50%;
+    transform:translateY(-50%);
+    color:var(--text-faint);
+    pointer-events:none;
+    font-size:14px;
+  }
+  #search{
+    width:100%;
+    padding:10px 36px 10px 34px;
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    color:var(--text);
+    font-size:14px;
+    outline:none;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  #search::placeholder{color:var(--text-faint);}
+  #search:focus{
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  #clearSearch{
+    position:absolute;
+    right:8px;
+    top:50%;
+    transform:translateY(-50%);
+    background:none;
+    border:none;
+    color:var(--text-faint);
+    cursor:pointer;
+    font-size:16px;
+    line-height:1;
+    padding:4px 6px;
+    border-radius:6px;
+    display:none;
+  }
+  #clearSearch:hover{color:var(--text);background:var(--border-soft);}
+
+  .toggle-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:10px 16px;
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    color:var(--text-dim);
+    font-size:13px;
+    cursor:pointer;
+    user-select:none;
+    transition:all .15s;
+    white-space:nowrap;
+  }
+  .toggle-btn:hover{border-color:var(--accent);color:var(--text);}
+  .toggle-btn.active{
+    background:rgba(255,197,61,.12);
+    border-color:rgba(255,197,61,.55);
+    color:var(--star);
+  }
+  .toggle-btn .n{
+    font-size:11px;
+    opacity:.8;
+  }
+
+  /* ---------- 标签筛选 ---------- */
+  .tags{
+    margin-top:14px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .tags .label{color:var(--text-faint);font-size:12px;}
+  .tag-chip{
+    padding:3px 11px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:transparent;
+    color:var(--text-dim);
+    font-size:12px;
+    cursor:pointer;
+    transition:all .15s;
+  }
+  .tag-chip:hover{border-color:var(--accent);color:var(--text);}
+  .tag-chip.active{
+    background:var(--accent-soft);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+
+  /* ---------- 主区 ---------- */
+  main{max-width:1120px;margin:0 auto;padding:22px 20px 60px;}
+  .result-bar{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:12px;
+    color:var(--text-faint);
+    font-size:12px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+  }
+  .result-bar b{color:var(--text-dim);font-weight:600;}
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
+    gap:14px;
+  }
+  .card{
+    position:relative;
+    display:block;
+    background:var(--bg-card);
+    border:1px solid var(--border-soft);
+    border-radius:var(--radius);
+    padding:16px 16px 14px;
+    transition:border-color .15s,transform .15s,box-shadow .15s;
+  }
+  .card:hover{
+    border-color:var(--accent);
+    transform:translateY(-2px);
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+    text-decoration:none;
+  }
+  .card-head{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding-right:30px;
+  }
+  .card-icon{font-size:20px;line-height:1.2;flex:0 0 auto;}
+  .card-title{
+    font-size:15px;
+    font-weight:600;
+    color:var(--text);
+    margin:0;
+    word-break:break-word;
+  }
+  .card-desc{
+    margin:8px 0 12px;
+    color:var(--text-dim);
+    font-size:12.5px;
+    min-height:38px;
+  }
+  .card-foot{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .card-tags{display:flex;gap:6px;flex-wrap:wrap;}
+  .mini-tag{
+    font-size:11px;
+    color:var(--text-faint);
+    background:var(--bg-soft);
+    border:1px solid var(--border-soft);
+    border-radius:6px;
+    padding:1px 7px;
+  }
+  .card-file{
+    font-size:11px;
+    color:var(--text-faint);
+    font-family:Consolas,Menlo,monospace;
+    margin-top:10px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .star-btn{
+    position:absolute;
+    top:12px;
+    right:12px;
+    background:none;
+    border:none;
+    cursor:pointer;
+    font-size:17px;
+    line-height:1;
+    padding:4px;
+    border-radius:6px;
+    color:var(--text-faint);
+    transition:transform .12s,color .12s,background .12s;
+  }
+  .star-btn:hover{background:var(--border-soft);transform:scale(1.15);}
+  .star-btn.on{color:var(--star);}
+
+  .empty{
+    text-align:center;
+    padding:70px 20px;
+    color:var(--text-faint);
+    border:1px dashed var(--border);
+    border-radius:var(--radius);
+  }
+  .empty .big{font-size:38px;display:block;margin-bottom:12px;opacity:.6;}
+
+  /* ---------- 页脚 ---------- */
+  footer{
+    border-top:1px solid var(--border-soft);
+    padding:24px 20px 40px;
+    color:var(--text-faint);
+    font-size:12px;
+  }
+  footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  footer code{
+    background:var(--bg-soft);
+    border:1px solid var(--border-soft);
+    border-radius:5px;
+    padding:1px 6px;
+    font-family:Consolas,Menlo,monospace;
+    color:var(--text-dim);
+  }
+  @media (max-width:520px){
+    h1{font-size:20px;}
+    .grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>
+      <span class="logo">🎮</span>
+      <span>游戏开发资源工具集</span>
+      <span class="count" id="totalCount">0 个工具</span>
+    </h1>
+    <p class="subtitle">单文件 Web 工具集合 · 无需安装 · 纯本地运行 · 数据不外传</p>
+
+    <div class="searchbar">
+      <div class="search-input-wrap">
+        <span class="icon">🔍</span>
+        <input id="search" type="search" placeholder="搜索工具名称、描述、标签…（按 / 快速聚焦）" autocomplete="off">
+        <button id="clearSearch" title="清空">✕</button>
+      </div>
+      <button class="toggle-btn" id="favFilter">
+        ⭐ 只看收藏 <span class="n" id="favCount">(0)</span>
+      </button>
+    </div>
+
+    <div class="tags" id="tagBar">
+      <span class="label">标签：</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="result-bar">
+    <span id="resultInfo"></span>
+    <span id="favHint"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none;">
+    <span class="big">🗂️</span>
+    <span id="emptyText">没有匹配的工具</span>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>新增工具：在 <code>tools/</code> 下创建单个 <code>.html</code> 文件，然后把它登记到本页的 <code>TOOLS</code> 列表。</span>
+    <span>收藏状态保存在浏览器本地（localStorage）</span>
+  </div>
+</footer>
+
+<script>
+/* =========================================================================
+ *  工具注册表 —— 新增工具时，只需在数组最前面加一条记录
+ *  字段说明：
+ *    id     : 唯一标识（用于收藏存储，建议与文件名一致，勿随意改动）
+ *    name   : 工具名称
+ *    desc   : 一句话描述（会参与搜索）
+ *    file   : 相对本页的工具文件路径
+ *    icon   : 一个 emoji 图标
+ *    tags   : 标签数组（会参与搜索与标签筛选）
+ * ========================================================================= */
+const TOOLS = [
+  // {
+  //   id: "example-tool",
+  //   name: "示例工具",
+  //   desc: "这里写一句话说明这个工具能做什么。",
+  //   file: "example-tool.html",
+  //   icon: "🧩",
+  //   tags: ["示例"]
+  // },
+];
+
+/* ------------------------- 状态与本地存储 ------------------------- */
+const FAV_KEY = "gdrwt.favorites";
+const state = { keyword: "", tag: "", favOnly: false };
+
+function loadFavs(){
+  try{
+    const raw = localStorage.getItem(FAV_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr : []);
+  }catch(e){ return new Set(); }
+}
+function saveFavs(){
+  try{ localStorage.setItem(FAV_KEY, JSON.stringify([...favs])); }catch(e){}
+}
+let favs = loadFavs();
+
+/* ------------------------- DOM ------------------------- */
+const $grid      = document.getElementById("grid");
+const $search    = document.getElementById("search");
+const $clear     = document.getElementById("clearSearch");
+const $favFilter = document.getElementById("favFilter");
+const $favCount  = document.getElementById("favCount");
+const $tagBar    = document.getElementById("tagBar");
+const $empty     = document.getElementById("empty");
+const $emptyText = document.getElementById("emptyText");
+const $info      = document.getElementById("resultInfo");
+const $total     = document.getElementById("totalCount");
+
+/* ------------------------- 渲染 ------------------------- */
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+function allTags(){
+  const set = new Set();
+  TOOLS.forEach(t => (t.tags || []).forEach(g => set.add(g)));
+  return [...set].sort((a,b) => a.localeCompare(b, "zh-CN"));
+}
+
+function matches(tool){
+  if(state.tag && !(tool.tags || []).includes(state.tag)) return false;
+  if(state.favOnly && !favs.has(tool.id)) return false;
+  if(!state.keyword) return true;
+  const kw = state.keyword.toLowerCase();
+  const hay = [tool.name, tool.desc, tool.file, (tool.tags || []).join(" ")]
+    .join(" ").toLowerCase();
+  return hay.includes(kw);
+}
+
+function renderTagBar(){
+  const tags = allTags();
+  $tagBar.innerHTML = '<span class="label">标签：</span>';
+  if(!tags.length){
+    $tagBar.innerHTML += '<span class="label">暂无</span>';
+    return;
+  }
+  tags.forEach(tag => {
+    const b = document.createElement("button");
+    b.className = "tag-chip" + (state.tag === tag ? " active" : "");
+    b.textContent = tag;
+    b.onclick = () => { state.tag = (state.tag === tag ? "" : tag); render(); };
+    $tagBar.appendChild(b);
+  });
+}
+
+function render(){
+  const list = TOOLS.filter(matches);
+  $grid.innerHTML = "";
+
+  list.forEach(tool => {
+    const a = document.createElement("a");
+    a.className = "card";
+    a.href = tool.file || "#";
+    a.innerHTML = `
+      <div class="card-head">
+        <span class="card-icon">${esc(tool.icon || "🧩")}</span>
+        <div class="card-title">${esc(tool.name)}</div>
+      </div>
+      <p class="card-desc">${esc(tool.desc || "")}</p>
+      <div class="card-foot">
+        <div class="card-tags">${(tool.tags || []).map(t => `<span class="mini-tag">${esc(t)}</span>`).join("")}</div>
+      </div>
+      <div class="card-file">${esc(tool.file || "")}</div>
+    `;
+    const star = document.createElement("button");
+    star.className = "star-btn" + (favs.has(tool.id) ? " on" : "");
+    star.title = favs.has(tool.id) ? "取消收藏" : "加入收藏";
+    star.textContent = favs.has(tool.id) ? "★" : "☆";
+    star.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if(favs.has(tool.id)) favs.delete(tool.id); else favs.add(tool.id);
+      saveFavs();
+      render();
+    };
+    a.appendChild(star);
+    $grid.appendChild(a);
+  });
+
+  $empty.style.display = list.length ? "none" : "block";
+  if(!list.length){
+    if(!TOOLS.length){
+      $emptyText.textContent = "还没有登记任何工具，按 tools_index.html 中的注释模板添加第一条吧。";
+    }else if(state.favOnly && !favs.size){
+      $emptyText.textContent = "还没有收藏任何工具，点击卡片右上角的 ☆ 即可收藏。";
+    }else{
+      $emptyText.textContent = "没有匹配的工具，试试换个关键词。";
+    }
+  }
+
+  $total.textContent = TOOLS.length + " 个工具";
+  $favCount.textContent = "(" + favs.size + ")";
+  $favFilter.classList.toggle("active", state.favOnly);
+  $clear.style.display = state.keyword ? "block" : "none";
+  $info.innerHTML = state.keyword || state.tag || state.favOnly
+    ? `找到 <b>${list.length}</b> 个工具`
+    : "";
+  renderTagBar();
+}
+
+/* ------------------------- 事件 ------------------------- */
+$search.addEventListener("input", () => { state.keyword = $search.value.trim(); render(); });
+$clear.addEventListener("click", () => { $search.value = ""; state.keyword = ""; $search.focus(); render(); });
+$favFilter.addEventListener("click", () => { state.favOnly = !state.favOnly; render(); });
+
+document.addEventListener("keydown", (e) => {
+  if(e.key === "/" && document.activeElement !== $search){
+    e.preventDefault();
+    $search.focus();
+  }
+  if(e.key === "Escape" && document.activeElement === $search){
+    $search.value = ""; state.keyword = ""; $search.blur(); render();
+  }
+});
+
+render();
+</script>
+</body>
+</html>
