@@ -2,7 +2,7 @@
 
 面向游戏开发者的**单文件 Web 工具集合**。所有工具都是独立的 `.html` 文件，双击即可在浏览器中运行，无需安装、无需构建、无需后端服务，处理过程全部在本地完成。
 
-> 在线索引页：[`tools/tools_index.html`](tools/tools_index.html)
+> 在线索引页：[`tools/tools_index.html`](https://anseyuyin.github.io/game-dev-res-web-tools/tools/tools_index.html)
 
 ---
 
