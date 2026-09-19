@@ -56,8 +56,7 @@ game-dev-res-web-tools/
 │  └─ 开发规范.md                 # 新增工具的开发规范与步骤
 └─ tools/                        # 所有工具（每个工具一个 .html）
    ├─ tools_index.html           # 工具索引页（搜索 + 收藏筛选）
-   ├─ _template.html             # 新工具模板（以 _ 开头，不在索引中登记）
-   └─ <your-tool>.html           # 你的工具
+   └─ <your-tool>.html           # 你的工具（以 _ 开头的文件不登记进索引）
 ```
 
 ---
@@ -66,13 +65,19 @@ game-dev-res-web-tools/
 
 工具清单维护在 [docs/工具索引.md](docs/工具索引.md) 中，与索引页的 `TOOLS` 数组保持一致。
 
-当前工具数量：**0**（等待第一个工具加入 👏）
+当前工具数量：**1**
+
+| 工具 | 说明 | 标签 |
+| --- | --- | --- |
+| 🎬 [绿幕动作视频 → 序列帧图集](tools/video_to_sequence_frame_tool.html) | 把游戏单位的绿幕动作视频抽帧、抠像、裁剪，导出带 Alpha 的序列帧 PNG 或单张图集，并可在页面内试播动作 | `视频` `序列帧` `抠像` `图集` |
+
+详细用法、工作流与限制见 [docs/工具索引.md](docs/工具索引.md)。
 
 ---
 
 ## ➕ 新增一个工具
 
-1. 复制 `tools/_template.html`，重命名为语义化的名字，例如 `tools/texture-atlas-packer.html`。
+1. 在 `tools/` 下新建语义化的文件，例如 `tools/texture-atlas-packer.html`；样式与交互可参考已有的 `tools/video_to_sequence_frame_tool.html`。
 2. 在文件内实现你的功能：CSS / JS / 图标全部内联，不要引用外部资源。
 3. 打开 `tools/tools_index.html`，在脚本顶部的 `TOOLS` 数组中追加一条记录：
 
@@ -87,7 +92,7 @@ game-dev-res-web-tools/
 }
 ```
 
-4. 在 [docs/工具索引.md](docs/工具索引.md) 中补上同一条说明。
+4. 在 [docs/工具索引.md](docs/工具索引.md) 的清单表格与详情小节中补上这个工具。
 5. 提交：`git add . && git commit -m "feat: 新增纹理图集打包器"`。
 
 详细规范见 [docs/开发规范.md](docs/开发规范.md)。
@@ -100,7 +105,7 @@ game-dev-res-web-tools/
 2. **零依赖**：不引入外部库、CDN、构建工具；不产生 `node_modules`。
 3. **本地优先**：不上传、不联网、不追踪，用户数据只留在本机。
 4. **索引统一**：[`tools/tools_index.html`](tools/tools_index.html) 是所有工具的唯一入口，新增工具必须登记。
-5. **命名清晰**：文件名与 `id` 使用 kebab-case，例如 `sprite-sheet-slicer.html`。
+5. **命名清晰**：新文件名与 `id` 使用 kebab-case，例如 `sprite-sheet-slicer.html`（早期已有的 `video_to_sequence_frame_tool.html` 保留原名，见[开发规范](docs/开发规范.md)）。
 
 ---
 
