@@ -52,8 +52,11 @@ game-dev-res-web-tools/
 ├─ LICENSE                       # 开源协议
 ├─ .gitignore
 ├─ docs/                         # 中文文档
-│  ├─ 工具索引.md                 # 全部工具清单与说明
-│  └─ 开发规范.md                 # 新增工具的开发规范与步骤
+│  ├─ 工具索引.md                 # 全部工具清单（一览表 + 标签分类 + 登记流程）
+│  ├─ 开发规范.md                 # 新增工具的开发规范与步骤
+│  └─ tools/                     # 每个工具一份详细文档，文件名 = 索引 id
+│     ├─ spine-previewer.md
+│     └─ video_to_sequence_frame_tool.md
 └─ tools/                        # 所有工具（每个工具一个 .html）
    ├─ tools_index.html           # 工具索引页（搜索 + 收藏筛选）
    └─ <your-tool>.html           # 你的工具（以 _ 开头的文件不登记进索引）
@@ -63,7 +66,7 @@ game-dev-res-web-tools/
 
 ## 🧩 现有工具
 
-工具清单维护在 [docs/工具索引.md](docs/工具索引.md) 中，与索引页的 `TOOLS` 数组保持一致。
+工具清单维护在 [docs/工具索引.md](docs/工具索引.md) 中，与索引页的 `TOOLS` 数组保持一致；每个工具的详细说明（功能、工作流、限制、快捷键）各自成文，放在 [`docs/tools/`](docs/tools/) 下。
 
 当前工具数量：**2**
 
@@ -72,7 +75,7 @@ game-dev-res-web-tools/
 | 🦴 [Spine 动画预览与调试器](tools/spine-previewer.html) | 绑定本地目录后扫描其中全部 Spine 资源（JSON / 二进制 + 图集 + 贴图），双击加载预览；滚轮缩放、播放 / 暂停 / 时间轴停留、部件层级 / 网格 / 骨骼显示与拖拽调试，WebGL2 渲染 | `Spine` `动画` `骨骼` `预览` `调试` |
 | 🎬 [绿幕动作视频 → 序列帧图集](tools/video_to_sequence_frame_tool.html) | 把游戏单位的绿幕动作视频抽帧、抠像、裁剪，导出带 Alpha 的序列帧 PNG 或单张图集，并可在页面内试播动作 | `视频` `序列帧` `抠像` `图集` |
 
-详细用法、工作流与限制见 [docs/工具索引.md](docs/工具索引.md)。
+详细用法、工作流与限制各自见对应文档：[Spine 动画预览与调试器](docs/tools/spine-previewer.md)、[绿幕动作视频 → 序列帧图集](docs/tools/video_to_sequence_frame_tool.md)。
 
 ---
 
@@ -93,7 +96,7 @@ game-dev-res-web-tools/
 }
 ```
 
-4. 在 [docs/工具索引.md](docs/工具索引.md) 的清单表格与详情小节中补上这个工具。
+4. 新建该工具自己的详细文档 `docs/tools/<id>.md`（文件名与 `id` 一致），并在 [docs/工具索引.md](docs/工具索引.md) 的「工具清单」表格补一行、把该文档链接进去。
 5. 提交：`git add . && git commit -m "feat: 新增纹理图集打包器"`。
 
 详细规范见 [docs/开发规范.md](docs/开发规范.md)。

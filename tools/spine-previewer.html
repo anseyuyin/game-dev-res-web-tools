@@ -127,6 +127,11 @@
   .resRow .bdg.err{color:var(--err);border-color:#5a1f1c;}
   .resRow .load{opacity:0;flex:0 0 auto;}
   .resRow:hover .load{opacity:1;}
+  .resRow select.atlasPick{
+    flex:0 0 auto;max-width:104px;font-size:10.5px;padding:0 2px;border-radius:5px;
+    background:#11151b;border:1px solid var(--border-soft);color:var(--text-faint);
+  }
+  .resRow select.atlasPick:hover{color:var(--text-dim);border-color:var(--accent);}
 
   /* ---------------- 骨骼树 / 部件表 ---------------- */
   .treeScroll{max-height:30vh;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;background:#11151b;}
@@ -262,7 +267,7 @@
         </div>
         <input type="text" id="resSearch" placeholder="按名称 / 路径过滤资源…（/ 聚焦）" autocomplete="off">
         <div class="row wrap" style="gap:6px;">
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkOnlySkel" checked> 仅可用资源</label>
+          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkOnlySkel" checked> 仅可用资源（图集/贴图齐全）</label>
           <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkGroupFolder" checked=""> 按文件夹分组</label>
         </div>
         <div id="resList"></div>
@@ -454,7 +459,10 @@
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>点「📁 选择文件夹」授权一个目录，工具会<b>递归扫描</b>其中所有 Spine 资源并列举在左侧。</li>
         <li><b>双击</b>列表项：先清理当前预览（释放纹理与显存），再加载该资源。</li>
-        <li>资源识别规则：骨架文件（<code class="inl">.json</code> / <code class="inl">.skel</code> / <code class="inl">.skel.bytes</code> / <code class="inl">.bytes</code>）＋ 同名或同目录的 <code class="inl">.atlas</code> 图集（及图集里的贴图）＝ 一个资源。缺少图集时会标红提示。</li>
+        <li>资源识别规则：骨架文件（<code class="inl">.json</code> / <code class="inl">.skel</code> / <code class="inl">.skel.bytes</code> / <code class="inl">.bytes</code>）＋ 图集（<code class="inl">.atlas</code>，及图集里的贴图）＝ 一个资源。</li>
+        <li>骨架与图集<b>不同名也能配对</b>：先找同目录同名图集，再按名称打分（如 <code class="inl">hero-ess.json</code> ↔ <code class="inl">hero.atlas</code>、<code class="inl">1-weight-and-mass-balls-ess.json</code> ↔ <code class="inl">1-weight-and-mass.atlas</code>），必要时用「图集区域名是否出现在骨架里」交叉核对；自动配对的资源会标「图集推断」。缺图集 / 缺贴图的资源仍会列出并标红，取消勾选「仅可用资源」即可看到。</li>
+        <li>同目录有多个图集时，资源行右侧会出现<b>图集下拉框</b>，可手动指定用哪个图集（切换后立即重新配对并重载预览）。</li>
+        <li>二进制 <code class="inl">.skel</code> 的版本在扫描时就会读取：本工具不支持的版本（如 4.3）会直接打红标并提示改用同名 JSON，而不是点开才报错。</li>
         <li>也可以直接拖入文件：骨架 + 图集 + 贴图一起拖入时按名字自动配对。</li>
         <li>Chrome / Edge 之外的浏览器（或不支持文件夹选择器时）可用「📂 兼容选择」（<code class="inl">webkitdirectory</code>）。</li>
       </ul>
@@ -487,10 +495,12 @@
       </div>
       <div><b>5. 兼容性与限制</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
-        <li>JSON 导出支持 Spine <b>3.8 / 4.0 / 4.1 / 4.2</b>；二进制 <code class="inl">.skel</code> 的 <b>4.0 / 4.1 完整支持</b>，4.2 / 3.8 部分支持（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
-        <li>物理约束（4.2 <code class="inl">physics</code>）暂不模拟，相关骨骼会保持动画本身的结果。</li>
+        <li>JSON 导出支持 Spine <b>3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组与变换约束的 <code class="inl">properties</code> 属性映射，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>4.0 / 4.1 完整支持</b>，4.2 / 3.8 部分支持，<b>4.3 的二进制字节布局有变，请改用同名 JSON 导出</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
+        <li>骨骼 <code class="inl">rotate</code> / <code class="inl">translate</code> / <code class="inl">shear</code> 关键帧是<b>相对 setup 的增量</b>、<code class="inl">scale</code> 是<b>相对 setup 的乘数</b>（与官方一致）；关键帧没写 <code class="inl">x</code> / <code class="inl">y</code> 时按增量 0 处理。</li>
+        <li>物理约束（<code class="inl">physics</code>）暂不模拟，相关骨骼会保持动画本身的结果。</li>
+        <li>变换约束在源骨骼带剪切（shear）时、以及路径约束 / 长 IK 链上，可能与官方运行时存在可见差异（官方 <code class="inl">*-pro</code> 样例中的 eye-stalk、vine、celestial-circus 等）。</li>
         <li>需要 <code class="inl">file://</code> 或 <code class="inl">http://</code> 打开；不支持文件夹选择器时用兼容选择。</li>
-        <li>直接用 <code class="inl">?asset=</code> 参数可在 http 环境下直链加载某个骨架（自动找同名 .atlas）。</li>
+        <li>直接用 <code class="inl">?asset=</code> 参数可在 http 环境下直链加载某个骨架（自动按名称逐个尝试 .atlas 候选名，可用 <code class="inl">&amp;atlas=</code> 指定）。</li>
       </ul>
     </div>
     <div class="foot"><button class="btn" id="btnHelpClose">知道了</button></div>
@@ -1085,6 +1095,13 @@ SP.data = (() => {
     }
   }
 
+  /**
+   * 骨骼时间轴的取值语义（4.x 官方定义，见 spine-ts Animation.ts）：
+   *   - rotate / translate / shear：关键帧里存的是「相对 setup 的增量」，实际值 = setup + 关键帧值；
+   *   - scale：存的是「相对 setup 的乘数」，实际值 = 关键帧值 * setup；
+   *   - 混合（blend，用于多动画混合）时按 `current += (实际值 - current) * alpha` 收敛。
+   * 直接把关键帧值当成绝对值会让所有骨骼/缩放回落到 0 或 1，整只骨架向原点塌陷（“人物折叠”）。
+   */
   class RotateTimeline extends CurveTimeline {
     constructor(frameCount, bezierCount) { super(frameCount, bezierCount, 1); this.boneIndex = 0; }
     apply(skeleton, lastTime, time, events, alpha, blend) {
@@ -1096,7 +1113,8 @@ SP.data = (() => {
         else bone.rotation = bone.data.rotation;
         return;
       }
-      const r = this.getValue(time, 0);
+      // 官方 getRelativeValue：setup + 关键帧值
+      const r = bone.data.rotation + this.getValue(time, 0);
       if (blend) bone.rotation += (r - bone.rotation) * alpha;
       else bone.rotation = r;
     }
@@ -1115,7 +1133,8 @@ SP.data = (() => {
         } else { bone.x = bone.data.x; bone.y = bone.data.y; }
         return;
       }
-      const x = this.getValue(time, 0), y = this.getValue(time, 1);
+      // 关键帧里没有 x / y 时按增量 0 处理，即回到 setup 值
+      const x = bone.data.x + this.getValue(time, 0), y = bone.data.y + this.getValue(time, 1);
       if (blend) {
         bone.x += (x - bone.x) * alpha;
         bone.y += (y - bone.y) * alpha;
@@ -1136,7 +1155,8 @@ SP.data = (() => {
         } else { bone.scaleX = bone.data.scaleX; bone.scaleY = bone.data.scaleY; }
         return;
       }
-      const x = this.getValue(time, 0), y = this.getValue(time, 1);
+      // 官方 getScaleValue：关键帧值 * setup
+      const x = this.getValue(time, 0) * bone.data.scaleX, y = this.getValue(time, 1) * bone.data.scaleY;
       if (blend) {
         bone.scaleX += (x - bone.scaleX) * alpha;
         bone.scaleY += (y - bone.scaleY) * alpha;
@@ -1157,7 +1177,7 @@ SP.data = (() => {
         } else { bone.shearX = bone.data.shearX; bone.shearY = bone.data.shearY; }
         return;
       }
-      const x = this.getValue(time, 0), y = this.getValue(time, 1);
+      const x = bone.data.shearX + this.getValue(time, 0), y = bone.data.shearY + this.getValue(time, 1);
       if (blend) {
         bone.shearX += (x - bone.shearX) * alpha;
         bone.shearY += (y - bone.shearY) * alpha;
@@ -1818,6 +1838,115 @@ SP.atlas = (() => {
 
   return { parse, Atlas, AtlasPage, AtlasRegion, normFilter };
 })();
+/* =========================================================================
+ * 模块 2.5 · 资源配对（骨架文件名 ↔ 图集文件名）
+ * 命名空间：SP.match
+ *
+ * 背景：Spine 导出时骨架名与图集名**经常不同名**——
+ *   hero-pro.json / hero-ess.json / hero-pma.json  ⟷  hero.atlas / hero-pma.atlas
+ *  1-weight-and-mass-balls-ess.json              ⟷  1-weight-and-mass.atlas
+ * 只做「同名匹配」会让整个目录一个可用资源都配不出来，列表被「仅可用资源」
+ * 过滤成空，表现成「目录里明明有资源却扫描不出来」。
+ *
+ * 本模块只做纯字符串打分：不读文件、不依赖 DOM，可单独验证。
+ * ========================================================================= */
+SP.match = (() => {
+  // 导出变体标记：出现在文件名里但不代表资源身份（去掉后才是「核心名」）
+  const VARIANT_TOKENS = new Set([
+    "pro", "ess", "essential", "essentials", "premium", "trial", "demo",
+    "pma", "pm", "premultiplied", "premultiply", "straight", "straightalpha",
+    "skel", "skelbytes", "json", "bin", "bytes", "txt", "atlas", "texture", "tex",
+    "run", "idle", "default", "export", "hd", "sd", "1x", "2x", "3x", "4x", "x2",
+  ]);
+  // 与「预乘 alpha」有关的标记：两边不一致时说明多半不是同一个资源
+  const ALPHA_TOKENS = new Set(["pma", "pm", "premultiplied", "premultiply", "straight", "straightalpha"]);
+
+  const EXTS = [
+    ".skel.json", ".skel.bytes", ".atlas.txt", ".atlas", ".json", ".skel", ".bytes", ".bin", ".txt",
+    ".png", ".jpg", ".jpeg", ".webp", ".avif", ".gif",
+  ];
+
+  /** 去掉已知扩展名（.atlas.txt / .skel.bytes 这类双扩展名优先） */
+  function baseName(name) {
+    const s = String(name === null || name === undefined ? "" : name);
+    const lower = s.toLowerCase();
+    for (const e of EXTS) if (lower.endsWith(e)) return s.slice(0, s.length - e.length);
+    const i = s.lastIndexOf(".");
+    return i > 0 ? s.slice(0, i) : s;
+  }
+
+  /** 拆成小写词元（- _ . 空格 以及中文之外的符号都作分隔） */
+  function tokens(name) {
+    return baseName(name).toLowerCase().split(/[^0-9a-z\u4e00-\u9fa5]+/).filter(Boolean);
+  }
+
+  function coreTokens(tok) { return tok.filter((t) => !VARIANT_TOKENS.has(t)); }
+
+  /**
+   * 骨架名 ↔ 图集名的匹配分：
+   *   -1   = 不像同一个资源
+   *   100  = 去掉 pro/ess/pma 等标记后核心名完全一致
+   *   0~99 = 前缀 / 共同前缀关系，分越高越可信
+   */
+  function score(skeletonName, atlasName) {
+    const sTok = tokens(skeletonName), aTok = tokens(atlasName);
+    if (!sTok.length || !aTok.length) return -1;
+    const sCore = coreTokens(sTok), aCore = coreTokens(aTok);
+    if (!sCore.length || !aCore.length) return -1;
+    const s = sCore.join("-"), a = aCore.join("-");
+    let sc;
+    if (s === a) {
+      sc = 100;
+    } else if (s.startsWith(a + "-") || a.startsWith(s + "-")) {
+      // 一个是另一个的前缀：多出来的段落越多越不可信
+      // （1-weight-and-mass-balls-ess.json ↔ 1-weight-and-mass.atlas 走这条）
+      sc = 62 - Math.min(40, Math.abs(s.length - a.length));
+    } else {
+      let common = 0;
+      while (common < sCore.length && common < aCore.length && sCore[common] === aCore[common]) common++;
+      if (!common) return -1;
+      sc = 20 + common * 6 - Math.abs(sCore.length - aCore.length) * 5;
+    }
+    if (sc <= 0) return -1;
+    for (const t of aTok) {
+      if (!VARIANT_TOKENS.has(t)) continue;
+      if (sTok.indexOf(t) >= 0) sc += 8;                    // 两边都带 -pma → 更可信
+      else if (ALPHA_TOKENS.has(t)) sc -= 16;               // 图集是 pma、骨架不是 → 明显不是它
+    }
+    for (const t of sTok) {
+      if (ALPHA_TOKENS.has(t) && aTok.indexOf(t) < 0) sc -= 6; // 骨架是 pma、图集没标 → 略降权
+    }
+    return sc;
+  }
+
+  /** 给一组候选图集名打分并降序排序（score <= 0 的不返回） */
+  function rank(skeletonName, atlasNames) {
+    const out = [];
+    for (let i = 0; i < atlasNames.length; i++) {
+      const sc = score(skeletonName, atlasNames[i]);
+      if (sc > 0) out.push({ index: i, name: atlasNames[i], score: sc });
+    }
+    out.sort((x, y) => y.score - x.score || x.index - y.index);
+    return out;
+  }
+
+  /**
+   * 由骨架文件名推出「可能的图集基名」，按可信度降序（用于 ?asset= 直链加载，
+   * 那条路径没法列举目录，只能猜名字）。
+   *   hero-balls-ess.json → hero-balls-ess, hero-balls, hero, hero-balls-ess… 去重排序
+   */
+  function atlasBaseCandidates(skeletonName) {
+    const tok = tokens(skeletonName);
+    const names = [];
+    for (let n = tok.length; n >= 1; n--) {
+      const nm = tok.slice(0, n).join("-");
+      if (names.indexOf(nm) < 0) names.push(nm);
+    }
+    return names.sort((x, y) => (score(skeletonName, y) - score(skeletonName, x)) || (y.length - x.length));
+  }
+
+  return { VARIANT_TOKENS, ALPHA_TOKENS, baseName, tokens, coreTokens, score, rank, atlasBaseCandidates };
+})();
 /* ==== json parser begin ==== */
 /* =========================================================================
  * 模块 3 · Spine JSON 骨架解析器
@@ -1974,13 +2103,14 @@ SP.json = (() => {
       if (this.boneIndex !== undefined && this.boneIndex >= 0) {
         const bone = skeleton.bones[this.boneIndex];
         if (!bone) return;
+        // 与 4.x 官方一致：x/y/shear 是相对 setup 的增量，scale 是相对 setup 的乘数
         switch (p) {
-          case "translatex": bone.x = v; break;
-          case "translatey": bone.y = v; break;
-          case "scalex": bone.scaleX = v; break;
-          case "scaley": bone.scaleY = v; break;
-          case "shearx": bone.shearX = v; break;
-          case "sheary": bone.shearY = v; break;
+          case "translatex": bone.x = bone.data.x + v; break;
+          case "translatey": bone.y = bone.data.y + v; break;
+          case "scalex": bone.scaleX = v * bone.data.scaleX; break;
+          case "scaley": bone.scaleY = v * bone.data.scaleY; break;
+          case "shearx": bone.shearX = bone.data.shearX + v; break;
+          case "sheary": bone.shearY = bone.data.shearY + v; break;
           case "inherit": bone.transformMode = Math.max(0, Math.min(4, Math.round(v))); break;
           default: break;
         }
@@ -2459,7 +2589,15 @@ SP.json = (() => {
       warn("骨架缺少 skeleton.spine 版本号，按 4.1 解析");
       version = { major: 4, minor: 1, patch: 0, key: "4.1" };
     } else if (SUPPORTED.indexOf(version.key) < 0) {
-      throw new Error(`不支持的 Spine 版本 "${rawVersion}"，本工具支持 3.8 / 4.0 / 4.1 / 4.2`);
+      if (version.major === 4 && version.minor >= 3 && version.minor <= 9) {
+        // 4.3+ 的 JSON 结构仍是 4.2 的超集（实测官方 4.3 示例逐字段解析通过），
+        // 统一 constraints 数组、source/slot 字段名、transform 的 properties 映射
+        // 与 IK 的 scaleYMode 都已单独支持，其余按 4.2 规则解析，遇到新字段只警告不报错。
+        warn(`Spine ${rawVersion} 的 JSON 按 4.3 兼容规则解析（统一 constraints / 属性映射 / scaleYMode 已支持）；若发现异常请反馈该资源`);
+        version = { major: 4, minor: 2, patch: 0, key: "4.2" };
+      } else {
+        throw new Error(`不支持的 Spine 版本 "${rawVersion}"，本工具支持 3.8 / 4.0 / 4.1 / 4.2 / 4.3`);
+      }
     }
 
     const sd = new D.SkeletonData();
@@ -2526,11 +2664,15 @@ SP.json = (() => {
     }
 
     // ---- 约束（只存名字 + 参数，运行时再解析骨骼/插槽对象） ----
+    //    ≤ 4.2：ik / transform / path / physics 四个平铺数组
+    //    4.3+ ：统一的 constraints 数组（每项带 type）
     const ikMap = new Map(), transformMap = new Map(), pathMap = new Map(), physicsMap = new Map();
+    const constraintMaps = { ik: ikMap, transform: transformMap, path: pathMap, physics: physicsMap };
     readIkConstraints(root, sd, ikMap);
     readTransformConstraints(root, sd, transformMap);
     readPathConstraints(root, sd, pathMap);
     readPhysicsConstraints(root, sd, physicsMap);
+    readConstraintsArray(root, sd, constraintMaps);
 
     // ---- 皮肤 ----
     const skinsRoot = getv(root, "skins", null);
@@ -2601,137 +2743,217 @@ SP.json = (() => {
     return out;
   }
 
+  function readIkConstraint(m, sd, map) {
+    if (!m || typeof m.name !== "string") { warn("IK 约束缺少 name，已跳过"); return null; }
+    if (map && map.has(m.name)) return null;
+    const c = new D.IkConstraintData(m.name);
+    c.order = getNum(m, "order", 0);
+    c.skinRequired = bool(getv(m, "skin", false));
+    c.boneNames = constraintBones(sd, m.bones, `IK 约束 "${m.name}"`);
+    c.targetName = typeof m.target === "string" ? m.target : null;
+    if (c.targetName && !sd.findBone(c.targetName)) warn(`IK 约束 "${m.name}" 的目标骨骼 "${c.targetName}" 不存在`);
+    c.mix = getNum(m, "mix", 1);
+    c.softness = getNum(m, "softness", 0);
+    c.bendDirection = bool(getv(m, "bendPositive", true), true) ? 1 : -1;
+    c.compress = bool(getv(m, "compress", false));
+    c.stretch = bool(getv(m, "stretch", false));
+    // 4.3 把 3.8/4.0 的 uniform 换成了 scaleYMode；本运行时的 IK 只区分「是否统一缩放」
+    const scaleYMode = getv(m, "scaleYMode", null);
+    c.uniform = scaleYMode == null
+      ? bool(getv(m, "uniform", false))
+      : String(scaleYMode).toLowerCase() === "uniform";
+    sd.ikConstraints.push(c);
+    if (map) map.set(c.name, c);
+    return c;
+  }
+
   function readIkConstraints(root, sd, map) {
     const list = getv(root, "ik", null);
     if (!Array.isArray(list)) return;
-    for (const m of list) {
-      if (!m || typeof m.name !== "string") { warn("IK 约束缺少 name，已跳过"); continue; }
-      const c = new D.IkConstraintData(m.name);
-      c.order = getNum(m, "order", 0);
-      c.skinRequired = bool(getv(m, "skin", false));
-      c.boneNames = constraintBones(sd, m.bones, `IK 约束 "${m.name}"`);
-      c.targetName = typeof m.target === "string" ? m.target : null;
-      if (c.targetName && !sd.findBone(c.targetName)) warn(`IK 约束 "${m.name}" 的目标骨骼 "${c.targetName}" 不存在`);
-      c.mix = getNum(m, "mix", 1);
-      c.softness = getNum(m, "softness", 0);
-      c.bendDirection = bool(getv(m, "bendPositive", true), true) ? 1 : -1;
-      c.compress = bool(getv(m, "compress", false));
-      c.stretch = bool(getv(m, "stretch", false));
-      c.uniform = bool(getv(m, "uniform", false));
-      sd.ikConstraints.push(c);
-      map.set(c.name, c);
+    for (const m of list) readIkConstraint(m, sd, map);
+  }
+
+  function readTransformConstraint(m, sd, map) {
+    if (!m || typeof m.name !== "string") { warn("变换约束缺少 name，已跳过"); return null; }
+    if (map && map.has(m.name)) return null;
+    const c = new D.TransformConstraintData(m.name);
+    c.order = getNum(m, "order", 0);
+    c.skinRequired = bool(getv(m, "skin", false));
+    c.boneNames = constraintBones(sd, m.bones, `变换约束 "${m.name}"`);
+    c.targetName = typeof m.source === "string" ? m.source
+      : (typeof m.target === "string" ? m.target : null);   // 4.0/4.1 用 target，4.3 用 source
+    if (c.targetName && !sd.findBone(c.targetName)) warn(`变换约束 "${m.name}" 的目标骨骼 "${c.targetName}" 不存在`);
+    c.local = bool(getv(m, "local", false));
+    c.relative = bool(getv(m, "relative", false));
+    c.offsetRotation = getNum(m, "rotation", 0);
+    c.offsetX = getNum(m, "x", 0);
+    c.offsetY = getNum(m, "y", 0);
+    c.offsetScaleX = getNum(m, "scaleX", 0);
+    c.offsetScaleY = getNum(m, "scaleY", 0);
+    c.offsetShearY = getNum(m, "shearY", 0);
+    c.localSource = bool(getv(m, "localSource", false));
+    c.localTarget = bool(getv(m, "localTarget", c.local));
+    c.additive = bool(getv(m, "additive", false));
+    c.clamp = bool(getv(m, "clamp", false));
+    // 4.3 的属性映射表：properties.<源属性>.to.<目标属性> = {offset, max, scale}
+    c.properties = readTransformConstraintProperties(m);
+    if (hasOwn(m, "mixRotate") || hasOwn(m, "mixX")) {
+      // 4.0+
+      c.mixRotate = getNum(m, "mixRotate", 1);
+      c.mixX = getNum(m, "mixX", 1);
+      c.mixY = getNum(m, "mixY", c.mixX);
+      c.mixScaleX = getNum(m, "mixScaleX", 1);
+      c.mixScaleY = getNum(m, "mixScaleY", c.mixScaleX);
+      c.mixShearY = getNum(m, "mixShearY", 1);
+    } else {
+      // 3.8：rotateMix / translateMix / scaleMix / shearMix
+      //      → mixRotate=rotateMix，mixX=mixY=translateMix，mixScaleX=mixScaleY=scaleMix，mixShearY=shearMix
+      c.mixRotate = getNum(m, "rotateMix", 1);
+      c.mixX = c.mixY = getNum(m, "translateMix", 1);
+      c.mixScaleX = c.mixScaleY = getNum(m, "scaleMix", 1);
+      c.mixShearY = getNum(m, "shearMix", 1);
     }
+    sd.transformConstraints.push(c);
+    if (map) map.set(c.name, c);
+    return c;
+  }
+
+  /**
+   * 4.3 的变换约束用 properties 描述「源属性 → 目标属性」的映射：
+   *   properties: { x: { offset: 0, to: { x: { max: 100, scale: 100 } } }, ... }
+   * 映射的换算关系与官方 SkeletonJson 一致：
+   *   目标值 = to.offset + (源值 + from.offset) * to.scale
+   * 未声明 properties 的旧格式（4.2 及更早）没有该结构，返回 null 表示走经典语义。
+   */
+  function readTransformConstraintProperties(m) {
+    const props = getv(m, "properties", null);
+    if (!props || typeof props !== "object" || Array.isArray(props)) return null;
+    const out = [];
+    for (const fromName in props) {
+      const fromEntry = props[fromName] || {};
+      const toMap = getv(fromEntry, "to", null);
+      if (!toMap || typeof toMap !== "object") continue;
+      const to = [];
+      for (const toName in toMap) {
+        const e = toMap[toName] || {};
+        to.push({
+          property: toName,
+          offset: getNum(e, "offset", 0),
+          max: getNum(e, "max", 1),
+          scale: getNum(e, "scale", 1),
+        });
+      }
+      if (to.length) out.push({ property: fromName, offset: getNum(fromEntry, "offset", 0), to: to });
+    }
+    return out.length ? out : null;
   }
 
   function readTransformConstraints(root, sd, map) {
     const list = getv(root, "transform", null);
     if (!Array.isArray(list)) return;
-    for (const m of list) {
-      if (!m || typeof m.name !== "string") { warn("变换约束缺少 name，已跳过"); continue; }
-      const c = new D.TransformConstraintData(m.name);
-      c.order = getNum(m, "order", 0);
-      c.skinRequired = bool(getv(m, "skin", false));
-      c.boneNames = constraintBones(sd, m.bones, `变换约束 "${m.name}"`);
-      c.targetName = typeof m.target === "string" ? m.target : null;
-      if (c.targetName && !sd.findBone(c.targetName)) warn(`变换约束 "${m.name}" 的目标骨骼 "${c.targetName}" 不存在`);
-      c.local = bool(getv(m, "local", false));
-      c.relative = bool(getv(m, "relative", false));
-      c.offsetRotation = getNum(m, "rotation", 0);
-      c.offsetX = getNum(m, "x", 0);
-      c.offsetY = getNum(m, "y", 0);
-      c.offsetScaleX = getNum(m, "scaleX", 0);
-      c.offsetScaleY = getNum(m, "scaleY", 0);
-      c.offsetShearY = getNum(m, "shearY", 0);
-      if (hasOwn(m, "mixRotate") || hasOwn(m, "mixX")) {
-        // 4.0+
-        c.mixRotate = getNum(m, "mixRotate", 1);
-        c.mixX = getNum(m, "mixX", 1);
-        c.mixY = getNum(m, "mixY", c.mixX);
-        c.mixScaleX = getNum(m, "mixScaleX", 1);
-        c.mixScaleY = getNum(m, "mixScaleY", c.mixScaleX);
-        c.mixShearY = getNum(m, "mixShearY", 1);
-      } else {
-        // 3.8：rotateMix / translateMix / scaleMix / shearMix
-        //      → mixRotate=rotateMix，mixX=mixY=translateMix，mixScaleX=mixScaleY=scaleMix，mixShearY=shearMix
-        c.mixRotate = getNum(m, "rotateMix", 1);
-        c.mixX = c.mixY = getNum(m, "translateMix", 1);
-        c.mixScaleX = c.mixScaleY = getNum(m, "scaleMix", 1);
-        c.mixShearY = getNum(m, "shearMix", 1);
-      }
-      sd.transformConstraints.push(c);
-      map.set(c.name, c);
+    for (const m of list) readTransformConstraint(m, sd, map);
+  }
+
+  function readPathConstraint(m, sd, map) {
+    if (!m || typeof m.name !== "string") { warn("路径约束缺少 name，已跳过"); return null; }
+    if (map && map.has(m.name)) return null;
+    const positionName = { fixed: D.PositionMode.Fixed, percent: D.PositionMode.Percent };
+    const spacingName = { length: D.SpacingMode.Length, fixed: D.SpacingMode.Fixed, percent: D.SpacingMode.Percent, proportional: D.SpacingMode.Proportional };
+    const rotateName = { tangent: D.RotateMode.Tangent, chain: D.RotateMode.Chain, chainscale: D.RotateMode.ChainScale };
+    const c = new D.PathConstraintData(m.name);
+    c.order = getNum(m, "order", 0);
+    c.skinRequired = bool(getv(m, "skin", false));
+    c.boneNames = constraintBones(sd, m.bones, `路径约束 "${m.name}"`);
+    // 4.0/4.1 用 target，4.3 用 slot
+    const target = getv(m, "slot", getv(m, "target", null));
+    c.targetName = typeof target === "string" ? target : null;
+    if (c.targetName && !sd.findSlot(c.targetName)) warn(`路径约束 "${m.name}" 的目标插槽 "${c.targetName}" 不存在`);
+    const pm = String(getv(m, "positionMode", "percent")).toLowerCase();
+    const sm = String(getv(m, "spacingMode", "length")).toLowerCase();
+    const rm = String(getv(m, "rotateMode", "tangent")).toLowerCase();
+    c.positionMode = positionName[pm] === undefined ? D.PositionMode.Percent : positionName[pm];
+    c.spacingMode = spacingName[sm] === undefined ? D.SpacingMode.Length : spacingName[sm];
+    c.rotateMode = rotateName[rm] === undefined ? D.RotateMode.Tangent : rotateName[rm];
+    c.offsetRotation = getNum(m, "rotation", 0);
+    c.position = getNum(m, "position", 0);
+    c.spacing = getNum(m, "spacing", 0);
+    if (hasOwn(m, "mixRotate") || hasOwn(m, "mixX")) {
+      // 4.0+
+      c.rotateMix = getNum(m, "mixRotate", 1);
+      c.translateMix = getNum(m, "mixX", 1);
+    } else {
+      // 3.8
+      c.rotateMix = getNum(m, "rotateMix", 1);
+      c.translateMix = getNum(m, "translateMix", 1);
     }
+    sd.pathConstraints.push(c);
+    if (map) map.set(c.name, c);
+    return c;
   }
 
   function readPathConstraints(root, sd, map) {
     const list = getv(root, "path", null);
     if (!Array.isArray(list)) return;
-    const positionName = { fixed: D.PositionMode.Fixed, percent: D.PositionMode.Percent };
-    const spacingName = { length: D.SpacingMode.Length, fixed: D.SpacingMode.Fixed, percent: D.SpacingMode.Percent, proportional: D.SpacingMode.Proportional };
-    const rotateName = { tangent: D.RotateMode.Tangent, chain: D.RotateMode.Chain, chainscale: D.RotateMode.ChainScale };
+    for (const m of list) readPathConstraint(m, sd, map);
+  }
+
+  /**
+   * Spine 4.3 起骨架约束写在统一的 `constraints` 数组里，每项自带 "type"
+   * （ik / transform / path / physics / slider）。旧格式（≤ 4.2）用
+   * ik / transform / path / physics 四个平铺数组，两条路径都要能读。
+   */
+  function readConstraintsArray(root, sd, maps) {
+    const list = getv(root, "constraints", null);
+    if (!Array.isArray(list)) return;
     for (const m of list) {
-      if (!m || typeof m.name !== "string") { warn("路径约束缺少 name，已跳过"); continue; }
-      const c = new D.PathConstraintData(m.name);
-      c.order = getNum(m, "order", 0);
-      c.skinRequired = bool(getv(m, "skin", false));
-      c.boneNames = constraintBones(sd, m.bones, `路径约束 "${m.name}"`);
-      c.targetName = typeof m.target === "string" ? m.target : null;
-      if (c.targetName && !sd.findSlot(c.targetName)) warn(`路径约束 "${m.name}" 的目标插槽 "${c.targetName}" 不存在`);
-      const pm = String(getv(m, "positionMode", "percent")).toLowerCase();
-      const sm = String(getv(m, "spacingMode", "length")).toLowerCase();
-      const rm = String(getv(m, "rotateMode", "tangent")).toLowerCase();
-      c.positionMode = positionName[pm] === undefined ? D.PositionMode.Percent : positionName[pm];
-      c.spacingMode = spacingName[sm] === undefined ? D.SpacingMode.Length : spacingName[sm];
-      c.rotateMode = rotateName[rm] === undefined ? D.RotateMode.Tangent : rotateName[rm];
-      c.offsetRotation = getNum(m, "rotation", 0);
-      c.position = getNum(m, "position", 0);
-      c.spacing = getNum(m, "spacing", 0);
-      if (hasOwn(m, "mixRotate") || hasOwn(m, "mixX")) {
-        // 4.0+
-        c.rotateMix = getNum(m, "mixRotate", 1);
-        c.translateMix = getNum(m, "mixX", 1);
-      } else {
-        // 3.8
-        c.rotateMix = getNum(m, "rotateMix", 1);
-        c.translateMix = getNum(m, "translateMix", 1);
+      if (!m || typeof m !== "object") continue;
+      switch (String(getv(m, "type", "")).toLowerCase()) {
+        case "ik": readIkConstraint(m, sd, maps.ik); break;
+        case "transform": readTransformConstraint(m, sd, maps.transform); break;
+        case "path": readPathConstraint(m, sd, maps.path); break;
+        case "physics": warn(`物理约束 "${m.name}" 暂不支持（4.3 物理需要独立解算，预览时不参与求值）`); break;
+        case "slider": warn(`滑块约束 "${m.name}" 暂不支持`); break;
+        default: warn(`未知的约束类型 "${getv(m, "type", "")}"（约束 "${m.name}"），已跳过`); break;
       }
-      sd.pathConstraints.push(c);
-      map.set(c.name, c);
     }
   }
 
   function readPhysicsConstraints(root, sd, map) {
     const list = getv(root, "physics", null);
     if (!Array.isArray(list)) return;
-    for (const m of list) {
-      if (!m || typeof m.name !== "string") { warn("物理约束缺少 name，已跳过"); continue; }
-      const c = new D.PhysicsConstraintData(m.name);
-      c.order = getNum(m, "order", 0);
-      c.skinRequired = bool(getv(m, "skin", false));
-      c.boneName = typeof m.bone === "string" ? m.bone : null;
-      if (c.boneName && !sd.findBone(c.boneName)) warn(`物理约束 "${m.name}" 的骨骼 "${c.boneName}" 不存在`);
-      c.x = getNum(m, "x", 0);
-      c.y = getNum(m, "y", 0);
-      c.rotate = getNum(m, "rotate", 0);
-      c.scaleX = getNum(m, "scaleX", 0);
-      c.shearX = getNum(m, "shearX", 0);
-      c.limit = getNum(m, "limit", 5000);
-      c.step = 1 / getNum(m, "fps", 60);
-      c.inertia = getNum(m, "inertia", 1);
-      c.strength = getNum(m, "strength", 100);
-      c.damping = getNum(m, "damping", 1);
-      c.wind = getNum(m, "wind", 0);
-      c.gravity = getNum(m, "gravity", 0);
-      c.mix = getNum(m, "mix", 1);
-      c.inertiaGlobal = bool(getv(m, "inertiaGlobal", false));
-      c.strengthGlobal = bool(getv(m, "strengthGlobal", false));
-      c.dampingGlobal = bool(getv(m, "dampingGlobal", false));
-      c.windGlobal = bool(getv(m, "windGlobal", false));
-      c.gravityGlobal = bool(getv(m, "gravityGlobal", false));
-      c.mixGlobal = bool(getv(m, "mixGlobal", false));
-      sd.physicsConstraints.push(c);
-      map.set(c.name, c);
-    }
+    for (const m of list) readPhysicsConstraint(m, sd, map);
+  }
+
+  function readPhysicsConstraint(m, sd, map) {
+    if (!m || typeof m.name !== "string") { warn("物理约束缺少 name，已跳过"); return null; }
+    if (map && map.has(m.name)) return null;
+    const c = new D.PhysicsConstraintData(m.name);
+    c.order = getNum(m, "order", 0);
+    c.skinRequired = bool(getv(m, "skin", false));
+    c.boneName = typeof m.bone === "string" ? m.bone : null;
+    if (c.boneName && !sd.findBone(c.boneName)) warn(`物理约束 "${m.name}" 的骨骼 "${c.boneName}" 不存在`);
+    c.x = getNum(m, "x", 0);
+    c.y = getNum(m, "y", 0);
+    c.rotate = getNum(m, "rotate", 0);
+    c.scaleX = getNum(m, "scaleX", 0);
+    c.shearX = getNum(m, "shearX", 0);
+    c.limit = getNum(m, "limit", 5000);
+    c.step = 1 / getNum(m, "fps", 60);
+    c.inertia = getNum(m, "inertia", 1);
+    c.strength = getNum(m, "strength", 100);
+    c.damping = getNum(m, "damping", 1);
+    c.wind = getNum(m, "wind", 0);
+    c.gravity = getNum(m, "gravity", 0);
+    c.mix = getNum(m, "mix", 1);
+    c.inertiaGlobal = bool(getv(m, "inertiaGlobal", false));
+    c.strengthGlobal = bool(getv(m, "strengthGlobal", false));
+    c.dampingGlobal = bool(getv(m, "dampingGlobal", false));
+    c.windGlobal = bool(getv(m, "windGlobal", false));
+    c.gravityGlobal = bool(getv(m, "gravityGlobal", false));
+    c.mixGlobal = bool(getv(m, "mixGlobal", false));
+    sd.physicsConstraints.push(c);
+    if (map) map.set(c.name, c);
+    return c;
   }
 
   // ---------------- 皮肤 ----------------
@@ -3740,7 +3962,7 @@ SP.binary = (() => {
     if (!layout) {
       const p = versionParts(version);
       if (p && p[0] === 4 && p[1] >= 3) {
-        throw new Error(`不支持的 Spine 二进制版本 ${version}：本工具支持 3.8 / 4.0 / 4.1 / 4.2（4.3+ 尚未支持）`);
+        throw new Error(`不支持的 Spine 二进制版本 ${version}：4.3+ 的二进制字节布局有变（本工具支持 3.8 / 4.0 / 4.1 / 4.2）。请改用同名 JSON 导出预览`);
       }
       throw new Error(`不支持的 Spine 二进制版本 ${JSON.stringify(version)}：本工具支持 3.8 / 4.0 / 4.1 / 4.2`);
     }
@@ -5062,6 +5284,33 @@ SP.binary = (() => {
     return tl;
   }
 
+  /* ------------------------------------------------------------ 版本探测 */
+
+  /**
+   * 只读二进制骨架头部里的版本字符串（不解析内容）。
+   * 扫描阶段用它提前标出「这个 .skel 的版本本工具还不支持」，避免点开才发现。
+   * 传入整个文件的 ArrayBuffer 或任意 >= 64 字节的头部片段都可以；读不出来返回 null。
+   */
+  function versionOf(arrayBuffer) {
+    try {
+      const r = new BinaryReader(arrayBuffer);
+      const save = r.index;
+      let first = null;
+      try { first = r.string(); } catch (e) { first = null; }
+      let second = null;
+      if (first !== null) { try { second = r.string(); } catch (e) { second = null; } }
+      if (second && layoutOf(second)) return second;   // 3.8：hash 字符串 + 版本字符串
+      r.index = save;                                  // 4.0+：两个 int32 + 版本字符串
+      r.int32(); r.int32();
+      return r.string();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** 该二进制版本是否支持解析 */
+  function supportsVersion(version) { return !!layoutOf(version); }
+
   /* ------------------------------------------------------------ 图集绑定 */
 
   function bindAtlas(sd, atlas) {
@@ -5086,6 +5335,8 @@ SP.binary = (() => {
   return {
     parse,
     warnings,
+    versionOf,
+    supportsVersion,
     get lastReadOffset() { return lastReadOffset; },
     get lastByteLength() { return lastByteLength; },
   };
@@ -5117,12 +5368,26 @@ SP.runtime = (() => {
       this.a = 1; this.b = 0; this.c = 0; this.d = 1;
       this.worldX = 0; this.worldY = 0;
       this.appliedValid = false;
+      // 约束改过这个骨骼（或它的祖先）之后，世界变换必须重算，且后代要能沿着父链把
+      // 尚未重算的祖先先算出来——否则约束写回的只是父级矩阵，子骨骼会用到过期矩阵。
+      this.constraintDirty = false;
     }
     setToSetupPose() {
       const d = this.data;
       this.x = d.x; this.y = d.y; this.rotation = d.rotation;
       this.scaleX = d.scaleX; this.scaleY = d.scaleY; this.shearX = d.shearX; this.shearY = d.shearY;
       this.transformMode = d.transformMode;
+      this.constraintDirty = false;
+    }
+    /** 先把「被约束改动过、但世界变换还没重算」的祖先补齐（从根往下的顺序） */
+    updateDirtyAncestors() {
+      const parent = this.parent;
+      if (!parent) return;
+      parent.updateDirtyAncestors();
+      if (parent.constraintDirty) {
+        parent.constraintDirty = false;
+        parent.updateWorldTransform();
+      }
     }
     updateWorldTransform() {
       this.updateWorldTransformWith(this.x, this.y, this.rotation, this.scaleX, this.scaleY, this.shearX, this.shearY);
@@ -5466,15 +5731,193 @@ SP.runtime = (() => {
       this.mixScaleX = data.mixScaleX; this.mixScaleY = data.mixScaleY; this.mixShearY = data.mixShearY;
       this.bones = data.boneNames.map((n) => skeleton.findBone(n)).filter(Boolean);
       this.target = skeleton.findBone(data.targetName);
+      // 4.3 的属性映射表（properties）存在时走官方「源属性 → 目标属性」语义
+      this.properties = Array.isArray(data.properties) && data.properties.length ? data.properties : null;
     }
     setToSetupPose() {
       const d = this.data;
       this.mixRotate = d.mixRotate; this.mixX = d.mixX; this.mixY = d.mixY;
       this.mixScaleX = d.mixScaleX; this.mixScaleY = d.mixScaleY; this.mixShearY = d.mixShearY;
     }
+    /** 该映射的目标属性对应的 mix 值（用于跳过 mix = 0 的映射） */
+    mixOf(property) {
+      switch (property) {
+        case "rotate": return this.mixRotate;
+        case "x": return this.mixX;
+        case "y": return this.mixY;
+        case "scaleX": return this.mixScaleX;
+        case "scaleY": return this.mixScaleY;
+        case "shearY": return this.mixShearY;
+        default: return 0;
+      }
+    }
+    /**
+     * 源属性取值（世界空间，与官方 FromRotate/FromX/... 的 value() 一致）
+     * @param property 源属性名
+     */
+    sourceValue(property) {
+      const d = this.data, source = this.target;
+      const sk = source.skeleton;
+      const sx = sk.scaleX || 1, sy = sk.scaleY || 1;
+      const offRotation = d.offsetRotation || 0;
+      const offX = d.offsetX || 0, offY = d.offsetY || 0;
+      const offScaleX = d.offsetScaleX || 0, offScaleY = d.offsetScaleY || 0;
+      const offShearY = d.offsetShearY || 0;
+      switch (property) {
+        case "rotate": {
+          // 官方：世界旋转角 + 有向 offset（矩阵含镜像时取负）
+          let value = M.atan2Deg(source.c / sy, source.a / sx)
+            + ((source.a * source.d - source.b * source.c) * sx * sy > 0 ? offRotation : -offRotation);
+          if (value < 0) value += 360;
+          return value;
+        }
+        case "x": return (offX * source.a + offY * source.b + source.worldX) / sx;
+        case "y": return (offX * source.c + offY * source.d + source.worldY) / sy;
+        case "scaleX": {
+          const a = source.a / sx, c = source.c / sy;
+          return Math.sqrt(a * a + c * c) + offScaleX;
+        }
+        case "scaleY": {
+          const b = source.b / sx, d2 = source.d / sy;
+          return Math.sqrt(b * b + d2 * d2) + offScaleY;
+        }
+        case "shearY": {
+          return (M.atan2Deg(source.d / sy, source.b / sx) - M.atan2Deg(source.c / sy, source.a / sx)) - 90 + offShearY;
+        }
+        default: return 0;
+      }
+    }
+    /**
+     * 把某个目标属性按官方 ToProperty.apply（世界空间分支）写到骨骼上。
+     * 目标值公式与官方一致：to.offset + (源值 + from.offset) * to.scale（clamp 时再夹到 [offset, max]）。
+     * @param bone     被约束骨骼
+     * @param property 目标属性名
+     * @param value    已经算好的目标值
+     */
+    applyProperty(bone, property, value) {
+      const d = this.data, sk = bone.skeleton;
+      const sx = sk.scaleX || 1, sy = sk.scaleY || 1;
+      const additive = !!d.additive;
+      switch (property) {
+        case "rotate": {
+          const mix = this.mixRotate;
+          if (!mix) return;
+          // 官方 ToRotate.apply（世界分支）直接改写骨骼矩阵，因此最终世界旋转 = 目标值（不按 mix 插值）。
+          // 本运行时从本地量重算矩阵，所以把目标世界旋转折算成本地 rotation：
+          //   本骨骼世界旋转 = 父级 rotation + 父级 shearX + 自身 rotation + 自身 shearX
+          let local = value - (bone.shearX || 0);
+          const parent = bone.parent;
+          if (parent) local -= parent.rotation + (parent.shearX || 0);
+          bone.rotation = local;
+          break;
+        }
+        case "x": {
+          const mix = this.mixX;
+          if (!mix) return;
+          // 骨骼在父级本地空间的位置：local = parentInverse * world
+          const l = bone.parent ? bone.parent.worldToLocal(bone.worldX, bone.worldY) : { x: bone.x, y: bone.y };
+          const lx = additive ? l.x + value * mix : l.x + (value / sx - l.x) * mix;
+          bone.x = lx;
+          if (bone.parent) {
+            const w = bone.parent.localToWorld(lx, l.y);
+            bone.worldX = w.x; bone.worldY = w.y;
+          } else {
+            bone.worldX = lx * sx + sk.x;
+          }
+          break;
+        }
+        case "y": {
+          const mix = this.mixY;
+          if (!mix) return;
+          const l = bone.parent ? bone.parent.worldToLocal(bone.worldX, bone.worldY) : { x: bone.x, y: bone.y };
+          const ly = additive ? l.y + value * mix : l.y + (value / sy - l.y) * mix;
+          bone.y = ly;
+          if (bone.parent) {
+            const w = bone.parent.localToWorld(l.x, ly);
+            bone.worldX = w.x; bone.worldY = w.y;
+          } else {
+            bone.worldY = ly * sy + sk.y;
+          }
+          break;
+        }
+        case "scaleX": {
+          const mix = this.mixScaleX;
+          if (!mix) return;
+          if (additive) {
+            const k = 1 + (value - 1) * mix;
+            bone.a *= k; bone.c *= k;
+          } else {
+            const a = bone.a / sx, c = bone.c / sy;
+            let s = Math.sqrt(a * a + c * c);
+            if (s !== 0) {
+              s = 1 + (value - s) * mix / s;
+              bone.a *= s; bone.c *= s;
+            }
+          }
+          break;
+        }
+        case "scaleY": {
+          const mix = this.mixScaleY;
+          if (!mix) return;
+          if (additive) {
+            const k = 1 + (value - 1) * mix;
+            bone.b *= k; bone.d *= k;
+          } else {
+            const b = bone.b / sx, dd = bone.d / sy;
+            let s = Math.sqrt(b * b + dd * dd);
+            if (s !== 0) {
+              s = 1 + (value - s) * mix / s;
+              bone.b *= s; bone.d *= s;
+            }
+          }
+          break;
+        }
+        case "shearY": {
+          const mix = this.mixShearY;
+          if (!mix) return;
+          const b = bone.b / sx, dd = bone.d / sy;
+          const by = Math.atan2(dd, b);
+          let v = (value + 90) * M.DEG_RAD;
+          if (additive) v -= Math.PI / 2;
+          else {
+            v -= by - Math.atan2(bone.c / sy, bone.a / sx);
+            if (v > Math.PI) v -= Math.PI * 2;
+            else if (v < -Math.PI) v += Math.PI * 2;
+          }
+          v = by + v * mix;
+          const s = Math.sqrt(b * b + dd * dd);
+          bone.b = Math.cos(v) * s * sx;
+          bone.d = Math.sin(v) * s * sy;
+          break;
+        }
+        default: break;
+      }
+    }
+    /** 4.3：按 properties 映射把源属性写到目标属性上 */
+    applyProperties() {
+      const d = this.data;
+      for (const bone of this.bones) {
+        for (const from of this.properties) {
+          const source = this.sourceValue(from.property);
+          for (const to of from.to) {
+            if (!this.mixOf(to.property)) continue;
+            const base = from.offset || 0;
+            let value = to.offset + (source - base) * to.scale;
+            if (d.clamp) {
+              value = to.offset < to.max
+                ? M.clamp(value, to.offset, to.max)
+                : M.clamp(value, to.max, to.offset);
+            }
+            this.applyProperty(bone, to.property, value);
+          }
+        }
+        bone.updateWorldTransform();
+      }
+    }
     apply() {
       if (!this.target) return;
       const d = this.data, target = this.target;
+      if (this.properties) { this.applyProperties(); return; }
       const targetRot = target.getWorldRotationX() + d.offsetRotation;
       const targetRotY = target.getWorldRotationY() + d.offsetRotation;
       const targetSx = target.getWorldScaleX() + d.offsetScaleX;
@@ -5769,13 +6212,22 @@ SP.runtime = (() => {
     }
     setToSetupPose() { this.setBonesToSetupPose(); this.setSlotsToSetupPose(); }
     updateBones() {
-      for (let i = 0; i < this.bones.length; i++) this.bones[i].updateWorldTransform();
+      const bones = this.bones;
+      for (let i = 0; i < bones.length; i++) {
+        const b = bones[i];
+        // 父骨骼被约束改过时必须先补算祖先的世界变换，否则本骨骼会用到过期矩阵
+        if (b.constraintDirty && b.parent) b.updateDirtyAncestors();
+        b.constraintDirty = false;
+        b.updateWorldTransform();
+      }
     }
     updateWorldTransform() {
       this.updateBones();
       const q = this.constraintQueue || [];
       for (let i = 0; i < q.length; i++) {
-        q[i].apply();
+        const c = q[i];
+        c.apply();
+        for (const b of c.bones) b.constraintDirty = true;
         this.updateBones();     // 每个约束后重算世界变换，保证链式依赖正确
       }
     }
@@ -6640,20 +7092,27 @@ SP.pose = (() => {
       const x1 = Math.max(tl.x, br.x);
       const y0 = Math.floor(Math.min(tl.y, br.y) / step) * step;
       const y1 = Math.max(tl.y, br.y);
+      // 叠加层缓冲区已按 dpr 放大，线要落在设备像素中心才锐利
+      const dpr = view.dpr || 1;
+      const snap = (v) => (Math.round(v * dpr) + 0.5) / dpr;
       ctx.strokeStyle = COL.grid;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1 / dpr;
       ctx.beginPath();
       for (let x = x0; x <= x1; x += step) {
         const p = view.worldToScreen(x, 0);
         if (p.x < -1 || p.x > view.width + 1) continue;
-        ctx.moveTo(Math.round(p.x) + 0.5, 0);
-        ctx.lineTo(Math.round(p.x) + 0.5, view.height);
+        const sx = snap(p.x);
+        if (sx < 0 || sx > view.width) continue;   // 吸附后可能被推到视口外
+        ctx.moveTo(sx, 0);
+        ctx.lineTo(sx, view.height);
       }
       for (let y = y0; y <= y1; y += step) {
         const p = view.worldToScreen(0, y);
         if (p.y < -1 || p.y > view.height + 1) continue;
-        ctx.moveTo(0, Math.round(p.y) + 0.5);
-        ctx.lineTo(view.width, Math.round(p.y) + 0.5);
+        const sy = snap(p.y);
+        if (sy < 0 || sy > view.height) continue;
+        ctx.moveTo(0, sy);
+        ctx.lineTo(view.width, sy);
       }
       ctx.stroke();
     }
@@ -6790,6 +7249,7 @@ SP.pose = (() => {
     }
     _paintBounds(ctx, view, skeleton) {
       const wv = new Float32Array(8192);
+      const dpr = view.dpr || 1;
       ctx.save();
       ctx.strokeStyle = COL.bounds;
       ctx.lineWidth = 1;
@@ -6810,7 +7270,8 @@ SP.pose = (() => {
           if (p.x > maxX) maxX = p.x;
           if (p.y > maxY) maxY = p.y;
         }
-        ctx.strokeRect(Math.round(minX) + 0.5, Math.round(minY) + 0.5, Math.max(1, maxX - minX), Math.max(1, maxY - minY));
+        const x0 = (Math.round(minX * dpr) + 0.5) / dpr, y0 = (Math.round(minY * dpr) + 0.5) / dpr;
+        ctx.strokeRect(x0, y0, Math.max(1 / dpr, maxX - minX), Math.max(1 / dpr, maxY - minY));
       }
       ctx.restore();
     }
@@ -7182,6 +7643,63 @@ SP.app = (() => {
   }
 
   /* -------------------------------------------------------------- 扫描 */
+  /**
+   * 把一个图集绑定到资源上：解析分页、按分页名找同目录贴图、写回 ok / error。
+   * 扫描时自动调用；用户在资源列表里手动切换图集时也调用同一个函数。
+   */
+  async function applyAtlasTo(res, atlasEntry) {
+    res.atlasEntry = atlasEntry || null;
+    res.atlasPath = atlasEntry ? atlasEntry.path : null;
+    res.atlasName = atlasEntry ? atlasEntry.name : null;
+    res.pages = [];
+    res.missingTextures = [];
+    res.error = null;
+    res.ok = true;
+    if (!atlasEntry) {
+      res.ok = false;
+      res.error = "缺少 .atlas 图集文件";
+      return res;
+    }
+    try {
+      const text = await (await atlasEntry.getBlob()).text();
+      const atlas = SP.atlas.parse(text, res.dir);
+      res.pages = atlas.pages.map((p) => ({ name: p.name, exists: false }));
+      const sameDirTex = state.texByDir ? state.texByDir.get((res.dir || "").toLowerCase()) : null;
+      for (const p of res.pages) {
+        const hit = (sameDirTex && sameDirTex.get(p.name.toLowerCase())) ||
+          (state.source ? state.source.findByName(p.name) : null) || null;
+        p.exists = !!hit;
+        p.entry = hit;
+        if (!hit) res.missingTextures.push(p.name);
+      }
+      if (res.missingTextures.length) {
+        res.ok = false;
+        res.error = `缺少贴图：${res.missingTextures.join(", ")}`;
+      }
+    } catch (err) {
+      res.ok = false;
+      res.error = "图集解析失败：" + (err && err.message ? err.message : err);
+    }
+    return res;
+  }
+
+  /** 手动给某个资源换图集（资源列表里的下拉框） */
+  async function reassignAtlas(res, atlasEntry) {
+    await applyAtlasTo(res, atlasEntry);
+    res.atlasInferred = !!atlasEntry &&
+      SP.match.baseName(atlasEntry.name).toLowerCase() !== SP.match.baseName(res.skeletonName).toLowerCase();
+    res.atlasAmbiguous = false;
+    log(res.ok ? "ok" : "warn",
+      `${res.skeletonName} 已改用图集 ${atlasEntry ? atlasEntry.name : "（无）"}${res.ok ? "" : "：" + res.error}`);
+    renderResourceList();
+    const cur = state.current;
+    if (cur && cur.res && cur.res.id === res.id) {
+      log("info", "当前预览的资源图集已变更，重新加载");
+      await loadResource(res);
+    }
+    return res;
+  }
+
   async function scanSource(source, opts) {
     opts = opts || {};
     state.source = source;
@@ -7220,7 +7738,7 @@ SP.app = (() => {
       });
       await Promise.all(workers);
       skeletons.sort((a, b) => a.path.localeCompare(b.path, "zh-CN"));
-      // 3. 图集索引
+      // 3. 图集 / 贴图索引（按目录分组，避免每个骨架都遍历一次全部文件）
       const atlases = entries.filter((e) => ATLAS_EXT.some((x) => e.name.toLowerCase().endsWith(x)));
       const atlasByDir = new Map();
       for (const a of atlases) {
@@ -7228,17 +7746,107 @@ SP.app = (() => {
         if (!atlasByDir.has(d)) atlasByDir.set(d, []);
         atlasByDir.get(d).push(a);
       }
+      const texByDir = new Map();
+      for (const e of entries) {
+        if (!TEX_EXT.some((x) => e.name.toLowerCase().endsWith(x))) continue;
+        const d = dirOf(e.path).toLowerCase();
+        if (!texByDir.has(d)) texByDir.set(d, new Map());
+        const m = texByDir.get(d);
+        const key = e.name.toLowerCase();
+        if (!m.has(key)) m.set(key, e);
+      }
+      // 图集文本按需解析并缓存（配对校验与后续读取共用同一份结果）
+      const atlasCache = new Map();
+      async function parsedAtlas(entry) {
+        const key = entry.path.toLowerCase();
+        if (atlasCache.has(key)) return atlasCache.get(key);
+        const out = { atlas: null, error: null };
+        try {
+          const text = await (await entry.getBlob()).text();
+          out.atlas = SP.atlas.parse(text, dirOf(entry.path));
+        } catch (err) {
+          out.error = err && err.message ? err.message : String(err);
+        }
+        atlasCache.set(key, out);
+        return out;
+      }
+      // 二进制骨架头部版本（只读前 512 字节）
+      async function peekBinaryVersion(entry) {
+        if (!SP.binary || !SP.binary.versionOf) return null;
+        try {
+          const head = await (await entry.getBlob()).slice(0, 512).arrayBuffer();
+          return SP.binary.versionOf(head);
+        } catch (err) { return null; }
+      }
+      // 骨架全文（只有需要按区域名交叉验证配对时才读整份，读完缓存）
+      async function skeletonText(sk) {
+        if (sk._text !== undefined) return sk._text;
+        let text = null;
+        try {
+          if (!sk.size || sk.size <= 16 * 1024 * 1024) text = await (await sk.getBlob()).text();
+        } catch (err) { text = null; }
+        sk._text = text;
+        return text;
+      }
+      // 图集里有多少个区域名真的出现在骨架文本里（-1 = 无法判断）
+      async function regionCoverage(atlasEntry, text) {
+        if (!text) return -1;
+        const parsed = await parsedAtlas(atlasEntry);
+        if (!parsed.atlas) return -1;
+        const names = new Set();
+        for (const r of parsed.atlas.regions) if (r.name) names.add(r.name.toLowerCase());
+        if (!names.size) return -1;
+        const hay = text.toLowerCase();
+        let hit = 0;
+        for (const n of names) if (hay.indexOf('"' + n + '"') >= 0) hit++;
+        return hit;
+      }
+      /**
+       * 给一个骨架挑图集：先同名，再按 SP.match 打分，
+       * 分数接近或完全不像时用「图集区域名是否出现在骨架里」交叉验证。
+       * 返回 { entry, inferred, score, ambiguous }
+       */
+      async function pickAtlas(sk) {
+        const inDir = atlasByDir.get(dirOf(sk.path).toLowerCase()) || [];
+        if (!inDir.length) return { entry: null, inferred: false };
+        const base = SP.match.baseName(sk.name).toLowerCase();
+        const exact = inDir.find((a) => SP.match.baseName(a.name).toLowerCase() === base);
+        if (exact) return { entry: exact, inferred: false, score: 100, ambiguous: false };
+        const ranked = SP.match.rank(sk.name, inDir.map((a) => a.name));
+        const at = (i) => (ranked[i] ? inDir.find((a) => a.name === ranked[i].name) : null);
+        const best = at(0), runnerUp = at(1);
+        if (best && (!runnerUp || ranked[0].score - ranked[1].score >= 20)) {
+          return { entry: best, inferred: true, score: ranked[0].score, ambiguous: false };
+        }
+        // 二进制骨架没法按文本验证，只能取分数最高的（并标注为推断）
+        if (!isBinaryExt(sk.name)) {
+          const text = await skeletonText(sk);
+          const pool = best ? [best, runnerUp].filter(Boolean) : inDir.slice(0, 8);
+          let picked = best, bestHit = -1, tie = false;
+          for (const a of pool) {
+            const hit = await regionCoverage(a, text);
+            if (hit > bestHit) { bestHit = hit; picked = a; tie = false; }
+            else if (hit > 0 && hit === bestHit) tie = true;
+          }
+          if (bestHit > 0) {
+            return { entry: picked, inferred: true, score: ranked.length ? ranked[0].score : 0, ambiguous: tie, verified: true };
+          }
+        }
+        if (best) return { entry: best, inferred: true, score: ranked[0].score, ambiguous: !!runnerUp };
+        if (inDir.length === 1) return { entry: inDir[0], inferred: true, score: 0, ambiguous: false };
+        return { entry: null, inferred: false };
+      }
       // 4. 配对并读取图集文本（拿分页贴图信息）
+      state.atlasByDir = atlasByDir;
+      state.texByDir = texByDir;
       const resources = [];
       let lastYield = performance.now();
       for (const sk of skeletons) {
         const dir = dirOf(sk.path);
-        const dirKey = dir.toLowerCase();
-        const base = baseOf(sk.name).toLowerCase();
-        const inDir = atlasByDir.get(dirKey) || [];
-        let atlasEntry = inDir.find((a) => baseOf(a.name).toLowerCase() === base) || null;
-        let inferred = false;
-        if (!atlasEntry && inDir.length === 1) { atlasEntry = inDir[0]; inferred = true; }
+        const pick = await pickAtlas(sk);
+        const atlasEntry = pick.entry;
+        const inferred = !!pick.inferred;
+        const candidates = (atlasByDir.get(dir.toLowerCase()) || []).slice();
         const res = {
           id: sk.path,
           skeletonPath: sk.path,
@@ -7248,45 +7856,41 @@ SP.app = (() => {
           atlasPath: atlasEntry ? atlasEntry.path : null,
           atlasName: atlasEntry ? atlasEntry.name : null,
           atlasInferred: inferred,
+          atlasAmbiguous: !!pick.ambiguous,
+          atlasCandidates: candidates,
           pages: [],
           missingTextures: [],
           error: null,
           ok: true,
         };
-        if (!atlasEntry) {
-          res.ok = false;
-          res.error = "缺少 .atlas 图集文件";
-        } else {
-          try {
-            const text = await (await atlasEntry.getBlob()).text();
-            const atlas = SP.atlas.parse(text, dir);
-            res.pages = atlas.pages.map((p) => ({ name: p.name, exists: false }));
-            const texEntries = entries.filter((e) => TEX_EXT.some((x) => e.name.toLowerCase().endsWith(x)));
-            for (const p of res.pages) {
-              const hit = texEntries.find((e) => dirOf(e.path).toLowerCase() === dirKey && e.name.toLowerCase() === p.name.toLowerCase()) ||
-                source.findByName(p.name);
-              p.exists = !!hit;
-              if (!hit) res.missingTextures.push(p.name);
-              p.entry = hit || null;
-            }
-            if (res.missingTextures.length) {
-              res.ok = false;
-              res.error = `缺少贴图：${res.missingTextures.join(", ")}`;
-            }
-          } catch (err) {
+        await applyAtlasTo(res, atlasEntry);
+        res.skeletonEntry = sk;
+        // 二进制骨架：读头部版本，不支持的在扫描阶段就标出来（而不是点开才报错）
+        if (res.format === "binary" && res.ok) {
+          const v = await peekBinaryVersion(sk);
+          res.binaryVersion = v || null;
+          if (v && SP.binary.supportsVersion && !SP.binary.supportsVersion(v)) {
             res.ok = false;
-            res.error = "图集解析失败：" + (err && err.message ? err.message : err);
+            res.error = `Spine ${v} 的二进制布局本工具尚未支持，请改用同名 JSON 导出预览`;
           }
         }
-        res.atlasEntry = atlasEntry;
-        res.skeletonEntry = sk;
         resources.push(res);
+        if (inferred && atlasEntry) {
+          log("info", `${res.skeletonName} 自动配对图集 ${atlasEntry.name}${pick.verified ? "（按区域名核对）" : ""}${pick.ambiguous ? "（有多个相近候选，可在资源列表里切换图集）" : ""}`);
+        }
         if (performance.now() - lastYield > 30) { lastYield = performance.now(); await new Promise((r) => setTimeout(r)); }
       }
       state.resources = resources;
       const okCount = resources.filter((r) => r.ok).length;
       log(okCount === resources.length ? "ok" : "warn",
         `发现 ${resources.length} 个 Spine 资源（可用 ${okCount} 个，JSON ${resources.filter((r) => r.format === "json").length} 个 / 二进制 ${resources.filter((r) => r.format === "binary").length} 个）`);
+      // 全都不可用时别让「仅可用资源」把列表清空，否则看起来像「扫描不出资源」
+      if (resources.length && !okCount && $("chkOnlySkel").checked) {
+        $("chkOnlySkel").checked = false;
+        if (state.prefs) { state.prefs.onlySkel = false; savePrefs(); }
+        log("warn", `扫描到 ${resources.length} 个骨架，但没有一个图集/贴图齐全，已自动取消「仅可用资源」过滤，方便逐个排查`);
+        toast("warn", `扫描到 ${resources.length} 个骨架，但都缺图集/贴图，已取消过滤显示出来`, 5200);
+      }
       saveDirCache({
         label: source.label, kind: source.kind || "files", ts: Date.now(),
         resourceCount: resources.length, okCount,
@@ -7477,15 +8081,12 @@ SP.app = (() => {
     const src = new EntrySource("URL");
     src.kind = "url";
     const baseUrl = url;
-    // 图集候选名：同名 → 去掉 -pro / -ess / -run 等后缀 → 名称第一段
+    // 图集候选名：同名 → 逐步剥掉导出变体后缀（-balls-ess / -pro / -pma …），
+    //   与目录扫描用同一套打分（SP.match），避免出现「扫描能配、直链配不上」的差异
     const stemBase = baseUrl.replace(/\.[^.\/]+$/, "");
     const dirPath = stemBase.slice(0, stemBase.lastIndexOf("/") + 1);
     const stem = stemBase.slice(stemBase.lastIndexOf("/") + 1);
-    const stems = [stem];
-    const stripped = stem.replace(/[-_](pro|ess|run|pma|skel|skelbytes|json|bin|bytes)$/i, "");
-    if (stripped && stripped !== stem) stems.push(stripped);
-    const firstSeg = stem.split(/[-_]/)[0];
-    if (firstSeg && stems.indexOf(firstSeg) < 0) stems.push(firstSeg);
+    const stems = SP.match.atlasBaseCandidates(stem);
     const atlasUrlCandidates = [];
     if (opts.atlas) atlasUrlCandidates.push(opts.atlas);
     else for (const s of stems) atlasUrlCandidates.push(dirPath + s + ".atlas", dirPath + s + ".atlas.txt");
@@ -7607,7 +8208,34 @@ SP.app = (() => {
     list.innerHTML = "";
     const items = state.filtered;
     if (!items.length) {
-      $("resStat").textContent = state.scanning ? "扫描中…" : ($("resSearch").value ? "没有匹配的资源" : "未扫描到 Spine 资源");
+      if (state.scanning) { $("resStat").textContent = "扫描中…"; return; }
+      const kw = ($("resSearch").value || "").trim();
+      const hidden = state.resources.length - items.length;
+      const box = document.createElement("div");
+      box.className = "hint";
+      box.style.padding = "12px";
+      if (kw && state.resources.length) {
+        box.textContent = `没有匹配「${kw}」的资源（目录内共 ${state.resources.length} 个）。`;
+      } else if (hidden > 0) {
+        box.textContent = `已扫描到 ${state.resources.length} 个骨架，但都被「仅可用资源」过滤掉了——多数是缺 .atlas / 缺贴图。`;
+        const btn = document.createElement("button");
+        btn.className = "btn sm";
+        btn.style.marginTop = "8px";
+        btn.textContent = "显示全部资源";
+        btn.addEventListener("click", () => {
+          $("chkOnlySkel").checked = false;
+          if (state.prefs) { state.prefs.onlySkel = false; savePrefs(); }
+          applyResourceFilter();
+        });
+        box.appendChild(document.createElement("br"));
+        box.appendChild(btn);
+      } else if (state.resources.length) {
+        box.textContent = `已扫描到 ${state.resources.length} 个骨架，但当前过滤条件下没有可显示的项。`;
+      } else {
+        box.textContent = "未扫描到 Spine 资源：这个目录（含子目录）里没有 .json / .skel 骨架文件，或 JSON 不是 Spine 导出的（可在日志里看扫描详情）。";
+      }
+      list.appendChild(box);
+      $("resStat").textContent = `共 0 个资源（目录内已识别 ${state.resources.length} 个骨架）`;
       return;
     }
     const group = $("chkGroupFolder").checked;
@@ -7628,12 +8256,18 @@ SP.app = (() => {
         const row = document.createElement("div");
         row.className = "resRow" + (state.current && state.current.res.id === r.id ? " active" : "");
         row.dataset.id = r.id;
-        row.title = r.skeletonPath + (r.error ? "\n⚠ " + r.error : "");
+        row.title = r.skeletonPath +
+          (r.atlasName ? `\n图集：${r.atlasName}${r.atlasInferred ? "（自动配对）" : ""}` : "") +
+          (r.error ? "\n⚠ " + r.error : "");
         const badges = [];
         badges.push(`<span class="bdg ${r.format === "json" ? "json" : "bin"}">${r.format === "json" ? "JSON" : "SKEL"}</span>`);
+        if (r.binaryVersion && SP.binary.supportsVersion && !SP.binary.supportsVersion(r.binaryVersion)) {
+          const short = String(r.binaryVersion).split(".").slice(0, 2).join(".");
+          badges.push(`<span class="bdg err" title="Spine ${esc(r.binaryVersion)} 的二进制布局尚未支持，请用同名 JSON">${esc(short)} ✗</span>`);
+        }
         if (!r.atlasName) badges.push(`<span class="bdg err">无图集</span>`);
         else if (r.missingTextures.length) badges.push(`<span class="bdg warn">缺贴图 ${r.missingTextures.length}</span>`);
-        else if (r.atlasInferred) badges.push(`<span class="bdg warn">图集推断</span>`);
+        else if (r.atlasInferred) badges.push(`<span class="bdg warn" title="未同名，按名称/区域名自动配对到 ${esc(r.atlasName)}">图集推断</span>`);
         row.innerHTML = `<span>${r.format === "json" ? "🧩" : "📦"}</span>
           <span class="nm">${esc(baseOf(r.skeletonName))}</span>
           ${badges.join("")}
@@ -7641,6 +8275,31 @@ SP.app = (() => {
         row.addEventListener("click", () => selectResource(r, false));
         row.addEventListener("dblclick", () => { selectResource(r, true); });
         row.querySelector(".load").addEventListener("click", (e) => { e.stopPropagation(); selectResource(r, true); });
+        // 同目录有多个图集时给一个手动切换入口（自动配对不放心时用）
+        if (r.atlasCandidates && r.atlasCandidates.length > 1) {
+          const sel = document.createElement("select");
+          sel.className = "atlasPick";
+          sel.title = "手动指定图集（当前：" + (r.atlasName || "无") + "）";
+          const optNone = document.createElement("option");
+          optNone.value = ""; optNone.textContent = "（无图集）";
+          sel.appendChild(optNone);
+          for (const a of r.atlasCandidates) {
+            const o = document.createElement("option");
+            o.value = a.path;
+            o.textContent = a.name;
+            sel.appendChild(o);
+          }
+          sel.value = r.atlasPath || "";
+          sel.addEventListener("click", (e) => e.stopPropagation());
+          sel.addEventListener("dblclick", (e) => e.stopPropagation());
+          sel.addEventListener("change", async (e) => {
+            e.stopPropagation();
+            const pick = r.atlasCandidates.find((a) => a.path === sel.value) || null;
+            busy(true, "正在切换图集…");
+            try { await reassignAtlas(r, pick); } finally { busy(false); }
+          });
+          row.insertBefore(sel, row.querySelector(".load"));
+        }
         list.appendChild(row);
       }
     }
@@ -7934,6 +8593,24 @@ SP.app = (() => {
   }
 
   /* --------------------------------------------------------- 渲染循环 */
+  /**
+   * 让 2D 叠加层的绘制缓冲区与视口 CSS 尺寸严格一一对应。
+   *
+   * 关键点：`<canvas>` 的 width/height 是「绘制缓冲区」尺寸，CSS 的 width:100%/height:100%
+   * 只是把它拉伸显示。如果缓冲区一直是默认的 300×150，缓冲区的 1 单位会被拉伸成
+   * (视口宽/300, 视口高/150) 两个不同的倍率——骨骼 / 网格 / 包围盒就会和 WebGL 里的
+   * 角色错位、且错位程度随视口尺寸与缩放变化（即"不在同一平面"）。
+   * 这里把缓冲区设为 视口CSS尺寸 × dpr，之后叠加层里 1 个绘制单位 == 1 CSS 像素。
+   */
+  function syncOverlayCanvas() {
+    const c = state.gl2d;
+    if (!c) return;
+    const dpr = state.view.dpr || 1;
+    const bw = Math.max(1, Math.round((state.gl.clientWidth || 1) * dpr));
+    const bh = Math.max(1, Math.round((state.gl.clientHeight || 1) * dpr));
+    if (c.width !== bw || c.height !== bh) { c.width = bw; c.height = bh; }
+  }
+
   function draw() {
     const gl = state.renderer;
     if (!gl) return;
@@ -7944,6 +8621,7 @@ SP.app = (() => {
     if (cur) {
       gl.drawSkeleton(cur.skeleton, { textures: state.prefs.texture });
     }
+    syncOverlayCanvas();
     const ctx = state.gl2d.getContext("2d");
     state.pose.paint(ctx, state.view, cur ? cur.skeleton : null, {
       bones: state.prefs.bones && !!cur, mesh: state.prefs.mesh && !!cur,
@@ -8198,6 +8876,13 @@ SP.app = (() => {
     state.pose = new SP.pose.PoseController();
     state.pose.dragMode = state.prefs.dragMode;
     state.gl2d.getContext("2d");
+    // 叠加层缓冲区跟着视口尺寸走（窗口缩放 / 布局变化时立即同步，不等下一帧）
+    syncOverlayCanvas();
+    if (typeof ResizeObserver !== "undefined") {
+      state.resizeObserver = new ResizeObserver(() => syncOverlayCanvas());
+      state.resizeObserver.observe(state.gl);
+    }
+    window.addEventListener("resize", syncOverlayCanvas);
     // 恢复偏好到 UI
     for (const [k, id] of Object.entries({ bones: "chkBones", mesh: "chkMesh", bounds: "chkBounds", texture: "chkTexture", names: "chkNames", axis: "chkAxis", grid: "chkGrid", clip: "chkClip" })) {
       $(id).checked = !!state.prefs[k];
@@ -8637,7 +9322,7 @@ SP.app = (() => {
         warnings: state.logEntries.filter((e) => e.level === "warn").map((e) => e.msg),
       };
     },
-    resources: () => state.resources.map((r) => ({ id: r.id, name: r.skeletonName, dir: r.dir, format: r.format, atlas: r.atlasName, ok: r.ok, error: r.error, pages: r.pages.map((p) => p.name) })),
+    resources: () => state.resources.map((r) => ({ id: r.id, name: r.skeletonName, dir: r.dir, format: r.format, atlas: r.atlasName, atlasInferred: !!r.atlasInferred, atlasAmbiguous: !!r.atlasAmbiguous, binaryVersion: r.binaryVersion || null, ok: r.ok, error: r.error, pages: r.pages.map((p) => p.name) })),
     selectResource: (idOrIndex) => {
       const res = typeof idOrIndex === "number" ? state.resources[idOrIndex] : state.resources.find((r) => r.id === idOrIndex || r.skeletonName === idOrIndex);
       if (!res) return false;
@@ -8685,6 +9370,15 @@ SP.app = (() => {
     fit: fitView,
     screenToWorld: (x, y) => state.view.screenToWorld(x, y),
     worldToScreen: (x, y) => state.view.worldToScreen(x, y),
+    /** 全部骨骼的屏幕坐标（CSS 像素），便于自动化断言叠加层对齐 */
+    boneScreens: () => {
+      const cur = state.current;
+      if (!cur) return [];
+      return cur.skeleton.bones.map((b) => {
+        const p = state.view.worldToScreen(b.worldX, b.worldY);
+        return { name: b.data.name, x: p.x, y: p.y, wx: b.worldX, wy: b.worldY, length: b.data.length };
+      });
+    },
     selectBone: (name) => {
       const cur = state.current;
       if (!cur) return false;
