@@ -1052,12 +1052,18 @@ SP.data = (() => {
       this.width = 0; this.height = 0; this.path = name;
     }
     /**
-     * 与官方 MeshAttachment.updateUVs / 4.2 的 updateRegion 一致：
+     * 与官方 MeshAttachment.computeUVs（4.2 的 updateRegion / 4.3 的静态 computeUVs）逐分支一致：
      * 把「区域相对 UV」线性映射成「图集页绝对 UV」——官方语义是 regionUVs 铺满**未裁剪的原图**，
      * 而 region.x/y/width/height 只是裁剪后的矩形，所以要同时折算裁剪偏移 offsetX/offsetY 与原始宽高。
-     *   0°  ：uv = (u - offsetX/W + s*origW/W, v - topTrim/H + t*origH/H)，topTrim = origH - offsetY - height
-     *        （Spine 的 offsetY 是「从原图底边裁掉的高度」，所以原图上边界 = v - topTrim/H）
-     *   90° ：UV 轴互换（U 轴对应原图高度、V 轴对应原图宽度，且 V 方向翻转），与本文件 AtlasRegion.computeUV 的 packedWidth/Height 约定一致
+     * 图集格式里 rotate 除了 true(90°) / false(0°) 还允许 0~360 的**数值**（见官方 atlas 格式文档），
+     * 所以必须按 degrees 全角度分支处理，缺任何一个分支都会让网格贴图错位：
+     *   0°   ：uv = (u - offsetX/W + s*origW/W, v - topTrim/H + t*origH/H)，topTrim = origH - offsetY - height
+     *         （Spine 的 offsetY 是「从原图底边裁掉的高度」，所以原图上边界 = v - topTrim/H）
+     *   90°  ：UV 轴互换（U 轴对应原图高度、V 轴对应原图宽度，且 V 方向翻转）
+     *   180° ：不换轴，U / V 两个方向都翻转
+     *   270° ：UV 轴互换（与 90° 方向相反，U 轴对应原图宽度、V 轴对应原图高度且不翻转 V）
+     * 注意 u/v 基准修正与缩放里的 originalHeight/originalWidth 也是按角度配对的（90/270 互换），
+     * 与 AtlasRegion.computeUV 里「旋转时贴图内矩形宽高互换」的约定一致。
      * 幂等：每次都从 regionUVs 重算，因此换区域 / 链接网格 / 图集后绑定都可以安全重复调用。
      */
     updateUVs() {
@@ -1071,23 +1077,48 @@ SP.data = (() => {
       const page = r.page;
       const W = (page && page.width) || 1, H = (page && page.height) || 1;
       const ow = r.originalWidth || r.width, oh = r.originalHeight || r.height;
-      if (r.degrees === 90) {
-        const u0 = r.u - (oh - r.offsetY - r.height) / W;   // 原图左边界（U 轴对应原图高度方向）
-        const v0 = r.v - (ow - r.offsetX - r.width) / H;    // 原图上边界（V 轴对应原图宽度方向）
-        const du = oh / W, dv = ow / H;
-        for (let i = 0; i < n; i += 2) {
-          const s = regionUVs[i], t = regionUVs[i + 1];
-          uvs[i] = u0 + t * du;
-          uvs[i + 1] = v0 + (1 - s) * dv;
+      switch (r.degrees) {
+        case 90: {
+          const u0 = r.u - (oh - r.offsetY - r.height) / W;   // 原图左边界（U 轴对应原图高度方向）
+          const v0 = r.v - (ow - r.offsetX - r.width) / H;    // 原图上边界（V 轴对应原图宽度方向）
+          const du = oh / W, dv = ow / H;
+          for (let i = 0; i < n; i += 2) {
+            const s = regionUVs[i], t = regionUVs[i + 1];
+            uvs[i] = u0 + t * du;
+            uvs[i + 1] = v0 + (1 - s) * dv;
+          }
+          return;
         }
-      } else {
-        const u0 = r.u - r.offsetX / W;
-        const v0 = r.v - (oh - r.offsetY - r.height) / H;
-        const du = ow / W, dv = oh / H;
-        for (let i = 0; i < n; i += 2) {
-          uvs[i] = u0 + regionUVs[i] * du;
-          uvs[i + 1] = v0 + regionUVs[i + 1] * dv;
+        case 180: {
+          const u0 = r.u - (ow - r.offsetX - r.width) / W;
+          const v0 = r.v - r.offsetY / H;
+          const du = ow / W, dv = oh / H;
+          for (let i = 0; i < n; i += 2) {
+            const s = regionUVs[i], t = regionUVs[i + 1];
+            uvs[i] = u0 + (1 - s) * du;
+            uvs[i + 1] = v0 + (1 - t) * dv;
+          }
+          return;
         }
+        case 270: {
+          const u0 = r.u - r.offsetY / W;
+          const v0 = r.v - r.offsetX / H;
+          const du = oh / W, dv = ow / H;
+          for (let i = 0; i < n; i += 2) {
+            const s = regionUVs[i], t = regionUVs[i + 1];
+            uvs[i] = u0 + (1 - t) * du;
+            uvs[i + 1] = v0 + s * dv;
+          }
+          return;
+        }
+      }
+      // 0°（默认）：UV 与「未裁剪原图」线性对齐
+      const u0 = r.u - r.offsetX / W;
+      const v0 = r.v - (oh - r.offsetY - r.height) / H;
+      const du = ow / W, dv = oh / H;
+      for (let i = 0; i < n; i += 2) {
+        uvs[i] = u0 + regionUVs[i] * du;
+        uvs[i + 1] = v0 + regionUVs[i + 1] * dv;
       }
     }
   }
@@ -1810,9 +1841,9 @@ SP.atlas = (() => {
       this.u = 0; this.v = 0; this.u2 = 0; this.v2 = 0;
     }
     get rotate() { return this.degrees % 180 !== 0; }
-    /** 贴图内实际矩形的宽 / 高（旋转 90 度时与逻辑宽高互换） */
-    get packedWidth() { return this.degrees === 90 ? this.height : this.width; }
-    get packedHeight() { return this.degrees === 90 ? this.width : this.height; }
+    /** 贴图内实际矩形的宽 / 高（旋转 90° / 270° 时与逻辑宽高互换，180° 不换） */
+    get packedWidth() { return this.rotate ? this.height : this.width; }
+    get packedHeight() { return this.rotate ? this.width : this.height; }
     /** 计算 UV（与官方 TextureAtlas 一致） */
     computeUV() {
       const W = this.page.width || 1, H = this.page.height || 1;
@@ -2740,7 +2771,10 @@ SP.json = (() => {
     }
 
     if (type === "mesh" || type === "linkedmesh") {
-      const parent = getv(map, "parent", null);
+      // 链接网格的父网格字段：4.1+ 官方用 "source"（官方 SkeletonJson 读的就是它），3.8 / 4.0 用 "parent"。
+      // 只认 "parent" 会让 4.1+ 导出的链接网格落进下面的普通网格分支：uvs / triangles 全空、也不参与父子解析，
+      // 结果这个部件永远拿不到图集 UV（直接不显示），并刷一堆「缺少 uvs」警告。
+      const parent = getv(map, "source", getv(map, "parent", null));
       const isLinked = type === "linkedmesh" || !!parent;
       const att = isLinked ? new D.LinkedMeshAttachment(name) : new D.MeshAttachment(name);
       att.path = getv(map, "path", name);
@@ -2754,7 +2788,15 @@ SP.json = (() => {
         // 3.8 用 "deform"，4.x 用 "timelines"，语义相同（默认 true = 继承父网格的时间轴）
         att.inheritTimelines = bool(getv(map, "timelines", getv(map, "deform", true)), true);
         if (atlasView) att.region = atlasView.findRegion(att.path, -1) || null;
-        linkMeshes.push({ att: att, skin: skin, slotIndex: slotIndex, parentName: parent });
+        // 4.3 的 "slot"：父网格可以挂在别的插槽上（官方先把它换算成 sourceIndex 再定位），缺省 = 本插槽
+        let sourceSlotIndex = slotIndex;
+        const sourceSlotName = getv(map, "slot", null);
+        if (typeof sourceSlotName === "string") {
+          const sourceSlot = skeletonData.findSlot(sourceSlotName);
+          if (sourceSlot) sourceSlotIndex = sourceSlot.index;
+          else warn(`链接网格 "${name}" 的父网格插槽 "${sourceSlotName}" 不存在，按本插槽解析`);
+        }
+        linkMeshes.push({ att: att, skin: skin, slotIndex: sourceSlotIndex, parentName: parent });
         return att;
       }
       const uvs = getv(map, "uvs", null);
@@ -3252,15 +3294,20 @@ SP.json = (() => {
         return null;
       }
       resolving.add(att);
-      const skin = (att.skinName ? skinByName.get(att.skinName) : null) || entry.skin || sd.defaultSkin;
-      if (!skin) {
+      // 父网格所在的皮肤：官方（SkeletonJson 解 linkedMeshes）是「子网格写了 "skin" 就用那个皮肤，
+      // 没写就用**默认皮肤**」；这里再加一层兜底，试子网格自己所在的皮肤（官方此时直接抛错，本工具只记 warning）。
+      const sourceSkin = (att.skinName ? skinByName.get(att.skinName) : null) || sd.defaultSkin || entry.skin;
+      if (!sourceSkin) {
         warn(`链接网格 "${att.name}" 找不到皮肤（skin=${att.skinName || "default"}）`);
         resolving.delete(att); failed.add(att);
         return null;
       }
-      const parent = skin.getAttachment(entry.slotIndex, att.parentMeshName);
+      let parent = sourceSkin.getAttachment(entry.slotIndex, att.parentMeshName);
+      if (!parent && entry.skin && entry.skin !== sourceSkin) {
+        parent = entry.skin.getAttachment(entry.slotIndex, att.parentMeshName);
+      }
       if (!parent) {
-        warn(`链接网格 "${att.name}" 找不到父网格 "${att.parentMeshName}"（皮肤 "${skin.name}"）`);
+        warn(`链接网格 "${att.name}" 找不到父网格 "${att.parentMeshName}"（皮肤 "${sourceSkin.name}"）`);
         resolving.delete(att); failed.add(att);
         return null;
       }
