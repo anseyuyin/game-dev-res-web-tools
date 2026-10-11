@@ -59,6 +59,8 @@
 - **骨骼时间轴的取值语义**（关键）：官方 JSON 里 `rotate` / `translate` / `shear` 关键帧存的是**相对 setup 的增量**，`scale` 存的是**相对 setup 的乘数**，不是绝对值。工具严格按官方 `getRelativeValue` / `getScaleValue` 求解（单个轴的 `translateX/Y`、`scaleX/Y`、`shearX/Y` 时间轴同理）。如果把关键帧当绝对值应用，所有骨骼都会回落到 0 / 缩放回落到 1，整只骨架向原点塌陷——这正是修复前 4.3 样例「人物折叠」的根因。关键帧里没写 `x` 或 `y` 时按增量 0 处理（即回到 setup 值），这也是官方行为。
 - **物理约束（4.2 / 4.3 `physics`）不做模拟**：相关骨骼按动画与其它约束的结果显示，日志会提示数量。
 - **部分颜色时间轴不参与播放**：4.2 的 `rgb` / `alpha` / `rgb2`（只改单个颜色通道的时间轴）会被解析并存放，但暂未接入播放（完整 `rgba` / `rgba2` 正常）。骨骼的单轴时间轴（`translateX/Y`、`scaleX/Y`、`shearX/Y`）与 4.2 的 `inherit` 时间轴**已参与播放**。
+- **颜色 / 染色（tint）已与官方对齐**：单色染色按 `skeletonColor × slotColor × attachmentColor` 求值；**双色染色（`slot.dark`，暗色）** 按官方 `slot.darkColor != null` 判定并走双色着色器，公式与 spine-webgl 的 `newTwoColoredTextured` 一致（`light.rgb` 含 alpha、`dark.rgb = slot.darkColor.rgb × alpha`）。
+- **`skeleton.color`（骨架级颜色）未参与渲染**：官方渲染链是 `skeletonColor × slotColor × attachmentColor`，本工具只用后两项。官方样例里没有资源用到骨架级颜色，因此实测无差异；若拿到用到它的资源需补上这一环。
 - **约束求值顺序**：按 `order` 升序、同序时 IK → 变换 → 路径，每个约束后重算世界变换；被约束改动过的骨骼会沿父链校正世界矩阵，避免子骨骼用到过期矩阵。多级链式约束的极端情况下仍可能与官方运行时存在差异（见下条）。
 - **变换约束的两套语义**：4.2 及更早用「偏移 + mix」的经典语义；4.3 的 `properties` 属性映射按官方公式 `to.offset + (源值 + from.offset) * to.scale` 求值（含 `clamp`）。但官方是「矩阵权威」模型（约束直接改写骨骼矩阵，本地 rotation 与矩阵可以解耦），本工具是「本地量权威」模型；当**源骨骼带剪切（shear）**时，旋转映射会有几度量级偏差，并可能沿骨骼链放大（官方 `alien-pro` 的 eye / eye-stalk 系列属于这一类，偏差约 3～25 单位）。无约束的官方样例（各 `*-ess`）实测偏差 ≤ 1 单位。
 - **路径约束**为按弧长分布的近似实现（`tangent` / `chainScale` 旋转模式的尖端与缩放细节做了简化），官方 `*-pro` 样例中带路径约束的（`vine-pro`、`celestial-circus-pro`、`hero-pro` 等）会有明显偏差，属于实现完备度问题而非时间轴语义问题。

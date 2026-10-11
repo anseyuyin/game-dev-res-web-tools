@@ -66,7 +66,10 @@
   #viewportWrap{position:relative;flex:1 1 auto;min-width:0;min-height:0;background:#0a0d12;overflow:hidden;}
   #gl{display:block;width:100%;height:100%;touch-action:none;cursor:default;}
   #gl2d{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;}
-  #gl.mode-bone{cursor:crosshair;}
+  #gl.tool-active{cursor:crosshair;}
+  #gl.mode-translate{cursor:move;}
+  #gl.mode-rotate{cursor:crosshair;}
+  #gl.mode-scale{cursor:nwse-resize;}
   #gl.mode-vertex{cursor:cell;}
   #gl.panning{cursor:grabbing;}
 
@@ -314,14 +317,17 @@
     <details class="group" id="grpView" open="">
       <summary>显示与调试 <span class="tag" id="viewTag"></span></summary>
       <div class="groupBody">
-        <div class="row"><label style="width:52px;">拖拽</label>
-          <div class="seg grow" id="segDrag">
-            <button data-mode="none">关闭</button>
-            <button data-mode="bone" class="on">骨骼</button>
-            <button data-mode="vertex">网格顶点</button>
+        <div class="row"><label style="width:52px;">工具</label>
+          <div class="seg grow" id="segTool">
+            <button data-tool="select" title="选择 / 平移视图（Q）">选择</button>
+            <button data-tool="translate" class="on" title="位移（W）">位移</button>
+            <button data-tool="rotate" title="旋转（E）">旋转</button>
+            <button data-tool="scale" title="缩放（R）">缩放</button>
+            <button data-tool="vertex" title="网格顶点编辑">顶点</button>
           </div>
         </div>
-        <div class="hint" id="dragHint">左键拖骨骼＝旋转，<b>Shift</b>＋拖＝平移，双击骨骼＝重置该骨骼姿态。</div>
+        <div class="hint" id="toolHint"></div>
+        <div class="hint">选中<b>骨骼</b>或<b>部件</b>后，Gizmo 会出现在对应对象上；部件随其所属骨骼一起变换。</div>
         <div class="sep"></div>
         <div class="row wrap" style="gap:10px;">
           <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkBones" checked=""> 骨骼</label>
@@ -471,12 +477,16 @@
         <li>下拉框切换动画；▶ / ⏸ 播放暂停；进度条可拖动并在该时刻<b>停留</b>（拖动时自动暂停）。</li>
         <li>速度 0.05×–3×；可循环；⏮ ◀| |▶ ⏭ 逐帧步进。</li>
       </ul>
-      <div><b>3. 显示与拖拽调试</b></div>
+      <div><b>3. 显示与 Gizmo 变换</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>骨骼 / 网格线框 / 包围盒 / 贴图 / 骨骼名 / 裁剪 均可独立开关。</li>
-        <li>拖拽模式选「骨骼」：左键拖关节＝旋转，<b>Shift</b>＋拖＝平移，双击关节＝重置该骨骼姿态。姿态调试结果叠加在动画之上，可一键清空。</li>
-        <li>拖拽模式选「网格顶点」：选中的部件会显示顶点手柄，拖动即可修改当前帧的网格形变（建议先暂停）。</li>
-        <li>部件层级列表里 👁 可隐藏部件，双击部件＝把视图对准它。</li>
+        <li>左上「工具」切换交互类型：<b>位移 / 旋转 / 缩放</b> 会按 Unity 风格显示不同的 Gizmo。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
+        <li><b>位移</b>：拖动绿色（Y）/ 红色（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。</li>
+        <li><b>旋转</b>：拖动 Gizmo 圆环绕关节旋转。</li>
+        <li><b>缩放</b>：拖动轴端方点按轴缩放，拖中心方点整体缩放（沿骨骼自身轴向生效）。</li>
+        <li>变换结果叠加在动画之上、以「调试偏移」保存，可一键清空（<b>Shift</b>+R 或按钮）。选中<b>部件</b>时，变换作用于该部件所属的骨骼（与 Spine 编辑器一致）。</li>
+        <li>「顶点」工具：选中的部件会显示顶点手柄，拖动即可修改当前帧的网格形变（建议先暂停）。</li>
+        <li>部件层级列表里 👁 可隐藏部件，双击部件＝把视图对准它；双击骨骼＝重置该骨骼姿态。</li>
       </ul>
       <div><b>4. 快捷键</b></div>
       <div class="kbdList hint" style="color:var(--text-dim);">
@@ -486,10 +496,14 @@
         <kbd>F</kbd><span>适配视图</span>
         <kbd>1</kbd><span>1:1 缩放</span>
         <kbd>+ -</kbd><span>放大 / 缩小</span>
+        <kbd>Q</kbd><span>选择工具</span>
+        <kbd>W</kbd><span>位移工具</span>
+        <kbd>E</kbd><span>旋转工具</span>
+        <kbd>R</kbd><span>缩放工具</span>
+        <kbd>Shift+R</kbd><span>清空姿态调试</span>
         <kbd>B</kbd><span>骨骼显示</span>
         <kbd>M</kbd><span>网格显示</span>
         <kbd>U</kbd><span>包围盒显示</span>
-        <kbd>R</kbd><span>清空姿态调试</span>
         <kbd>/</kbd><span>聚焦资源搜索</span>
         <kbd>Esc</kbd><span>取消选中 / 关闭弹窗</span>
       </div>
@@ -6378,8 +6392,10 @@ void main () {
   }
   vec4 tex = texture(u_tex, v_uv);          // 预乘 alpha
   float a = tex.a * v_light.a;
-  vec3 rgb = tex.rgb * v_light.rgb * v_light.a;
-  if (u_mode == 2) rgb += v_dark.rgb * v_dark.a * tex.a;
+  // v_light.rgb 已经含 alpha（见顶点写入处：light.rgb * light.a），这里不能再乘一次，
+  // 否则半透明染色会整体偏暗。
+  vec3 rgb = tex.rgb * v_light.rgb;
+  if (u_mode == 2) rgb += v_dark.rgb * v_dark.a;
   outColor = vec4(rgb, a);
 }`;
 
@@ -6633,10 +6649,19 @@ void main () {
         }
         if (att.type === D.ATT.POINT || att.type === D.ATT.BOUNDINGBOX || att.type === D.ATT.PATH) continue;
 
+        // 双色染色（dark color）由 **插槽** 决定，不是附件：
+        // 官方渲染器（spine-webgl SkeletonRenderer）里
+        //   alpha        = skeletonColor.a * slotColor.a * attachmentColor.a
+        //   light.rgb    = skeletonColor.rgb * slotColor.rgb * attachmentColor.rgb * alpha
+        //   dark.rgb     = slot.darkColor.rgb * alpha        （无暗色时为 0）
+        // 着色器输出 tex.rgb * light.rgb + dark.rgb（贴图与顶点色均为预乘 alpha）。
+        // 附件侧没有 darkColor（官方数据模型里只有插槽有暗色），所以判据必须是 slot.darkColor。
         const light = mulColor(slot.color, att.color);
-        const darkSrc = att.darkColor || slot.darkColor;
-        const twoColor = !!att.darkColor;
-        const dark = twoColor ? (darkSrc || { r: 0, g: 0, b: 0, a: 1 }) : { r: 0, g: 0, b: 0, a: 0 };
+        const twoColor = !!slot.darkColor;
+        const alpha = light.a;
+        const dark = twoColor
+          ? { r: slot.darkColor.r * alpha, g: slot.darkColor.g * alpha, b: slot.darkColor.b * alpha, a: 1 }
+          : { r: 0, g: 0, b: 0, a: 0 };
 
         let verts, uvs, indices, region = null, vertexCount = 0;
         if (att.type === D.ATT.REGION) {
@@ -6699,7 +6724,9 @@ void main () {
           const d = this.vdata;
           d[o] = verts[i * 2]; d[o + 1] = verts[i * 2 + 1];
           d[o + 2] = uvs[i * 2]; d[o + 3] = uvs[i * 2 + 1];
-          d[o + 4] = light.r; d[o + 5] = light.g; d[o + 6] = light.b; d[o + 7] = light.a;
+          // v_light = (light.rgb * light.a, light.a)：与官方 SkeletonRenderer 写入顶点色的写法一致，
+          // 着色器里因此不再对 rgb 乘第二次 alpha。
+          d[o + 4] = light.r * light.a; d[o + 5] = light.g * light.a; d[o + 6] = light.b * light.a; d[o + 7] = light.a;
           d[o + 8] = dark.r; d[o + 9] = dark.g; d[o + 10] = dark.b; d[o + 11] = twoColor ? dark.a : 0;
         }
         for (let i = 0; i < indices.length; i++) this.idata[icount + i] = base + indices[i];
@@ -6791,18 +6818,30 @@ SP.pose = (() => {
     label: "rgba(230,237,243,.82)",
     grid: "rgba(120,140,170,.16)",
     axis: "rgba(120,140,170,.45)",
+    // Gizmo（Unity 风格）：X 红 / Y 绿，悬停与拖拽时高亮
+    gizmoX: "#ff4d4d",
+    gizmoY: "#a3e635",
+    gizmoRing: "#4ea1ff",
+    gizmoPlane: "rgba(150,190,255,.28)",
+    gizmoPlaneHot: "rgba(255,255,255,.55)",
+    gizmoEdge: "rgba(255,255,255,.9)",
+    gizmoHot: "#ffffff",
   };
+
+  // Gizmo 在屏幕上的固定尺寸（像素），不随视图缩放变化
+  const GZ = { axis: 78, ring: 72, head: 13, sq: 7, handleR: 12, segR: 8, ringHit: 9 };
 
   class PoseController {
     constructor() {
-      this.overrides = new Map();      // boneName -> { dRotation, dX, dY }
+      this.overrides = new Map();      // boneName -> { dRotation, dX, dY, dScaleX, dScaleY }
       this.vertexEdits = new Map();    // slotIndex -> Float32Array（附加形变偏移）
-      this.dragMode = "bone";
+      this.tool = "translate";         // select | translate | rotate | scale | vertex
       this.selectedBone = null;
       this.selectedSlot = null;
       this.selectedVertex = -1;
       this.drag = null;
       this.hover = null;
+      this.gizmoHover = null;          // 当前悬停的 gizmo 手柄："x" | "y" | "xy" | "ring"
       this.fitPad = 0.12;
     }
     // ---------------- 姿态调试数据 ----------------
@@ -6811,14 +6850,31 @@ SP.pose = (() => {
     addBoneDelta(bone, dr, dx, dy) {
       const key = bone.data.name;
       let o = this.overrides.get(key);
-      if (!o) { o = { dRotation: 0, dX: 0, dY: 0 }; this.overrides.set(key, o); }
+      if (!o) { o = { dRotation: 0, dX: 0, dY: 0, dScaleX: 1, dScaleY: 1 }; this.overrides.set(key, o); }
       o.dRotation += dr || 0; o.dX += dx || 0; o.dY += dy || 0;
       return o;
     }
+    /** 偏移是否等于「无修改」：角度 / 位移为 0，缩放倍率为 1 */
+    static isEmptyDelta(o) {
+      if (!o) return true;
+      return Math.abs(o.dRotation || 0) < 1e-6 && Math.abs(o.dX || 0) < 1e-6 && Math.abs(o.dY || 0) < 1e-6
+        && Math.abs((o.dScaleX === undefined || o.dScaleX === null ? 1 : o.dScaleX) - 1) < 1e-6
+        && Math.abs((o.dScaleY === undefined || o.dScaleY === null ? 1 : o.dScaleY) - 1) < 1e-6;
+    }
     setBoneDelta(bone, o) {
-      if (!o || (Math.abs(o.dRotation) < 1e-6 && Math.abs(o.dX) < 1e-6 && Math.abs(o.dY) < 1e-6)) {
-        this.overrides.delete(bone.data.name);
-      } else this.overrides.set(bone.data.name, o);
+      if (PoseController.isEmptyDelta(o)) this.overrides.delete(bone.data.name);
+      else this.overrides.set(bone.data.name, o);
+    }
+    /** 读取某骨骼的调试偏移（归一化，缩放默认 1），不产生副作用 */
+    readBoneDelta(bone) {
+      const o = bone ? this.overrides.get(bone.data.name) : null;
+      return {
+        dRotation: o ? (o.dRotation || 0) : 0,
+        dX: o ? (o.dX || 0) : 0,
+        dY: o ? (o.dY || 0) : 0,
+        dScaleX: o && o.dScaleX !== undefined && o.dScaleX !== null ? o.dScaleX : 1,
+        dScaleY: o && o.dScaleY !== undefined && o.dScaleY !== null ? o.dScaleY : 1,
+      };
     }
     resetBone(bone) { if (bone) this.overrides.delete(bone.data.name); }
     resetAll() { this.overrides.clear(); }
@@ -6828,9 +6884,11 @@ SP.pose = (() => {
       for (const bone of skeleton.bones) {
         const o = this.overrides.get(bone.data.name);
         if (!o) continue;
-        bone.rotation += o.dRotation;
-        bone.x += o.dX;
-        bone.y += o.dY;
+        bone.rotation += o.dRotation || 0;
+        bone.x += o.dX || 0;
+        bone.y += o.dY || 0;
+        if (o.dScaleX !== undefined && o.dScaleX !== null && o.dScaleX !== 1) bone.scaleX *= o.dScaleX;
+        if (o.dScaleY !== undefined && o.dScaleY !== null && o.dScaleY !== 1) bone.scaleY *= o.dScaleY;
         any = true;
       }
       return any;
@@ -6954,10 +7012,47 @@ SP.pose = (() => {
       }
       return best;
     }
+    // ---------------- 变换 Gizmo（Unity 风格） ----------------
+    /** Gizmo 操作的目标骨骼：直接选中的骨骼，或选中部件所属的骨骼 */
+    gizmoBone() {
+      if (this.selectedBone) return this.selectedBone;
+      if (this.selectedSlot) return this.selectedSlot.bone;
+      return null;
+    }
+    gizmoActive() {
+      return (this.tool === "translate" || this.tool === "rotate" || this.tool === "scale") && !!this.gizmoBone();
+    }
+    /** Gizmo 屏幕几何：中心 + 两个轴端点（世界轴对齐，与 Unity 全局模式一致） */
+    gizmoScreen(view) {
+      const bone = this.gizmoBone();
+      if (!bone) return null;
+      const o = view.worldToScreen(bone.worldX, bone.worldY);
+      const L = GZ.axis;
+      return { o, xTip: { x: o.x + L, y: o.y }, yTip: { x: o.x, y: o.y - L } };
+    }
+    /** 命中测试：返回 "x" | "y" | "xy" | "ring"，未命中返回 null */
+    pickGizmo(view, sx, sy) {
+      if (!this.gizmoActive()) return null;
+      const g = this.gizmoScreen(view);
+      if (!g) return null;
+      const dx = sx - g.o.x, dy = sy - g.o.y;
+      const near = (bx, by, tol) => Math.sqrt(M.distToSegment2(sx, sy, g.o.x, g.o.y, bx, by)) <= tol;
+      if (this.tool === "rotate") {
+        return Math.abs(Math.hypot(dx, dy) - GZ.ring) <= GZ.ringHit ? "ring" : null;
+      }
+      // 中心方块（位移＝XY 平面拖动，缩放＝整体缩放）优先
+      if (Math.abs(dx) <= GZ.sq + 4 && Math.abs(dy) <= GZ.sq + 4) return "xy";
+      const hitX = near(g.xTip.x, g.xTip.y, GZ.segR) || Math.hypot(dx - GZ.axis, dy) <= GZ.handleR;
+      const hitY = near(g.yTip.x, g.yTip.y, GZ.segR) || Math.hypot(dx, dy + GZ.axis) <= GZ.handleR;
+      if (hitX && hitY) return Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+      if (hitX) return "x";
+      if (hitY) return "y";
+      return null;
+    }
     // ---------------- 拖拽 ----------------
     beginDrag(skeleton, view, sx, sy, shiftKey) {
       const world = view.screenToWorld(sx, sy);
-      if (this.dragMode === "vertex" && this.selectedSlot) {
+      if (this.tool === "vertex" && this.selectedSlot) {
         const vi = this.pickVertex(this.selectedSlot, view, sx, sy);
         if (vi >= 0) {
           const att = this.selectedSlot.attachment;
@@ -6971,20 +7066,16 @@ SP.pose = (() => {
           return this.drag;
         }
       }
-      if (this.dragMode !== "none") {
-        const hit = this.pickBone(skeleton, view, sx, sy);
-        if (hit) {
-          const bone = hit.bone;
-          const o = this.getOverride(bone) || { dRotation: 0, dX: 0, dY: 0 };
-          this.selectedBone = bone;
-          this.drag = {
-            kind: shiftKey ? "translate" : "rotate", bone,
-            startWorld: world, lastWorld: world,
-            startOverride: { dRotation: o.dRotation, dX: o.dX, dY: o.dY },
-            startAngle: this._angleFromBone(bone, world),
-          };
-          return this.drag;
-        }
+      // 先尝试抓取 Gizmo 手柄
+      const handle = this.pickGizmo(view, sx, sy);
+      if (handle) {
+        const bone = this.gizmoBone();
+        this.drag = {
+          kind: "gizmo", tool: this.tool, handle, bone,
+          startWorld: world, lastWorld: world,
+          startOverride: this.readBoneDelta(bone),
+        };
+        return this.drag;
       }
       return null;
     }
@@ -6995,38 +7086,50 @@ SP.pose = (() => {
       const d = this.drag;
       if (!d) return;
       const world = view.screenToWorld(sx, sy);
-      if (d.kind === "rotate") {
-        // 增量旋转：按「上一点 → 当前点」相对关节转过的角度累加。
-        // 这样即使抓取点离关节很近（绝对角度不稳），拖动也平滑可控。
+      if (d.kind === "gizmo") {
         const bone = d.bone;
-        let delta = this._angleFromBone(bone, world) - this._angleFromBone(bone, d.lastWorld);
-        while (delta > 180) delta -= 360;
-        while (delta < -180) delta += 360;
-        const cur = this.getOverride(bone) || d.startOverride;
-        this.setBoneDelta(bone, { dRotation: cur.dRotation + delta, dX: cur.dX, dY: cur.dY });
-        d.lastWorld = world;
-      } else if (d.kind === "translate") {
-        const bone = d.bone;
-        const parent = bone.parent;
-        let lx, ly;
-        if (parent) {
-          const l = parent.worldToLocal(world.x, world.y);
-          lx = l.x; ly = l.y;
-        } else {
+        const o = d.startOverride;
+        if (d.tool === "rotate") {
+          // 增量旋转：按「上一点 → 当前点」相对关节转过的角度累加。
+          // 这样即使抓取点离关节很近（绝对角度不稳），拖动也平滑可控。
+          let delta = this._angleFromBone(bone, world) - this._angleFromBone(bone, d.lastWorld);
+          while (delta > 180) delta -= 360;
+          while (delta < -180) delta += 360;
+          const cur = this.readBoneDelta(bone);
+          this.setBoneDelta(bone, { dRotation: cur.dRotation + delta, dX: cur.dX, dY: cur.dY, dScaleX: cur.dScaleX, dScaleY: cur.dScaleY });
+          d.lastWorld = world;
+        } else if (d.tool === "translate") {
+          // 沿世界轴（或 XY 平面）的位移量 → 换算成父级本地空间的增量
+          let dxw = world.x - d.startWorld.x, dyw = world.y - d.startWorld.y;
+          if (d.handle === "x") dyw = 0;
+          else if (d.handle === "y") dxw = 0;
+          const parent = bone.parent;
           const sk = skeleton;
-          lx = (world.x - sk.x) / (sk.scaleX || 1); ly = (world.y - sk.y) / (sk.scaleY || 1);
+          const toLocal = (wx, wy) => (parent
+            ? parent.worldToLocal(wx, wy)
+            : { x: (wx - sk.x) / (sk.scaleX || 1), y: (wy - sk.y) / (sk.scaleY || 1) });
+          const l0 = toLocal(d.startWorld.x, d.startWorld.y);
+          const l1 = toLocal(d.startWorld.x + dxw, d.startWorld.y + dyw);
+          this.setBoneDelta(bone, {
+            dRotation: o.dRotation,
+            dX: o.dX + (l1.x - l0.x),
+            dY: o.dY + (l1.y - l0.y),
+            dScaleX: o.dScaleX, dScaleY: o.dScaleY,
+          });
+        } else if (d.tool === "scale") {
+          // 世界位移量 / Gizmo 轴长 → 缩放倍率（沿骨骼自身轴向生效）
+          const refLen = GZ.axis / Math.max(1e-6, view.scale);
+          const dwx = world.x - d.startWorld.x, dwy = world.y - d.startWorld.y;
+          let fx = 1, fy = 1;
+          if (d.handle === "x") fx = 1 + dwx / refLen;
+          else if (d.handle === "y") fy = 1 + dwy / refLen;
+          else { const f = 1 + (dwx + dwy) / (refLen * Math.SQRT2); fx = f; fy = f; }
+          const floor = (v) => (Math.abs(v) < 0.02 ? (v < 0 ? -0.02 : 0.02) : v);
+          this.setBoneDelta(bone, {
+            dRotation: o.dRotation, dX: o.dX, dY: o.dY,
+            dScaleX: o.dScaleX * floor(fx), dScaleY: o.dScaleY * floor(fy),
+          });
         }
-        const o = { dRotation: d.startOverride.dRotation };
-        // startWorld 换算到同一个父空间
-        let sLx, sLy;
-        if (parent) { const l = parent.worldToLocal(d.startWorld.x, d.startWorld.y); sLx = l.x; sLy = l.y; }
-        else {
-          sLx = (d.startWorld.x - skeleton.x) / (skeleton.scaleX || 1);
-          sLy = (d.startWorld.y - skeleton.y) / (skeleton.scaleY || 1);
-        }
-        o.dX = d.startOverride.dX + (lx - sLx);
-        o.dY = d.startOverride.dY + (ly - sLy);
-        this.setBoneDelta(bone, o);
       } else if (d.kind === "vertex") {
         const att = d.attachment, slot = d.slot;
         const world0 = view.screenToWorld(sx, sy);
@@ -7066,7 +7169,7 @@ SP.pose = (() => {
       const id = 1 / det;
       return { x: (dx * bone.d - dy * bone.b) * id, y: (dy * bone.a - dx * bone.c) * id };
     }
-    endDrag() { const d = this.drag; this.drag = null; return d; }
+    endDrag() { const d = this.drag; this.drag = null; this.gizmoHover = null; return d; }
     // ---------------- 绘制叠加层 ----------------
     paint(ctx, view, skeleton, opts) {
       opts = opts || {};
@@ -7077,9 +7180,82 @@ SP.pose = (() => {
       if (opts.grid) this._paintGrid(ctx, view);
       if (opts.mesh) this._paintMeshes(ctx, view, skeleton);
       if (opts.bounds) this._paintBounds(ctx, view, skeleton);
-      if (this.dragMode === "vertex" && this.selectedSlot) this._paintVertexHandles(ctx, view, skeleton);
+      if (this.tool === "vertex" && this.selectedSlot) this._paintVertexHandles(ctx, view, skeleton);
       if (opts.bones) this._paintBones(ctx, view, skeleton, opts.names);
       if (opts.axis) this._paintAxis(ctx, view, skeleton);
+      if (this.gizmoActive()) this._paintGizmo(ctx, view);
+    }
+    /** Unity 风格变换 Gizmo：位移＝双箭头＋中心方块，旋转＝圆环，缩放＝双轴方点＋中心方点 */
+    _paintGizmo(ctx, view) {
+      const g = this.gizmoScreen(view);
+      if (!g) return;
+      const o = g.o, L = GZ.axis, sq = GZ.sq;
+      const hot = (this.drag && this.drag.kind === "gizmo") ? this.drag.handle : this.gizmoHover;
+      const cx = hot === "x" ? COL.gizmoHot : COL.gizmoX;
+      const cy = hot === "y" ? COL.gizmoHot : COL.gizmoY;
+      ctx.save();
+      ctx.lineCap = "round";
+      if (this.tool === "translate") {
+        this._paintArrow(ctx, o.x, o.y, o.x + L, o.y, cx);
+        this._paintArrow(ctx, o.x, o.y, o.x, o.y - L, cy);
+        // 中心方块：XY 平面自由位移
+        ctx.fillStyle = hot === "xy" ? COL.gizmoPlaneHot : COL.gizmoPlane;
+        ctx.fillRect(o.x - sq, o.y - sq, sq * 2, sq * 2);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = hot === "xy" ? COL.gizmoHot : COL.gizmoEdge;
+        ctx.strokeRect(o.x - sq, o.y - sq, sq * 2, sq * 2);
+      } else if (this.tool === "rotate") {
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, GZ.ring, 0, Math.PI * 2);
+        ctx.lineWidth = 2.4;
+        ctx.strokeStyle = hot === "ring" ? COL.gizmoHot : COL.gizmoRing;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, 2.6, 0, Math.PI * 2);
+        ctx.fillStyle = COL.gizmoEdge;
+        ctx.fill();
+      } else if (this.tool === "scale") {
+        this._paintScaleAxis(ctx, o.x, o.y, o.x + L, o.y, cx);
+        this._paintScaleAxis(ctx, o.x, o.y, o.x, o.y - L, cy);
+        // 中心方块：整体缩放
+        ctx.fillStyle = hot === "xy" ? COL.gizmoHot : COL.gizmoEdge;
+        ctx.fillRect(o.x - sq, o.y - sq, sq * 2, sq * 2);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(0,0,0,.6)";
+        ctx.strokeRect(o.x - sq, o.y - sq, sq * 2, sq * 2);
+      }
+      ctx.restore();
+    }
+    _paintArrow(ctx, x0, y0, x1, y1, color) {
+      const ang = Math.atan2(y1 - y0, x1 - x0);
+      const h = GZ.head;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1 - Math.cos(ang) * (h - 1), y1 - Math.sin(ang) * (h - 1));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 - Math.cos(ang - 0.42) * h, y1 - Math.sin(ang - 0.42) * h);
+      ctx.lineTo(x1 - Math.cos(ang + 0.42) * h, y1 - Math.sin(ang + 0.42) * h);
+      ctx.closePath();
+      ctx.fill();
+    }
+    _paintScaleAxis(ctx, x0, y0, x1, y1, color) {
+      const s = GZ.sq;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+      ctx.fillRect(x1 - s, y1 - s, s * 2, s * 2);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(0,0,0,.6)";
+      ctx.strokeRect(x1 - s, y1 - s, s * 2, s * 2);
     }
     _paintGrid(ctx, view) {
       // 世界坐标网格：根据缩放选择合适间距
@@ -7318,7 +7494,7 @@ SP.pose = (() => {
     }
   }
 
-  return { PoseController, COL };
+  return { PoseController, COL, GZ };
 })();
 /* =========================================================================
  * 模块 7 · 应用层：目录选择 / 扫描 / 加载 / 面板 / 交互 / 渲染循环
@@ -7371,7 +7547,7 @@ SP.app = (() => {
 
   const DEFAULT_PREFS = {
     bones: true, mesh: true, bounds: false, texture: true, names: false, axis: true,
-    grid: true, clip: true, bg: "checker", dragMode: "bone", speed: 1, loop: true,
+    grid: true, clip: true, bg: "checker", tool: "translate", speed: 1, loop: true,
     autoPlay: true, onlySkel: true, groupFolder: true, logDebug: false,
   };
 
@@ -8518,7 +8694,8 @@ SP.app = (() => {
     const bone = state.pose.selectedBone;
     const slot = state.pose.selectedSlot;
     if (bone) {
-      const ov = state.pose.getOverride(bone);
+      const ov = state.pose.readBoneDelta(bone);
+      const hasOv = !!state.pose.getOverride(bone);
       parts.push(`<div style="font-size:12px;font-weight:600;color:var(--accent)">🦴 骨骼 ${esc(bone.data.name)}</div>
         <div class="kv">
           <span class="k">父级</span><span class="v">${esc(bone.data.parent ? bone.data.parent.name : "（根）")}</span>
@@ -8529,18 +8706,24 @@ SP.app = (() => {
           <span class="k">世界坐标</span><span class="v">${bone.worldX.toFixed(2)}, ${bone.worldY.toFixed(2)}</span>
           <span class="k">世界角度</span><span class="v">${bone.getWorldRotationX().toFixed(2)}°</span>
           <span class="k">长度</span><span class="v">${bone.data.length.toFixed(2)}${bone.data.transformMode ? " · " + D.TransformModeName[bone.data.transformMode] : ""}</span>
-          <span class="k">调试偏移</span><span class="v" style="color:${ov ? "var(--accent)" : "inherit"}">${ov ? `${ov.dRotation.toFixed(2)}° / ${ov.dX.toFixed(2)}, ${ov.dY.toFixed(2)}` : "无"}</span>
+          <span class="k">调试偏移</span><span class="v" style="color:${hasOv ? "var(--accent)" : "inherit"}">${hasOv ? `${ov.dRotation.toFixed(2)}° / ${ov.dX.toFixed(2)}, ${ov.dY.toFixed(2)} / ×${ov.dScaleX.toFixed(3)}, ${ov.dScaleY.toFixed(3)}` : "无"}</span>
         </div>
         <div class="row" style="margin-top:4px;">
           <label style="width:38px;">角度</label>
-          <input type="number" id="inspRot" step="1" value="${(ov ? ov.dRotation : 0).toFixed(2)}" class="grow">
+          <input type="number" id="inspRot" step="1" value="${ov.dRotation.toFixed(2)}" class="grow">
           <label style="width:26px;">X</label>
-          <input type="number" id="inspX" step="1" value="${(ov ? ov.dX : 0).toFixed(2)}" style="width:64px">
+          <input type="number" id="inspX" step="1" value="${ov.dX.toFixed(2)}" style="width:64px">
           <label style="width:20px;">Y</label>
-          <input type="number" id="inspY" step="1" value="${(ov ? ov.dY : 0).toFixed(2)}" style="width:64px">
+          <input type="number" id="inspY" step="1" value="${ov.dY.toFixed(2)}" style="width:64px">
+        </div>
+        <div class="row">
+          <label style="width:38px;">缩放</label>
+          <input type="number" id="inspSX" step="0.05" value="${ov.dScaleX.toFixed(3)}" class="grow">
+          <label style="width:26px;">Y</label>
+          <input type="number" id="inspSY" step="0.05" value="${ov.dScaleY.toFixed(3)}" style="width:64px">
         </div>
         <div class="row"><button class="btn sm" id="inspReset">↺ 重置该骨骼</button>
-          <span class="hint">位移单位＝父级本地空间</span></div>`);
+          <span class="hint">位移＝父级本地空间，缩放＝倍率(1)</span></div>`);
     }
     if (slot) {
       const att = slot.attachment;
@@ -8551,13 +8734,14 @@ SP.app = (() => {
           <span class="k">类型</span><span class="v">${esc(att ? att.type : "-")}</span>
           <span class="k">混合</span><span class="v">${esc(att ? D.BlendName[att.blendMode] : D.BlendName[slot.data.blendMode])}</span>
           <span class="k">颜色</span><span class="v">${M.rgbToHex(slot.color, true)} × ${att ? M.rgbToHex(att.color, true) : "-"}</span>
-          ${att && att.darkColor ? `<span class="k">暗色</span><span class="v">${M.rgbToHex(att.darkColor, true)}</span>` : ""}
+          ${slot.darkColor ? `<span class="k">暗色（双色）</span><span class="v">${M.rgbToHex(slot.darkColor, true)}</span>` : ""}
           ${att && att.region ? `<span class="k">图集区域</span><span class="v">${esc(att.region.name)} (${att.region.page.name})</span>` : ""}
           ${att && att.vertices ? `<span class="k">顶点数</span><span class="v">${att.worldVerticesLength / 2}${att.bones && att.bones.length ? " · 带权重" : ""}</span>` : ""}
           ${att && att.sequence ? `<span class="k">序列帧</span><span class="v">${att.sequence.regions.length} 帧，当前 ${slot.sequenceIndex}</span>` : ""}
           ${att && att.type === "clipping" ? `<span class="k">裁剪到</span><span class="v">${esc(att.endSlot ? att.endSlot.name : "（末尾）")}</span>` : ""}
           ${att && att.type === "path" ? `<span class="k">路径</span><span class="v">${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}</span>` : ""}
-        </div>`);
+        </div>
+        <div class="hint" style="margin-top:4px;">用 Gizmo 变换该部件时，作用于其所属骨骼 <b>${esc(slot.data.boneData.name)}</b>（Spine 中部件随骨骼变换）。</div>`);
     }
     if (!parts.length) {
       box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在上面列表中选择。</div>';
@@ -8571,10 +8755,14 @@ SP.app = (() => {
         const r = parseFloat($("inspRot").value) || 0;
         const x = parseFloat($("inspX").value) || 0;
         const y = parseFloat($("inspY").value) || 0;
-        state.pose.setBoneDelta(bone, { dRotation: r, dX: x, dY: y });
+        let sx = parseFloat($("inspSX").value);
+        let sy = parseFloat($("inspSY").value);
+        if (!isFinite(sx) || sx === 0) sx = 1;
+        if (!isFinite(sy) || sy === 0) sy = 1;
+        state.pose.setBoneDelta(bone, { dRotation: r, dX: x, dY: y, dScaleX: sx, dScaleY: sy });
         renderBones();
       };
-      for (const id of ["inspRot", "inspX", "inspY"]) {
+      for (const id of ["inspRot", "inspX", "inspY", "inspSX", "inspSY"]) {
         $(id).addEventListener("change", apply);
         $(id).addEventListener("input", (e) => { if (e.target === document.activeElement) apply(); });
       }
@@ -8717,7 +8905,11 @@ SP.app = (() => {
       state.view.panByScreen(dx, dy);
       state.panning = { x: e.clientX, y: e.clientY };
       e.preventDefault();
+      return;
     }
+    // 空闲时更新 Gizmo 悬停高亮
+    const p = screenPos(e);
+    state.pose.gizmoHover = state.pose.gizmoActive() ? state.pose.pickGizmo(state.view, p.x, p.y) : null;
   }
 
   function onPointerUp(e) {
@@ -8726,8 +8918,10 @@ SP.app = (() => {
     if (state.dragging) {
       const d = state.pose.endDrag();
       state.dragging = false;
-      if (d && d.kind === "rotate") log("debug", `已在动画之上旋转骨骼 ${d.bone.data.name}`);
-      if (d && d.kind === "translate") log("debug", `已平移骨骼 ${d.bone.data.name}`);
+      if (d && d.kind === "gizmo") {
+        const label = { translate: "位移", rotate: "旋转", scale: "缩放" }[d.tool] || "变换";
+        log("debug", `已对骨骼 ${d.bone.data.name} 应用${label}（叠加在动画之上）`);
+      }
       if (d && d.kind === "vertex") log("debug", `已修改部件 ${d.slot.data.name} 的第 ${d.index + 1} 个顶点（网格形变）`);
       renderBones(); renderInspector();
       return;
@@ -8738,7 +8932,7 @@ SP.app = (() => {
     if (!cur || !wasPending || state.pointerMoved || e.button !== 0) return;
     // 点击选择
     const p = screenPos(e);
-    const boneHit = state.pose.dragMode === "none" ? null : state.pose.pickBone(cur.skeleton, state.view, p.x, p.y, 10);
+    const boneHit = state.pose.pickBone(cur.skeleton, state.view, p.x, p.y, 10);
     if (boneHit) {
       state.pose.selectedBone = boneHit.bone;
       state.pose.selectedSlot = null;
@@ -8817,10 +9011,15 @@ SP.app = (() => {
       case "b": case "B": setToggle("bones", !state.prefs.bones); break;
       case "m": case "M": setToggle("mesh", !state.prefs.mesh); break;
       case "u": case "U": setToggle("bounds", !state.prefs.bounds); break;
+      case "q": case "Q": setTool("select"); break;
+      case "w": case "W": setTool("translate"); break;
+      case "e": case "E": setTool("rotate"); break;
       case "r": case "R":
-        state.pose.resetAll();
-        log("info", "已清空姿态调试");
-        renderBones(); renderInspector();
+        if (e.shiftKey) {
+          state.pose.resetAll();
+          log("info", "已清空姿态调试");
+          renderBones(); renderInspector();
+        } else setTool("scale");
         break;
       case "/":
         e.preventDefault();
@@ -8858,6 +9057,31 @@ SP.app = (() => {
     $("viewTag").textContent = [state.prefs.bones ? "骨骼" : "", state.prefs.mesh ? "网格" : "", state.prefs.bounds ? "包围盒" : ""].filter(Boolean).join("/");
   }
 
+  /* -------------------------------------------------- 变换工具（Gizmo） */
+  const TOOLS = ["select", "translate", "rotate", "scale", "vertex"];
+  const TOOL_HINTS = {
+    select: "点击选中骨骼 / 部件；拖动空白处平移视图。",
+    translate: "拖 <b>绿色</b>（Y）/ <b>红色</b>（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。",
+    rotate: "拖动圆环绕关节旋转。",
+    scale: "拖轴上端点按轴缩放，拖中心方点整体缩放（沿骨骼自身轴向生效）。",
+    vertex: "先在部件列表选中一个<b>网格</b>部件，再拖动顶点手柄（建议先暂停动画）。",
+  };
+
+  function setTool(mode) {
+    if (TOOLS.indexOf(mode) < 0) mode = "select";
+    state.prefs.tool = mode;
+    state.pose.tool = mode;
+    state.pose.gizmoHover = null;
+    if (state.pose.drag) state.pose.drag = null;
+    state.dragging = false;
+    const seg = $("segTool");
+    if (seg) for (const x of seg.querySelectorAll("button")) x.classList.toggle("on", x.dataset.tool === mode);
+    state.gl.className = mode === "select" ? "" : "mode-" + mode + " tool-active";
+    const hint = $("toolHint");
+    if (hint) hint.innerHTML = TOOL_HINTS[mode];
+    savePrefs();
+  }
+
   /* ----------------------------------------------------------- 启动 */
   async function boot() {
     loadPrefs();
@@ -8874,7 +9098,7 @@ SP.app = (() => {
     }
     state.view = state.renderer.view;
     state.pose = new SP.pose.PoseController();
-    state.pose.dragMode = state.prefs.dragMode;
+    state.pose.tool = state.prefs.tool;
     state.gl2d.getContext("2d");
     // 叠加层缓冲区跟着视口尺寸走（窗口缩放 / 布局变化时立即同步，不等下一帧）
     syncOverlayCanvas();
@@ -8897,22 +9121,10 @@ SP.app = (() => {
     $("speedText").textContent = state.prefs.speed.toFixed(2) + "×";
     $("bgSel").value = state.prefs.bg;
     applyBackground(state.prefs.bg);
-    for (const b of $("segDrag").querySelectorAll("button")) {
-      b.classList.toggle("on", b.dataset.mode === state.prefs.dragMode);
-      b.addEventListener("click", () => {
-        state.prefs.dragMode = b.dataset.mode;
-        state.pose.dragMode = b.dataset.mode;
-        for (const x of $("segDrag").querySelectorAll("button")) x.classList.toggle("on", x === b);
-        state.gl.className = state.prefs.dragMode === "bone" ? "mode-bone" : state.prefs.dragMode === "vertex" ? "mode-vertex" : "";
-        $("dragHint").innerHTML = state.prefs.dragMode === "bone"
-          ? "左键拖骨骼＝旋转，<b>Shift</b>＋拖＝平移，双击骨骼＝重置该骨骼姿态。"
-          : state.prefs.dragMode === "vertex"
-            ? "先在部件列表选中一个<b>网格</b>部件，再拖动顶点手柄（建议先暂停动画）。"
-            : "拖拽调试已关闭，左键拖动只用于平移视图。";
-        savePrefs();
-      });
+    for (const b of $("segTool").querySelectorAll("button")) {
+      b.addEventListener("click", () => setTool(b.dataset.tool));
     }
-    state.gl.className = state.pose.dragMode === "bone" ? "mode-bone" : state.pose.dragMode === "vertex" ? "mode-vertex" : "";
+    setTool(state.prefs.tool);
     bindEvents();
     renderLog();
     $("viewTag").textContent = [state.prefs.bones ? "骨骼" : "", state.prefs.mesh ? "网格" : "", state.prefs.bounds ? "包围盒" : ""].filter(Boolean).join("/");
@@ -8951,8 +9163,12 @@ SP.app = (() => {
     if (!isNaN(zoom) && zoom > 0) state.view.scale = zoom;
     const bg = params.get("bg");
     if (bg) { $("bgSel").value = bg; applyBackground(bg); }
-    const drag = params.get("drag");
-    if (drag) { state.pose.dragMode = drag; state.prefs.dragMode = drag; }
+    // 兼容旧的 ?drag=none|bone|vertex 与新的 ?tool=translate|rotate|scale|select|vertex
+    const toolParam = params.get("tool") || params.get("drag");
+    if (toolParam) {
+      const alias = { none: "select", bone: "rotate", vertex: "vertex", select: "select", translate: "translate", rotate: "rotate", scale: "scale" };
+      setTool(alias[toolParam] || "select");
+    }
   }
 
   function applyBackground(mode) {
@@ -9359,7 +9575,9 @@ SP.app = (() => {
     setLoop: (b) => { state.prefs.loop = !!b; $("chkLoop").checked = !!b; savePrefs(); },
     setToggles: (obj) => { for (const k of Object.keys(obj || {})) if (k in DEFAULT_PREFS) setToggle(k, !!obj[k]); },
     toggles: () => Object.assign({}, state.prefs),
-    setDragMode: (m) => { state.pose.dragMode = m; state.prefs.dragMode = m; for (const x of $("segDrag").querySelectorAll("button")) x.classList.toggle("on", x.dataset.mode === m); },
+    setTool: (m) => { setTool(m); return state.pose.tool; },
+    /** 兼容旧接口：none→select，bone→rotate */
+    setDragMode: (m) => { setTool({ none: "select", bone: "rotate" }[m] || m); return state.pose.tool; },
     view: () => ({ scale: state.view.scale, centerX: state.view.centerX, centerY: state.view.centerY, width: state.view.width, height: state.view.height }),
     setView: (v) => {
       if (v.scale) state.view.scale = v.scale;
@@ -9378,6 +9596,33 @@ SP.app = (() => {
         const p = state.view.worldToScreen(b.worldX, b.worldY);
         return { name: b.data.name, x: p.x, y: p.y, wx: b.worldX, wy: b.worldY, length: b.data.length };
       });
+    },
+    /**
+     * 每个插槽当前附件在世界坐标下的包围盒（用于自动化取景 / 与官方逐像素比对）
+     * @returns {Array<{slot:string, att:string, type:string, bbox:number[]}>}
+     */
+    slotBounds: () => {
+      const cur = state.current;
+      if (!cur) return [];
+      const out = [];
+      const buf = new Float32Array(16384);
+      for (const slot of cur.skeleton.slots) {
+        const att = slot.attachment;
+        if (!att) { out.push({ slot: slot.data.name, att: null, type: null, bbox: null }); continue; }
+        const isRegion = att.type === D.ATT.REGION;
+        if (!isRegion && !att.worldVerticesLength) { out.push({ slot: slot.data.name, att: att.name, type: att.type, bbox: null }); continue; }
+        const n = isRegion ? 4 : att.worldVerticesLength / 2;
+        if (n * 2 > buf.length) { out.push({ slot: slot.data.name, att: att.name, type: att.type, bbox: null }); continue; }
+        R.computeAttachmentWorldVertices(att, slot, 0, att.worldVerticesLength, buf, 0, 2);
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (let i = 0; i < n; i++) {
+          const x = buf[i * 2], y = buf[i * 2 + 1];
+          if (x < minX) minX = x; if (y < minY) minY = y;
+          if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+        }
+        out.push({ slot: slot.data.name, att: att.name, type: att.type, bbox: [minX, minY, maxX - minX, maxY - minY] });
+      }
+      return out;
     },
     selectBone: (name) => {
       const cur = state.current;
@@ -9402,16 +9647,35 @@ SP.app = (() => {
       slot: state.pose.selectedSlot ? state.pose.selectedSlot.data.name : null,
       vertex: state.pose.selectedVertex,
     }),
+    /** 当前 Gizmo 状态（自动化 / 调试用） */
+    gizmo: () => {
+      const g = state.pose.gizmoScreen(state.view);
+      const bone = state.pose.gizmoBone();
+      return {
+        tool: state.pose.tool,
+        active: state.pose.gizmoActive(),
+        bone: bone ? bone.data.name : null,
+        hover: state.pose.gizmoHover,
+        center: g ? { x: g.o.x, y: g.o.y } : null,
+        xTip: g ? g.xTip : null,
+        yTip: g ? g.yTip : null,
+        size: SP.pose.GZ,
+      };
+    },
+    /** 命中测试（屏幕 CSS 坐标），返回手柄名或 null */
+    pickGizmoAt: (x, y) => state.pose.pickGizmo(state.view, x, y),
     poseBone: (name, delta) => {
       const cur = state.current;
       if (!cur) return false;
       const b = cur.skeleton.bones.find((x) => x.data.name === name);
       if (!b) return false;
-      const o = state.pose.getOverride(b) || { dRotation: 0, dX: 0, dY: 0 };
+      const o = state.pose.readBoneDelta(b);
       state.pose.setBoneDelta(b, {
         dRotation: o.dRotation + (delta.rotation || 0),
         dX: o.dX + (delta.x || 0),
         dY: o.dY + (delta.y || 0),
+        dScaleX: o.dScaleX * (delta.scaleX === undefined ? 1 : delta.scaleX),
+        dScaleY: o.dScaleY * (delta.scaleY === undefined ? 1 : delta.scaleY),
       });
       return true;
     },
@@ -9551,6 +9815,9 @@ SP.app = (() => {
     },
     /** 立即同步重绘一帧（自动化测试需要「绘制后马上采样」时使用；会先叠加姿态/形变调试） */
     renderNow: () => {
+      // 先按当前动画时间重算基础姿态：调试偏移是「叠加量」，重复调用不会累加
+      const cur = state.current;
+      if (cur) cur.animState.updateWorldTransform();
       applyEditsAndUpdate();
       draw();
       return { frames: state.frameCount, stats: state.renderer.stats };
