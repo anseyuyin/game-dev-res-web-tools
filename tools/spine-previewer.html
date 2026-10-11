@@ -13,6 +13,8 @@
     --ok:#3fb950; --warn:#d29922; --err:#f85149;
     --bone:#ffd166; --mesh:#4ea1ff; --bounds:#c792ea;
     --radius:12px;
+    --scrollbar:rgba(154,167,180,.3);
+    --scrollbar-hover:rgba(154,167,180,.55);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;}
@@ -24,6 +26,28 @@
   a{color:var(--accent);text-decoration:none;}
   a:hover{text-decoration:underline;}
   button,input,select{font-family:inherit;font-size:12.5px;color:var(--text);}
+
+  /* ---------------- 滚动条（细 + 半透明，尽量不遮挡内容） ----------------
+     Chromium/WebKit 优先走 ::-webkit-scrollbar：9px 槽位，滑杆带 2px 透明边框 +
+     background-clip:padding-box，所以实际可见只有 5px 的半透明圆角细条，轨道全透明。
+     标准 scrollbar-width/color 作为兜底（Firefox 等不支持上面伪元素的引擎），
+     两者都指向「细 + 半透明」，谁生效都是想要的效果。
+     color-scheme:dark 让原生滚动条/下拉在无定制时也不会渲染成亮色。 */
+  html{
+    color-scheme:dark;
+    scrollbar-width:thin;scrollbar-color:var(--scrollbar) transparent;
+  }
+  *::-webkit-scrollbar{width:9px;height:9px;}
+  *::-webkit-scrollbar-track{background:transparent;}
+  *::-webkit-scrollbar-thumb{
+    background:var(--scrollbar);border:2px solid transparent;border-radius:9px;
+    background-clip:padding-box;min-height:32px;
+  }
+  *::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-hover);background-clip:padding-box;}
+  *::-webkit-scrollbar-thumb:active{background:var(--scrollbar-hover);background-clip:padding-box;}
+  *::-webkit-scrollbar-corner{background:transparent;}
+  /* 去掉两端的方向箭头按钮（它们最占地方） */
+  *::-webkit-scrollbar-button{display:none;width:0;height:0;}
 
   /* ---------------- 顶栏 ---------------- */
   #topbar{
@@ -57,13 +81,54 @@
   #statusBar{font-size:11.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw;}
   #statusBar.err{color:var(--err);}
 
-  /* ---------------- 布局 ---------------- */
-  #layout{display:flex;height:calc(100% - 46px);min-height:0;}
+  /* ---------------- 布局 ----------------
+     上排：左栏（资源 / 层级 / 显示）｜中栏（视口）｜右栏（检查器）
+     下排：底部面板（动画与播放｜日志）
+     面板之间用 .splitter 分隔，可拖动改变占比（见文件末尾 setupSplitters）。 */
+  #layout{display:flex;flex-direction:column;height:calc(100% - 46px);min-height:0;}
+  #mainCols{display:flex;flex:1 1 auto;min-width:0;min-height:0;}
   #left{
-    width:326px;flex:0 0 326px;min-width:0;overflow-y:auto;overflow-x:hidden;
-    border-right:1px solid var(--border-soft);background:var(--bg-soft);
+    width:var(--w-left,326px);flex:0 0 var(--w-left,326px);min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;
+    background:var(--bg-soft);
   }
   #viewportWrap{position:relative;flex:1 1 auto;min-width:0;min-height:0;background:#0a0d12;overflow:hidden;}
+  #right{
+    width:var(--w-right,312px);flex:0 0 var(--w-right,312px);min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;
+    background:var(--bg-soft);
+  }
+  #bottom{
+    flex:0 0 var(--h-bottom,208px);height:var(--h-bottom,208px);min-height:0;
+    display:flex;flex-direction:column;background:var(--bg-soft);
+  }
+  .tabBody{flex:1 1 auto;min-width:0;min-height:0;display:flex;}
+  .bPane{flex:1 1 auto;min-width:0;min-height:0;display:none;flex-direction:column;overflow:hidden;}
+  .bPane.show{display:flex;}
+  .bPane>.groupBody{flex:1 1 auto;min-height:0;overflow:auto;}
+  #bottomPaneLog #logList{max-height:none;}
+
+  /* ---------------- 底部页签（参考 Unity 编辑器） ---------------- */
+  .tabBar{display:flex;flex:0 0 auto;background:#10151b;border-bottom:1px solid var(--border-soft);}
+  .tabBar .tab{
+    display:flex;align-items:center;gap:6px;background:transparent;border:0;
+    border-right:1px solid var(--border-soft);padding:6px 14px;
+    cursor:pointer;color:var(--text-faint);font-size:12px;white-space:nowrap;
+  }
+  .tabBar .tab:hover{background:#181f28;color:var(--text-dim);}
+  .tabBar .tab.on{background:var(--bg-soft);color:var(--text);box-shadow:inset 0 -2px 0 var(--accent);}
+  .tabBar .tab .ico{font-size:10px;opacity:.85;}
+  .tabBar .tab .tag{margin-left:2px;font-size:11px;color:var(--text-faint);}
+  .tabBar .tab.on .tag{color:var(--text-dim);}
+
+  /* ---------------- 可拖动分界线 ---------------- */
+  .splitter{position:relative;flex:0 0 auto;z-index:6;background:transparent;touch-action:none;}
+  .splitter::after{content:"";position:absolute;background:var(--border-soft);transition:background .15s;}
+  .splitter:hover::after,.splitter.dragging::after{background:var(--accent);}
+  .splitter.v{width:7px;margin:0 -3px;cursor:col-resize;}
+  .splitter.v::after{left:50%;top:0;bottom:0;width:1px;transform:translateX(-50%);}
+  .splitter.h{height:7px;margin:-3px 0;cursor:row-resize;}
+  .splitter.h::after{top:50%;left:0;right:0;height:1px;transform:translateY(-50%);}
+  body.resizing-x,body.resizing-x *{cursor:col-resize !important;user-select:none !important;}
+  body.resizing-y,body.resizing-y *{cursor:row-resize !important;user-select:none !important;}
   #gl{display:block;width:100%;height:100%;touch-action:none;cursor:default;}
   #gl2d{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;}
   #gl.tool-active{cursor:crosshair;}
@@ -227,8 +292,17 @@
   @media (max-width:900px){
     body{overflow:auto;}
     #layout{flex-direction:column;height:auto;}
+    #mainCols{flex-direction:column;}
     #viewportWrap{order:1;height:56vh;min-height:300px;flex:0 0 auto;border-bottom:1px solid var(--border-soft);}
-    #left{order:2;width:100%;flex:1 1 auto;overflow:visible;border-right:0;}
+    #left{order:2;width:100%;flex:0 0 auto;overflow:visible;border-top:1px solid var(--border-soft);}
+    #right{order:3;width:100%;flex:0 0 auto;overflow:visible;border-top:1px solid var(--border-soft);}
+    #bottom{flex:0 0 auto;height:auto;border-top:1px solid var(--border-soft);}
+    .tabBody{display:block;}
+    .bPane{overflow:visible;}
+    .bPane.show{display:block;}
+    .bPane>.groupBody{overflow:visible;}
+    #bottomPaneLog #logList{max-height:24vh;}
+    .splitter{display:none;}
     #statusBar{display:none;}
     #topbar .brand .sub{display:none;}
     #resList{max-height:none;}
@@ -251,181 +325,211 @@
 </div>
 
 <div id="layout">
-  <!-- ============================ 左栏 ============================ -->
-  <aside id="left">
 
-    <details class="group" id="grpDir" open="">
-      <summary>资源目录 <span class="tag" id="dirTag"></span></summary>
-      <div class="groupBody">
-        <div id="restoreBox" class="restoreBox" style="display:none;">
-          <div style="font-size:12px;">检测到上次使用的目录：<br><b id="restorePath"></b></div>
+  <!-- ============================ 上排：左栏 | 视口 | 右栏 ============================ -->
+  <div id="mainCols">
+
+    <!-- ====== 左栏：资源目录 / 部件层级 / 骨骼层级 / 显示与调试 ====== -->
+    <aside id="left">
+
+      <details class="group" id="grpDir" open="">
+        <summary>资源目录 <span class="tag" id="dirTag"></span></summary>
+        <div class="groupBody">
+          <div id="restoreBox" class="restoreBox" style="display:none;">
+            <div style="font-size:12px;">检测到上次使用的目录：<br><b id="restorePath"></b></div>
+            <div class="row">
+              <button class="btn sm primary" id="btnRestore">恢复该目录</button>
+              <button class="btn sm ghost" id="btnForget">忘记</button>
+            </div>
+          </div>
           <div class="row">
-            <button class="btn sm primary" id="btnRestore">恢复该目录</button>
-            <button class="btn sm ghost" id="btnForget">忘记</button>
+            <button class="btn sm" id="btnPickDir2">📁 选择文件夹</button>
+            <button class="btn sm ghost" id="btnPickInput" title="兼容模式：不支持文件夹选择器的浏览器可用">📂 兼容选择</button>
+          </div>
+          <input type="text" id="resSearch" placeholder="按名称 / 路径过滤资源…（/ 聚焦）" autocomplete="off">
+          <div class="row wrap" style="gap:6px;">
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkOnlySkel" checked> 仅可用资源（图集/贴图齐全）</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkGroupFolder" checked=""> 按文件夹分组</label>
+          </div>
+          <div id="resList"></div>
+          <div class="hint" id="resStat">未扫描</div>
+        </div>
+      </details>
+
+      <details class="group" id="grpSlots" open="">
+        <summary>部件层级（Slots） <span class="tag" id="slotTag"></span></summary>
+        <div class="groupBody">
+          <input type="text" id="slotSearch" placeholder="过滤部件 / 附件名…" autocomplete="off">
+          <div class="treeScroll" id="slotTree"><div class="hint" style="padding:9px;">未加载骨架</div></div>
+          <div class="hint">按绘制顺序排列（自上而下＝先绘制）。点击选中并高亮，👁 切换显示。</div>
+        </div>
+      </details>
+
+      <details class="group" id="grpBones">
+        <summary>骨骼层级（Bones） <span class="tag" id="boneTag"></span></summary>
+        <div class="groupBody">
+          <div class="row">
+            <input type="text" id="boneSearch" class="grow" placeholder="过滤骨骼名…" autocomplete="off">
+            <button class="btn sm ghost" id="btnBoneExpand" title="展开 / 折叠全部">⇕</button>
+          </div>
+          <div class="treeScroll" id="boneTree"><div class="hint" style="padding:9px;">未加载骨架</div></div>
+          <div class="hint">点击选中，双击把视图对准该骨骼。</div>
+        </div>
+      </details>
+
+      <details class="group" id="grpView" open="">
+        <summary>显示与调试 <span class="tag" id="viewTag"></span></summary>
+        <div class="groupBody">
+          <div class="row"><label style="width:52px;">工具</label>
+            <div class="seg grow" id="segTool">
+              <button data-tool="select" title="选择 / 平移视图（Q）">选择</button>
+              <button data-tool="translate" class="on" title="位移（W）">位移</button>
+              <button data-tool="rotate" title="旋转（E）">旋转</button>
+              <button data-tool="scale" title="缩放（R）">缩放</button>
+              <button data-tool="vertex" title="网格顶点编辑">顶点</button>
+            </div>
+          </div>
+          <div class="hint" id="toolHint"></div>
+          <div class="hint">选中<b>骨骼</b>或<b>部件</b>后，Gizmo 会出现在对应对象上；部件随其所属骨骼一起变换。</div>
+          <div class="sep"></div>
+          <div class="row wrap" style="gap:10px;">
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkBones" checked=""> 骨骼</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkMesh" checked=""> 网格</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkBounds"> 包围盒</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkTexture" checked=""> 贴图</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkNames"> 骨骼名</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkAxis" checked=""> 坐标轴</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkGrid" checked=""> 网格底纹</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkClip" checked=""> 裁剪</label>
+          </div>
+          <div class="row">
+            <label style="width:52px;">底色</label>
+            <select id="bgSel" class="grow">
+              <option value="checker">棋盘（透明感）</option>
+              <option value="dark">深灰</option>
+              <option value="light">浅灰</option>
+              <option value="green">绿幕</option>
+              <option value="magenta">洋红</option>
+              <option value="black">纯黑</option>
+            </select>
+          </div>
+          <div class="sep"></div>
+          <div class="row">
+            <button class="btn sm" id="btnResetPose">↺ 清空姿态调试</button>
+            <button class="btn sm ghost" id="btnResetDeform">↺ 清空网格形变</button>
           </div>
         </div>
-        <div class="row">
-          <button class="btn sm" id="btnPickDir2">📁 选择文件夹</button>
-          <button class="btn sm ghost" id="btnPickInput" title="兼容模式：不支持文件夹选择器的浏览器可用">📂 兼容选择</button>
-        </div>
-        <input type="text" id="resSearch" placeholder="按名称 / 路径过滤资源…（/ 聚焦）" autocomplete="off">
-        <div class="row wrap" style="gap:6px;">
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkOnlySkel" checked> 仅可用资源（图集/贴图齐全）</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkGroupFolder" checked=""> 按文件夹分组</label>
-        </div>
-        <div id="resList"></div>
-        <div class="hint" id="resStat">未扫描</div>
-      </div>
-    </details>
+      </details>
 
-    <details class="group" id="grpAnim" open="">
-      <summary>动画与播放 <span class="tag" id="animTag"></span></summary>
-      <div class="groupBody">
-        <div class="row"><label>动画</label>
-          <select id="animSel" class="grow" disabled></select>
-        </div>
-        <div class="row" id="skinRow" style="display:none;"><label>皮肤</label>
-          <select id="skinSel" class="grow"></select>
-        </div>
-        <div class="row" style="gap:5px;">
-          <button class="btn sm" id="btnFirst" title="回到起点（Home）">⏮</button>
-          <button class="btn sm" id="btnPrev" title="上一帧（←）">◀|</button>
-          <button class="btn sm primary" id="btnPlay" title="播放 / 暂停（空格）" disabled>▶ 播放</button>
-          <button class="btn sm" id="btnNext" title="下一帧（→）">|▶</button>
-          <button class="btn sm" id="btnLast" title="跳到结尾（End）">⏭</button>
-        </div>
-        <div class="row"><input type="range" id="timeRange" min="0" max="1000" step="1" value="0" disabled></div>
-        <div class="row">
-          <input type="number" id="timeNum" step="0.0166" min="0" value="0" style="width:78px;" title="精确时间（秒）" disabled>
-          <span class="hint" id="timeText">/ 0.00 s</span>
-          <div class="spacer" style="flex:1"></div>
-          <span class="hint" id="fpsText"></span>
-        </div>
-        <div class="row"><label>速度</label>
-          <input type="range" id="speedRange" min="5" max="300" step="5" value="100" class="grow">
-          <span class="hint" id="speedText" style="width:38px;text-align:right;">1.00×</span>
-        </div>
-        <div class="row wrap">
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkLoop" checked=""> 循环</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkAutoPlay" checked=""> 加载后自动播放</label>
-        </div>
-        <div class="sep"></div>
-        <div class="hint" id="skelInfo">未加载骨架</div>
-      </div>
-    </details>
+    </aside>
 
-    <details class="group" id="grpView" open="">
-      <summary>显示与调试 <span class="tag" id="viewTag"></span></summary>
-      <div class="groupBody">
-        <div class="row"><label style="width:52px;">工具</label>
-          <div class="seg grow" id="segTool">
-            <button data-tool="select" title="选择 / 平移视图（Q）">选择</button>
-            <button data-tool="translate" class="on" title="位移（W）">位移</button>
-            <button data-tool="rotate" title="旋转（E）">旋转</button>
-            <button data-tool="scale" title="缩放（R）">缩放</button>
-            <button data-tool="vertex" title="网格顶点编辑">顶点</button>
+    <div class="splitter v" id="splitterLeft" title="拖动调整左栏宽度（双击复位）"></div>
+
+    <!-- ====== 中栏：Spine 视口 ====== -->
+    <main id="viewportWrap">
+      <canvas id="gl"></canvas>
+      <canvas id="gl2d"></canvas>
+
+      <div class="vpOverlay" id="vpToolbar">
+        <button class="btn sm" id="btnFit" title="适配视图（F）">⤢ 适配</button>
+        <button class="btn sm" id="btnOne" title="1:1 原始像素（1）">1:1</button>
+        <button class="btn sm" id="btnZoomOut" title="缩小（-）">➖</button>
+        <button class="btn sm" id="btnZoomIn" title="放大（+）">➕</button>
+        <span class="hint" id="zoomText" style="min-width:44px;text-align:right;">—</span>
+        <span style="width:1px;height:16px;background:var(--border);"></span>
+        <button class="btn sm" id="btnTBones" title="显示骨骼（B）">🦴</button>
+        <button class="btn sm" id="btnTMesh" title="显示网格线框（M）">🕸</button>
+        <button class="btn sm" id="btnTBounds" title="显示包围盒（U）">▭</button>
+        <button class="btn sm" id="btnTPause" title="播放 / 暂停（空格）" disabled>▶</button>
+      </div>
+
+      <div class="vpOverlay" id="vpInfo"></div>
+
+      <div class="vpOverlay" id="vpHud">
+        <b id="hudState">没有加载骨架</b> ·
+        滚轮缩放 · 拖空白/右键平移 · <b>双击</b>资源列表加载
+      </div>
+
+      <div id="busy"><span class="spin"></span><span id="busyText">正在加载…</span></div>
+
+      <div id="dropMask"><span class="big">📥</span><span>松开鼠标即可加载：<b>骨架文件</b>（.json / .skel）、或 <b>整个文件夹</b></span>
+        <span class="hint">同时拖入同名的 .atlas 与贴图，可一次加载完整资源</span></div>
+    </main>
+
+    <div class="splitter v" id="splitterRight" title="拖动调整右栏宽度（双击复位）"></div>
+
+    <!-- ====== 右栏：检查器 ====== -->
+    <aside id="right">
+      <details class="group" id="grpInspector" open="">
+        <summary>检查器 <span class="tag" id="inspTag"></span></summary>
+        <div class="groupBody" id="inspector"><div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在左侧列表中选择。</div></div>
+      </details>
+    </aside>
+
+  </div><!-- /#mainCols -->
+
+  <div class="splitter h" id="splitterBottom" title="拖动调整底部面板高度（双击复位）"></div>
+
+  <!-- ====== 底部面板：动画与播放 / 日志（页签切换，参考 Unity 编辑器） ====== -->
+  <div id="bottom">
+
+    <div class="tabBar" id="bottomTabs" role="tablist">
+      <button class="tab on" id="tabAnim" type="button" role="tab" aria-selected="true" aria-controls="bottomPaneAnim" data-pane="bottomPaneAnim">
+        <span class="ico">▶</span>动画与播放<span class="tag" id="animTag"></span>
+      </button>
+      <button class="tab" id="tabLog" type="button" role="tab" aria-selected="false" aria-controls="bottomPaneLog" data-pane="bottomPaneLog">
+        <span class="ico">≡</span>日志<span class="tag" id="logTag"></span>
+      </button>
+    </div>
+
+    <div class="tabBody">
+      <section class="bPane show" id="bottomPaneAnim" role="tabpanel" aria-labelledby="tabAnim">
+        <div class="groupBody">
+          <div class="row"><label>动画</label>
+            <select id="animSel" class="grow" disabled></select>
           </div>
+          <div class="row" id="skinRow" style="display:none;"><label>皮肤</label>
+            <select id="skinSel" class="grow"></select>
+          </div>
+          <div class="row" style="gap:5px;">
+            <button class="btn sm" id="btnFirst" title="回到起点（Home）">⏮</button>
+            <button class="btn sm" id="btnPrev" title="上一帧（←）">◀|</button>
+            <button class="btn sm primary" id="btnPlay" title="播放 / 暂停（空格）" disabled>▶ 播放</button>
+            <button class="btn sm" id="btnNext" title="下一帧（→）">|▶</button>
+            <button class="btn sm" id="btnLast" title="跳到结尾（End）">⏭</button>
+          </div>
+          <div class="row"><input type="range" id="timeRange" min="0" max="1000" step="1" value="0" disabled></div>
+          <div class="row">
+            <input type="number" id="timeNum" step="0.0166" min="0" value="0" style="width:78px;" title="精确时间（秒）" disabled>
+            <span class="hint" id="timeText">/ 0.00 s</span>
+            <div class="spacer" style="flex:1"></div>
+            <span class="hint" id="fpsText"></span>
+          </div>
+          <div class="row"><label>速度</label>
+            <input type="range" id="speedRange" min="5" max="300" step="5" value="100" class="grow">
+            <span class="hint" id="speedText" style="width:38px;text-align:right;">1.00×</span>
+          </div>
+          <div class="row wrap">
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkLoop" checked=""> 循环</label>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkAutoPlay" checked=""> 加载后自动播放</label>
+          </div>
+          <div class="sep"></div>
+          <div class="hint" id="skelInfo">未加载骨架</div>
         </div>
-        <div class="hint" id="toolHint"></div>
-        <div class="hint">选中<b>骨骼</b>或<b>部件</b>后，Gizmo 会出现在对应对象上；部件随其所属骨骼一起变换。</div>
-        <div class="sep"></div>
-        <div class="row wrap" style="gap:10px;">
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkBones" checked=""> 骨骼</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkMesh" checked=""> 网格</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkBounds"> 包围盒</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkTexture" checked=""> 贴图</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkNames"> 骨骼名</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkAxis" checked=""> 坐标轴</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkGrid" checked=""> 网格底纹</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkClip" checked=""> 裁剪</label>
+      </section>
+
+      <section class="bPane" id="bottomPaneLog" role="tabpanel" aria-labelledby="tabLog">
+        <div class="groupBody">
+          <div class="row"><button class="btn sm ghost" id="btnClearLog">清空日志</button>
+            <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkLogDebug"> 显示调试信息</label>
+          </div>
+          <div id="logList"></div>
         </div>
-        <div class="row">
-          <label style="width:52px;">底色</label>
-          <select id="bgSel" class="grow">
-            <option value="checker">棋盘（透明感）</option>
-            <option value="dark">深灰</option>
-            <option value="light">浅灰</option>
-            <option value="green">绿幕</option>
-            <option value="magenta">洋红</option>
-            <option value="black">纯黑</option>
-          </select>
-        </div>
-        <div class="sep"></div>
-        <div class="row">
-          <button class="btn sm" id="btnResetPose">↺ 清空姿态调试</button>
-          <button class="btn sm ghost" id="btnResetDeform">↺ 清空网格形变</button>
-        </div>
-      </div>
-    </details>
-
-    <details class="group" id="grpSlots" open="">
-      <summary>部件层级（Slots） <span class="tag" id="slotTag"></span></summary>
-      <div class="groupBody">
-        <input type="text" id="slotSearch" placeholder="过滤部件 / 附件名…" autocomplete="off">
-        <div class="treeScroll" id="slotTree"><div class="hint" style="padding:9px;">未加载骨架</div></div>
-        <div class="hint">按绘制顺序排列（自上而下＝先绘制）。点击选中并高亮，👁 切换显示。</div>
-      </div>
-    </details>
-
-    <details class="group" id="grpBones">
-      <summary>骨骼层级（Bones） <span class="tag" id="boneTag"></span></summary>
-      <div class="groupBody">
-        <div class="row">
-          <input type="text" id="boneSearch" class="grow" placeholder="过滤骨骼名…" autocomplete="off">
-          <button class="btn sm ghost" id="btnBoneExpand" title="展开 / 折叠全部">⇕</button>
-        </div>
-        <div class="treeScroll" id="boneTree"><div class="hint" style="padding:9px;">未加载骨架</div></div>
-        <div class="hint">点击选中，双击把视图对准该骨骼。</div>
-      </div>
-    </details>
-
-    <details class="group" id="grpInspector" open="">
-      <summary>检查器 <span class="tag" id="inspTag"></span></summary>
-      <div class="groupBody" id="inspector"><div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在上面列表中选择。</div></div>
-    </details>
-
-    <details class="group" id="grpLog">
-      <summary>日志 <span class="tag" id="logTag"></span></summary>
-      <div class="groupBody">
-        <div class="row"><button class="btn sm ghost" id="btnClearLog">清空日志</button>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkLogDebug"> 显示调试信息</label>
-        </div>
-        <div id="logList"></div>
-      </div>
-    </details>
-
-  </aside>
-
-  <!-- ============================ 视口 ============================ -->
-  <main id="viewportWrap">
-    <canvas id="gl"></canvas>
-    <canvas id="gl2d"></canvas>
-
-    <div class="vpOverlay" id="vpToolbar">
-      <button class="btn sm" id="btnFit" title="适配视图（F）">⤢ 适配</button>
-      <button class="btn sm" id="btnOne" title="1:1 原始像素（1）">1:1</button>
-      <button class="btn sm" id="btnZoomOut" title="缩小（-）">➖</button>
-      <button class="btn sm" id="btnZoomIn" title="放大（+）">➕</button>
-      <span class="hint" id="zoomText" style="min-width:44px;text-align:right;">—</span>
-      <span style="width:1px;height:16px;background:var(--border);"></span>
-      <button class="btn sm" id="btnTBones" title="显示骨骼（B）">🦴</button>
-      <button class="btn sm" id="btnTMesh" title="显示网格线框（M）">🕸</button>
-      <button class="btn sm" id="btnTBounds" title="显示包围盒（U）">▭</button>
-      <button class="btn sm" id="btnTPause" title="播放 / 暂停（空格）" disabled>▶</button>
+      </section>
     </div>
 
-    <div class="vpOverlay" id="vpInfo"></div>
+  </div><!-- /#bottom -->
 
-    <div class="vpOverlay" id="vpHud">
-      <b id="hudState">没有加载骨架</b> ·
-      滚轮缩放 · 拖空白/右键平移 · <b>双击</b>资源列表加载
-    </div>
-
-    <div id="busy"><span class="spin"></span><span id="busyText">正在加载…</span></div>
-
-    <div id="dropMask"><span class="big">📥</span><span>松开鼠标即可加载：<b>骨架文件</b>（.json / .skel）、或 <b>整个文件夹</b></span>
-      <span class="hint">同时拖入同名的 .atlas 与贴图，可一次加载完整资源</span></div>
-  </main>
 </div>
 
 <!-- ============================ 欢迎页 ============================ -->
@@ -8686,7 +8790,7 @@ SP.app = (() => {
     const cur = state.current;
     const box = $("inspector");
     if (!cur) {
-      box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在上面列表中选择。</div>';
+      box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在左侧列表中选择。</div>';
       $("inspTag").textContent = "";
       return;
     }
@@ -8744,7 +8848,7 @@ SP.app = (() => {
         <div class="hint" style="margin-top:4px;">用 Gizmo 变换该部件时，作用于其所属骨骼 <b>${esc(slot.data.boneData.name)}</b>（Spine 中部件随骨骼变换）。</div>`);
     }
     if (!parts.length) {
-      box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在上面列表中选择。</div>';
+      box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在左侧列表中选择。</div>';
       $("inspTag").textContent = "";
       return;
     }
@@ -9082,6 +9186,101 @@ SP.app = (() => {
     savePrefs();
   }
 
+  /* ------------------------------------------------- 面板分界线（可拖动） */
+  /**
+   * 让面板之间的分界线可以拖动，从而调整各面板在窗口中的占比。
+   * 拖动只改 :root 上的 --w-left / --w-right / --h-bottom 三个变量，
+   * 由 CSS 消费（不写死在元素上）；双击分界线即可复位。
+   * 窄屏媒体查询会隐藏这些分界线（此时布局改为纵向堆叠）。
+   */
+  function setupSplitters() {
+    const MIN = { side: 200, view: 240, bottom: 96, topRow: 160 };
+    // 尺寸统一由 :root 上的 CSS 变量表达，窄屏媒体查询会忽略这些变量，
+    // 因此拖过之后再把窗口收窄也不会被写死的 px 卡住。
+    const setVar = (name, px) => document.documentElement.style.setProperty(name, px + "px");
+    const delVar = (name) => document.documentElement.style.removeProperty(name);
+
+    function make(id, cfg) {
+      const handle = $(id);
+      if (!handle) return;
+      let startSize = 0, startPos = 0;
+      handle.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        startPos = cfg.axis === "x" ? e.clientX : e.clientY;
+        startSize = cfg.size();
+        handle.classList.add("dragging");
+        document.body.classList.add(cfg.axis === "x" ? "resizing-x" : "resizing-y");
+        const onMove = (ev) => {
+          const pos = cfg.axis === "x" ? ev.clientX : ev.clientY;
+          cfg.apply(M.clamp(startSize + (pos - startPos) * cfg.dir, cfg.min(), cfg.max()));
+        };
+        const onUp = () => {
+          handle.classList.remove("dragging");
+          document.body.classList.remove("resizing-x", "resizing-y");
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+          window.removeEventListener("pointercancel", onUp);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+        window.addEventListener("pointercancel", onUp);
+      });
+      handle.addEventListener("dblclick", cfg.reset);
+    }
+
+    const mainCols = $("mainCols"), left = $("left"), right = $("right"), bottom = $("bottom");
+    const w = (el) => el.getBoundingClientRect().width;
+    const h = (el) => el.getBoundingClientRect().height;
+
+    make("splitterLeft", {
+      axis: "x", dir: 1,
+      size: () => w(left), min: () => MIN.side,
+      max: () => Math.max(MIN.side, mainCols.clientWidth - w(right) - MIN.view),
+      apply: (px) => setVar("--w-left", px),
+      reset: () => delVar("--w-left"),
+    });
+    make("splitterRight", {
+      axis: "x", dir: -1,
+      size: () => w(right), min: () => MIN.side,
+      max: () => Math.max(MIN.side, mainCols.clientWidth - w(left) - MIN.view),
+      apply: (px) => setVar("--w-right", px),
+      reset: () => delVar("--w-right"),
+    });
+    make("splitterBottom", {
+      axis: "y", dir: -1,
+      size: () => h(bottom), min: () => MIN.bottom,
+      max: () => Math.max(MIN.bottom, $("layout").clientHeight - MIN.topRow),
+      apply: (px) => setVar("--h-bottom", px),
+      reset: () => delVar("--h-bottom"),
+    });
+  }
+
+  /* ------------------------------------------------- 底部面板页签（Unity 风） */
+  /**
+   * 底部面板不横向并排，而是同一时刻只显示一个面板，用页签切换。
+   * 状态只存在 DOM 上（.tab.on / .bPane.show），不参与偏好持久化。
+   */
+  function setupBottomTabs() {
+    const bar = $("bottomTabs");
+    if (!bar) return;
+    const tabs = Array.from(bar.querySelectorAll(".tab"));
+    function activate(target) {
+      for (const t of tabs) {
+        const on = t === target;
+        t.classList.toggle("on", on);
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        const pane = $(t.dataset.pane);
+        if (pane) pane.classList.toggle("show", on);
+      }
+      // 日志面板在隐藏时量不出 scrollHeight，切回来后补一次滚底
+      const pane = $(target.dataset.pane);
+      const logList = $("logList");
+      if (logList && pane && pane.id === "bottomPaneLog") logList.scrollTop = logList.scrollHeight;
+    }
+    for (const t of tabs) t.addEventListener("click", () => activate(t));
+  }
+
   /* ----------------------------------------------------------- 启动 */
   async function boot() {
     loadPrefs();
@@ -9344,6 +9543,8 @@ SP.app = (() => {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("resize", () => { state.resizePending = true; });
+    setupSplitters();
+    setupBottomTabs();
     window.addEventListener("error", (e) => { log("err", "脚本异常：" + (e.message || e.error)); });
     window.addEventListener("unhandledrejection", (e) => { log("err", "异步异常：" + (e.reason && e.reason.message ? e.reason.message : e.reason)); });
     // 拖放
