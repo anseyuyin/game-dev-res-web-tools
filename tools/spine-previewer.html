@@ -131,11 +131,9 @@
   body.resizing-y,body.resizing-y *{cursor:row-resize !important;user-select:none !important;}
   #gl{display:block;width:100%;height:100%;touch-action:none;cursor:default;}
   #gl2d{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;}
-  #gl.tool-active{cursor:crosshair;}
   #gl.mode-translate{cursor:move;}
   #gl.mode-rotate{cursor:crosshair;}
   #gl.mode-scale{cursor:nwse-resize;}
-  #gl.mode-vertex{cursor:cell;}
   #gl.panning{cursor:grabbing;}
 
   /* ---------------- 面板 ---------------- */
@@ -382,15 +380,14 @@
         <div class="groupBody">
           <div class="row"><label style="width:52px;">工具</label>
             <div class="seg grow" id="segTool">
-              <button data-tool="select" title="选择 / 平移视图（Q）">选择</button>
               <button data-tool="translate" class="on" title="位移（W）">位移</button>
               <button data-tool="rotate" title="旋转（E）">旋转</button>
               <button data-tool="scale" title="缩放（R）">缩放</button>
-              <button data-tool="vertex" title="网格顶点编辑">顶点</button>
             </div>
           </div>
           <div class="hint" id="toolHint"></div>
           <div class="hint">选中<b>骨骼</b>或<b>部件</b>后，Gizmo 会出现在对应对象上；部件随其所属骨骼一起变换。</div>
+          <div class="hint">选中<b>网格部件</b>时，顶点手柄默认显示，直接拖动即可改形变（建议先暂停动画）。</div>
           <div class="sep"></div>
           <div class="row wrap" style="gap:10px;">
             <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkBones" checked=""> 骨骼</label>
@@ -589,7 +586,7 @@
         <li><b>旋转</b>：拖动 Gizmo 圆环绕关节旋转。</li>
         <li><b>缩放</b>：拖动轴端方点按轴缩放，拖中心方点整体缩放（沿骨骼自身轴向生效）。</li>
         <li>变换结果叠加在动画之上、以「调试偏移」保存，可一键清空（<b>Shift</b>+R 或按钮）。选中<b>部件</b>时，变换作用于该部件所属的骨骼（与 Spine 编辑器一致）。</li>
-        <li>「顶点」工具：选中的部件会显示顶点手柄，拖动即可修改当前帧的网格形变（建议先暂停）。</li>
+        <li><b>顶点编辑默认开启</b>：选中<b>网格</b>部件即显示顶点手柄，无需切换工具，拖动即可修改当前帧的网格形变（建议先暂停）。Gizmo 手柄命中优先，其余位置都交给顶点手柄。</li>
         <li>部件层级列表里 👁 可隐藏部件，双击部件＝把视图对准它；双击骨骼＝重置该骨骼姿态。</li>
       </ul>
       <div><b>4. 快捷键</b></div>
@@ -600,7 +597,6 @@
         <kbd>F</kbd><span>适配视图</span>
         <kbd>1</kbd><span>1:1 缩放</span>
         <kbd>+ -</kbd><span>放大 / 缩小</span>
-        <kbd>Q</kbd><span>选择工具</span>
         <kbd>W</kbd><span>位移工具</span>
         <kbd>E</kbd><span>旋转工具</span>
         <kbd>R</kbd><span>缩放工具</span>
@@ -6935,11 +6931,17 @@ SP.pose = (() => {
   // Gizmo 在屏幕上的固定尺寸（像素），不随视图缩放变化
   const GZ = { axis: 78, ring: 72, head: 13, sq: 7, handleR: 12, segR: 8, ringHit: 9 };
 
+  /** 可作为「顶点编辑」目标的附件：只要网格类（排除包围盒 / 裁剪 / 路径这些同为 VertexAttachment 的附件） */
+  function isEditableMesh(att) {
+    return !!att && att instanceof D.VertexAttachment &&
+      (att.type === D.ATT.MESH || att.type === D.ATT.WEIGHTED_MESH || att.type === D.ATT.LINKED_MESH);
+  }
+
   class PoseController {
     constructor() {
       this.overrides = new Map();      // boneName -> { dRotation, dX, dY, dScaleX, dScaleY }
       this.vertexEdits = new Map();    // slotIndex -> Float32Array（附加形变偏移）
-      this.tool = "translate";         // select | translate | rotate | scale | vertex
+      this.tool = "translate";         // translate | rotate | scale（顶点编辑常驻，不在工具列表里）
       this.selectedBone = null;
       this.selectedSlot = null;
       this.selectedVertex = -1;
@@ -7103,8 +7105,7 @@ SP.pose = (() => {
     }
     pickVertex(slot, view, sx, sy, maxPx) {
       const att = slot && slot.attachment;
-      if (!att || !(att instanceof D.VertexAttachment)) return -1;
-      if (att.type !== D.ATT.MESH && att.type !== D.ATT.WEIGHTED_MESH && att.type !== D.ATT.LINKED_MESH) return -1;
+      if (!isEditableMesh(att)) return -1;
       const max = maxPx === undefined ? 10 : maxPx;
       const wv = this.computeWorldVertices(att, slot);
       const n = wv.length / 2;
@@ -7156,7 +7157,19 @@ SP.pose = (() => {
     // ---------------- 拖拽 ----------------
     beginDrag(skeleton, view, sx, sy, shiftKey) {
       const world = view.screenToWorld(sx, sy);
-      if (this.tool === "vertex" && this.selectedSlot) {
+      // 先抓 Gizmo 手柄：工具是显式选的，命中优先，免得被常驻的顶点手柄抢走
+      const handle = this.pickGizmo(view, sx, sy);
+      if (handle) {
+        const bone = this.gizmoBone();
+        this.drag = {
+          kind: "gizmo", tool: this.tool, handle, bone,
+          startWorld: world, lastWorld: world,
+          startOverride: this.readBoneDelta(bone),
+        };
+        return this.drag;
+      }
+      // 顶点编辑常驻：选中网格部件后直接拖顶点手柄即可改当前帧形变
+      if (this.selectedSlot) {
         const vi = this.pickVertex(this.selectedSlot, view, sx, sy);
         if (vi >= 0) {
           const att = this.selectedSlot.attachment;
@@ -7169,17 +7182,6 @@ SP.pose = (() => {
           };
           return this.drag;
         }
-      }
-      // 先尝试抓取 Gizmo 手柄
-      const handle = this.pickGizmo(view, sx, sy);
-      if (handle) {
-        const bone = this.gizmoBone();
-        this.drag = {
-          kind: "gizmo", tool: this.tool, handle, bone,
-          startWorld: world, lastWorld: world,
-          startOverride: this.readBoneDelta(bone),
-        };
-        return this.drag;
       }
       return null;
     }
@@ -7284,7 +7286,8 @@ SP.pose = (() => {
       if (opts.grid) this._paintGrid(ctx, view);
       if (opts.mesh) this._paintMeshes(ctx, view, skeleton);
       if (opts.bounds) this._paintBounds(ctx, view, skeleton);
-      if (this.tool === "vertex" && this.selectedSlot) this._paintVertexHandles(ctx, view, skeleton);
+      // 顶点手柄常驻显示（选中网格部件时），与工具无关
+      if (this.selectedSlot) this._paintVertexHandles(ctx, view, skeleton);
       if (opts.bones) this._paintBones(ctx, view, skeleton, opts.names);
       if (opts.axis) this._paintAxis(ctx, view, skeleton);
       if (this.gizmoActive()) this._paintGizmo(ctx, view);
@@ -7558,7 +7561,7 @@ SP.pose = (() => {
     _paintVertexHandles(ctx, view, skeleton) {
       const slot = this.selectedSlot;
       const att = slot && slot.attachment;
-      if (!(att instanceof D.VertexAttachment)) return;
+      if (!isEditableMesh(att)) return;
       const wv = this.computeWorldVertices(att, slot);
       const n = wv.length / 2;
       for (let i = 0; i < n; i++) {
@@ -9115,7 +9118,6 @@ SP.app = (() => {
       case "b": case "B": setToggle("bones", !state.prefs.bones); break;
       case "m": case "M": setToggle("mesh", !state.prefs.mesh); break;
       case "u": case "U": setToggle("bounds", !state.prefs.bounds); break;
-      case "q": case "Q": setTool("select"); break;
       case "w": case "W": setTool("translate"); break;
       case "e": case "E": setTool("rotate"); break;
       case "r": case "R":
@@ -9161,18 +9163,18 @@ SP.app = (() => {
     $("viewTag").textContent = [state.prefs.bones ? "骨骼" : "", state.prefs.mesh ? "网格" : "", state.prefs.bounds ? "包围盒" : ""].filter(Boolean).join("/");
   }
 
-  /* -------------------------------------------------- 变换工具（Gizmo） */
-  const TOOLS = ["select", "translate", "rotate", "scale", "vertex"];
+  /* -------------------------------------------------- 变换工具（Gizmo）
+     只有位移 / 旋转 / 缩放三种；「选择」由「点空白平移 + 点对象选中」覆盖，
+     顶点编辑常驻（选中网格部件即可拖），都不再占用工具位。 */
+  const TOOLS = ["translate", "rotate", "scale"];
   const TOOL_HINTS = {
-    select: "点击选中骨骼 / 部件；拖动空白处平移视图。",
     translate: "拖 <b>绿色</b>（Y）/ <b>红色</b>（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。",
     rotate: "拖动圆环绕关节旋转。",
     scale: "拖轴上端点按轴缩放，拖中心方点整体缩放（沿骨骼自身轴向生效）。",
-    vertex: "先在部件列表选中一个<b>网格</b>部件，再拖动顶点手柄（建议先暂停动画）。",
   };
 
   function setTool(mode) {
-    if (TOOLS.indexOf(mode) < 0) mode = "select";
+    if (TOOLS.indexOf(mode) < 0) mode = "translate";
     state.prefs.tool = mode;
     state.pose.tool = mode;
     state.pose.gizmoHover = null;
@@ -9180,7 +9182,7 @@ SP.app = (() => {
     state.dragging = false;
     const seg = $("segTool");
     if (seg) for (const x of seg.querySelectorAll("button")) x.classList.toggle("on", x.dataset.tool === mode);
-    state.gl.className = mode === "select" ? "" : "mode-" + mode + " tool-active";
+    state.gl.className = "mode-" + mode;
     const hint = $("toolHint");
     if (hint) hint.innerHTML = TOOL_HINTS[mode];
     savePrefs();
@@ -9362,11 +9364,12 @@ SP.app = (() => {
     if (!isNaN(zoom) && zoom > 0) state.view.scale = zoom;
     const bg = params.get("bg");
     if (bg) { $("bgSel").value = bg; applyBackground(bg); }
-    // 兼容旧的 ?drag=none|bone|vertex 与新的 ?tool=translate|rotate|scale|select|vertex
+    // 兼容旧的 ?drag=none|bone|vertex 与新的 ?tool=translate|rotate|scale
+    // （select / vertex 已并入默认行为，统一回落到 translate）
     const toolParam = params.get("tool") || params.get("drag");
     if (toolParam) {
-      const alias = { none: "select", bone: "rotate", vertex: "vertex", select: "select", translate: "translate", rotate: "rotate", scale: "scale" };
-      setTool(alias[toolParam] || "select");
+      const alias = { none: "translate", bone: "rotate", vertex: "translate", select: "translate", translate: "translate", rotate: "rotate", scale: "scale" };
+      setTool(alias[toolParam] || "translate");
     }
   }
 
@@ -9778,7 +9781,7 @@ SP.app = (() => {
     toggles: () => Object.assign({}, state.prefs),
     setTool: (m) => { setTool(m); return state.pose.tool; },
     /** 兼容旧接口：none→select，bone→rotate */
-    setDragMode: (m) => { setTool({ none: "select", bone: "rotate" }[m] || m); return state.pose.tool; },
+    setDragMode: (m) => { setTool({ none: "translate", bone: "rotate" }[m] || m); return state.pose.tool; },
     view: () => ({ scale: state.view.scale, centerX: state.view.centerX, centerY: state.view.centerY, width: state.view.width, height: state.view.height }),
     setView: (v) => {
       if (v.scale) state.view.scale = v.scale;
