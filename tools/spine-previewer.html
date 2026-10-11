@@ -161,14 +161,24 @@
   input[type=text]:focus,input[type=number]:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
   input[type=range]{width:100%;accent-color:var(--accent);height:18px;}
   input[type=checkbox]{accent-color:var(--accent);}
-  .seg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
-  .seg button{
-    flex:1 1 0;background:transparent;border:0;border-right:1px solid var(--border);
-    padding:4px 6px;cursor:pointer;color:var(--text-dim);white-space:nowrap;
+  input[type=color]{width:38px;height:22px;padding:1px;border:1px solid var(--border);border-radius:6px;background:#11151b;cursor:pointer;flex:0 0 auto;}
+  input[type=color]:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  /* ---------------- 视口左上角的竖排变换工具条（Unity 风格） ----------------
+     只留图标按钮，用法说明走各按钮的原生 title tooltip，不再常驻一块描述文本。 */
+  #toolBar{
+    left:10px;top:10px;display:flex;flex-direction:column;gap:2px;padding:3px;
+    background:rgba(16,21,28,.86);border:1px solid var(--border-soft);border-radius:9px;
+    backdrop-filter:blur(3px);
   }
-  .seg button:last-child{border-right:0;}
-  .seg button.on{background:var(--accent-soft);color:var(--accent);}
-  .seg button:hover{color:#fff;}
+  #toolBar .toolBtn{
+    width:32px;height:29px;padding:0;display:flex;align-items:center;justify-content:center;
+    background:transparent;border:0;border-radius:6px;cursor:pointer;color:var(--text-dim);
+    transition:background .12s,color .12s;
+  }
+  #toolBar .toolBtn svg{width:16px;height:16px;display:block;}
+  #toolBar .toolBtn:hover{background:#232b36;color:var(--text);}
+  #toolBar .toolBtn.on{background:var(--accent-soft);color:var(--accent);}
+  #toolBar .toolBtn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
 
   /* ---------------- 资源列表 ---------------- */
   #resSearch{width:100%;}
@@ -216,6 +226,8 @@
   /* ---------------- 检查器 / 日志 ---------------- */
   #inspector .kv{display:grid;grid-template-columns:78px 1fr;gap:2px 8px;font-size:11.5px;}
   #inspector .kv .k{color:var(--text-faint);}
+  #inspector .kv .k[title]{cursor:help;text-decoration:underline dotted;text-decoration-color:var(--border-soft);text-underline-offset:2px;}
+  #inspector label[title]{cursor:help;}
   #inspector .kv .v{color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   #logList{max-height:24vh;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;background:#0f1319;font-size:11.5px;}
   .logRow{display:flex;gap:7px;padding:2px 8px;border-bottom:1px solid #161c24;}
@@ -226,8 +238,9 @@
 
   /* ---------------- 视口浮层 ---------------- */
   .vpOverlay{position:absolute;z-index:5;}
+  /* 让出左侧给竖排工具条：左边距 = 工具条宽（32 + 2*3 padding + 2 border = 40）+ 10 间距 + 2 */
   #vpToolbar{
-    left:10px;top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+    left:52px;top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:calc(100% - 64px);
     background:rgba(16,21,28,.82);border:1px solid var(--border-soft);border-radius:9px;padding:5px 7px;
     backdrop-filter:blur(3px);
   }
@@ -378,17 +391,7 @@
       <details class="group" id="grpView" open="">
         <summary>显示与调试 <span class="tag" id="viewTag"></span></summary>
         <div class="groupBody">
-          <div class="row"><label style="width:52px;">工具</label>
-            <div class="seg grow" id="segTool">
-              <button data-tool="translate" class="on" title="位移（W）">位移</button>
-              <button data-tool="rotate" title="旋转（E）">旋转</button>
-              <button data-tool="scale" title="缩放（R）">缩放</button>
-            </div>
-          </div>
-          <div class="hint" id="toolHint"></div>
-          <div class="hint">选中<b>骨骼</b>或<b>部件</b>后，Gizmo 会出现在对应对象上；部件随其所属骨骼一起变换。</div>
-          <div class="hint">选中<b>网格部件</b>时，顶点手柄默认显示，直接拖动即可改形变（建议先暂停动画）。</div>
-          <div class="sep"></div>
+          <!-- 变换工具（位移 / 旋转 / 缩放）已移到视口左上角的竖排工具条 #toolBar -->
           <div class="row wrap" style="gap:10px;">
             <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkBones" checked=""> 骨骼</label>
             <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkMesh" checked=""> 网格</label>
@@ -426,6 +429,19 @@
     <main id="viewportWrap">
       <canvas id="gl"></canvas>
       <canvas id="gl2d"></canvas>
+
+      <!-- 左上角：竖排变换工具条（Unity 风格）。用法说明只在按钮 hover 时由原生 tooltip 给出 -->
+      <div class="vpOverlay" id="toolBar" role="toolbar" aria-label="变换工具" aria-orientation="vertical">
+        <button class="toolBtn on" type="button" data-tool="translate" title="位移（W）：拖绿色 Y / 红色 X 箭头按轴位移，拖中心方块在 XY 平面自由位移" aria-label="位移工具">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+        </button>
+        <button class="toolBtn" type="button" data-tool="rotate" title="旋转（E）：拖动圆环绕关节旋转" aria-label="旋转工具">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        </button>
+        <button class="toolBtn" type="button" data-tool="scale" title="缩放（R）：拖轴端方点按轴缩放，拖中心方点整体缩放。两根轴跟随骨骼朝向旋转，红＝骨骼自身 X，绿＝骨骼自身 Y" aria-label="缩放工具">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8.5 15.5 15.5 8.5"/><path d="M15.5 8.5h-4.2M15.5 8.5v4.2M8.5 15.5h4.2M8.5 15.5v-4.2"/></svg>
+        </button>
+      </div>
 
       <div class="vpOverlay" id="vpToolbar">
         <button class="btn sm" id="btnFit" title="适配视图（F）">⤢ 适配</button>
@@ -581,10 +597,10 @@
       <div><b>3. 显示与 Gizmo 变换</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>骨骼 / 网格线框 / 包围盒 / 贴图 / 骨骼名 / 裁剪 均可独立开关。</li>
-        <li>左上「工具」切换交互类型：<b>位移 / 旋转 / 缩放</b> 会按 Unity 风格显示不同的 Gizmo。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
+        <li>视口<b>左上角的竖排工具条</b>（Unity 风格）切换交互类型：<b>位移 / 旋转 / 缩放</b> 会显示不同的 Gizmo，鼠标悬停在按钮上会弹出该工具的操作说明。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
         <li><b>位移</b>：拖动绿色（Y）/ 红色（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。</li>
         <li><b>旋转</b>：拖动 Gizmo 圆环绕关节旋转。</li>
-        <li><b>缩放</b>：拖动轴端方点按轴缩放，拖中心方点整体缩放（沿骨骼自身轴向生效）。</li>
+        <li><b>缩放</b>：拖动轴端方点按轴缩放，拖中心方点整体缩放。缩放的 Gizmo <b>会随骨骼朝向一起旋转</b>（Unity 的 Local 轴模式）：红色轴＝骨骼自身 X 轴（沿骨骼长度方向），绿色轴＝骨骼自身 Y 轴，与骨骼 scaleX / scaleY 一一对应。位移与旋转仍按世界轴 / 整体圆环显示。</li>
         <li>变换结果叠加在动画之上、以「调试偏移」保存，可一键清空（<b>Shift</b>+R 或按钮）。选中<b>部件</b>时，变换作用于该部件所属的骨骼（与 Spine 编辑器一致）。</li>
         <li><b>顶点编辑默认开启</b>：选中<b>网格</b>部件即显示顶点手柄，无需切换工具，拖动即可修改当前帧的网格形变（建议先暂停）。Gizmo 手柄命中优先，其余位置都交给顶点手柄。</li>
         <li>部件层级列表里 👁 可隐藏部件，双击部件＝把视图对准它；双击骨骼＝重置该骨骼姿态。</li>
@@ -885,15 +901,23 @@ SP.data = (() => {
       this.index = -1; this.name = name; this.boneName = boneName; this.boneData = null;
       this.color = rgba(1, 1, 1, 1);
       this.darkColor = null;                 // 4.2 二色染色
-      this.attachmentName = null; this.blendMode = BlendMode.normal; this.visible = true;
+      this.attachmentName = null; this.visible = true;
+      this.blendMode = BlendMode.normal;   // 来自 slots[].blend —— 混合模式的唯一来源，附件上没有
     }
   }
 
   // ---------------- 附件 ----------------
+  /**
+   * 注意：附件**没有**混合模式字段。官方 JSON 格式（esotericsoftware.com/spine-json-format）
+   * 里只有 slots[].blend，附件（region / mesh / linkedmesh / …）的属性列表里
+   * 既没有 blend 也没有 blendMode。
+   * 所以渲染与检查器一律读 slot.data.blendMode，别在附件上加这个字段
+   * ——去掉之前那个恒为 normal 的 att.blendMode 就是为了避免再次踩坑。
+   */
   class Attachment {
     constructor(name) {
       this.name = name; this.type = ""; this.color = rgba(1, 1, 1, 1);
-      this.darkColor = null; this.blendMode = BlendMode.normal; this.path = null;
+      this.darkColor = null; this.path = null;
     }
     setColor(hex) { const c = M.parseHexColor(hex); if (c) this.color = c; }
     setDarkColor(hex) { const c = M.parseHexColor(hex); if (c) this.darkColor = c; }
@@ -3117,7 +3141,7 @@ SP.json = (() => {
   /**
    * 官方 setParentMesh 复制的字段：bones / vertices / worldVerticesLength /
    * regionUVs(→uvs) / triangles / hullLength（外加 region、width、height、path 由各自逻辑处理）。
-   * 子附件自己的 name / color / darkColor / blendMode 保持不变。
+   * 子附件自己的 name / color / darkColor 保持不变（混合模式属于插槽，不在此列）。
    * 官方在找不到父网格时直接抛错；本工具按契约「记 warning 不抛错」。
    * timelineAttachment = inheritTimelines ? 父网格（或父网格的 timelineAttachment）: 自己。
    */
@@ -6503,11 +6527,48 @@ void main () {
   const MAX_VERTICES = 8192;
   const MAX_INDICES = 3 * MAX_VERTICES;
 
+  /**
+   * 各混合模式的两组因子：[RGB 的 (src, dst), Alpha 的 (src, dst)]。
+   * 常量：1 = ONE，0 = ZERO，0x0301 = ONE_MINUS_SRC_COLOR，
+   *       0x0303 = ONE_MINUS_SRC_ALPHA，0x0306 = DST_COLOR。
+   *
+   * ── 为什么 Alpha 要单独给，不能直接照抄官方 runtime ─────────────────
+   * 官方 runtime 把底色画在 canvas 内部，帧缓冲的 alpha 恒为 1，
+   * 所以 additive 用 blendFunc(ONE, ONE) 把 alpha 也一起加没有副作用。
+   * 但本工具的底色是 canvas 外面的 CSS 图层、canvas 自身是透明的
+   * （premultipliedAlpha: true），浏览器按
+   *     result = canvas.rgb + 底色 * (1 - canvas.a)
+   * 合成。此时 additive 若把 alpha 也加上，结果就变成
+   *     result = 光 + 底色 * (1 - 光.a)
+   * —— 底色会把光「反向压暗」，在浅色底色上看起来就是加色根本没生效
+   * （甚至比周围更暗）。让 additive 保持 dst.a 不变（ZERO, ONE）后：
+   *     canvas.rgb = 光，canvas.a 不变
+   * 合成结果 = 光 + 底色，与「在画布内以不透明底色绘制」完全一致。
+   * 画在已有不透明内容之上时 dst.a 本来就是 1，也不受影响。
+   * 其余模式 RGB/Alpha 都走同一组因子（alpha 部分等价于标准 over，
+   * 与 CSS 的合成预期一致）。
+   * 注：multiply 与 screen 在透明底色上仍不精确 —— 它们需要非透明的
+   * destination，彻底解决要把底色画进 canvas 内部。
+   */
   const BLEND_FUNCS = {
-    [D.BlendMode.normal]: [1, 0x0303 /* ONE_MINUS_SRC_ALPHA */],
-    [D.BlendMode.additive]: [1, 1],
-    [D.BlendMode.multiply]: [0x0306 /* DST_COLOR */, 0x0303],
-    [D.BlendMode.screen]: [1, 0x0301 /* ONE_MINUS_SRC_COLOR */],
+    [D.BlendMode.normal]: [[1, 0x0303], [1, 0x0303]],
+    [D.BlendMode.additive]: [[1, 1], [0, 1]],
+    [D.BlendMode.multiply]: [[0x0306, 0x0303], [1, 0x0303]],
+    [D.BlendMode.screen]: [[1, 0x0301], [1, 0x0303]],
+  };
+
+  /**
+   * 底色 / 棋盘格图案，取值与 #bgSel 一一对应。
+   * 颜色用 0–255 整数；checker 是两色棋盘（cell = 每格多少屏幕像素）。
+   * 底色必须画在 canvas 内部 —— 详见 Renderer.drawBackground 的注释。
+   */
+  const BG_SPECS = {
+    checker: { a: [0x14, 0x1a, 0x22], b: [0x1b, 0x22, 0x2c], cell: 22 },
+    dark: { rgb: [0x1b, 0x22, 0x2c] },
+    light: { rgb: [0xc9, 0xd3, 0xde] },
+    green: { rgb: [0x00, 0xb1, 0x40] },
+    magenta: { rgb: [0xff, 0x00, 0xff] },
+    black: { rgb: [0x00, 0x00, 0x00] },
   };
 
   class Texture {
@@ -6623,7 +6684,7 @@ void main () {
       gl.blendEquation(gl.FUNC_ADD);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
       gl.clearColor(0, 0, 0, 0);
-      this._whiteTex = null;
+      this.bgTex = null;   // 棋盘格底色贴图，懒创建（见 drawBackground）
     }
     _shader(type, src) {
       const gl = this.gl;
@@ -6686,13 +6747,107 @@ void main () {
       this.view.resize(w, h, dpr);
       this.gl.viewport(0, 0, bw, bh);
     }
-    clear() {
+    /**
+     * 绘制底色（棋盘格或纯色）。
+     *
+     * ── 为什么底色必须画在 canvas 内部 ──────────────────────────────
+     * canvas 是 premultipliedAlpha: true 且自身透明的，若底色只做 CSS 图层，
+     * 浏览器按 `result = canvas.rgb + 底色 * (1 - canvas.a)` 合成。于是：
+     *   · additive：dst 从 (0,0,0,0) 开始，加色与普通混合结果完全一样
+     *     —— 在浅色底上等于「没生效」，alpha 累加后甚至比底色更暗；
+     *   · multiply：dst.rgb 恒为 0，直接不可见；
+     *   · screen：alpha 取 src.a 而不是 src.rgb，只能近似。
+     * 先以不透明像素铺满 canvas，这些模式才有正确的 destination，
+     * 表现与 Spine 编辑器（它把底色画在 canvas 内）一致。
+     * @param {string} bg 同 #bgSel：checker | dark | light | green | magenta | black
+     */
+    drawBackground(bg) {
       const gl = this.gl;
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      const spec = BG_SPECS[bg] || BG_SPECS.checker;
+      gl.disable(gl.SCISSOR_TEST);
+      if (!spec.cell) {
+        // 纯色：直接以不透明色清屏。gl.clear 不受混合影响，写进去的 alpha 就是 1。
+        const c = spec.rgb;
+        gl.clearColor(c[0] / 255, c[1] / 255, c[2] / 255, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        return;
+      }
+      // 棋盘格：2×2 NEAREST + REPEAT 的小贴图，UV 按屏幕像素推进 → 每格 = cell px
+      if (!this.bgTex) this.bgTex = this._checkerTexture(spec);
+      const view = this.view;
+      const w = view.width, h = view.height;
+      // 屏幕四角 → 世界坐标（a_pos 走 u_view 变换）；外扩 1px 防止边缘露缝
+      const tl = view.screenToWorld(-1, -1);
+      const br = view.screenToWorld(w + 1, h + 1);
+      const minX = Math.min(tl.x, br.x), maxX = Math.max(tl.x, br.x);
+      const minY = Math.min(tl.y, br.y), maxY = Math.max(tl.y, br.y);
+      const span = spec.cell * 2;
+      const u0 = -1 / span, v0 = -1 / span;
+      const u1 = (w + 1) / span, v1 = (h + 1) / span;
+      // 顶点顺序：左上、右上、左下、右下（与 UV 的 v 向下递增对应）
+      const quad = [
+        [minX, maxY, u0, v0], [maxX, maxY, u1, v0],
+        [minX, minY, u0, v1], [maxX, minY, u1, v1],
+      ];
+      const d = this.vdata;
+      for (let i = 0; i < 4; i++) {
+        const o = i * VERTEX_FLOATS, q = quad[i];
+        d[o] = q[0]; d[o + 1] = q[1]; d[o + 2] = q[2]; d[o + 3] = q[3];
+        d[o + 4] = 1; d[o + 5] = 1; d[o + 6] = 1; d[o + 7] = 1;   // v_light = 白、不透明
+        d[o + 8] = 0; d[o + 9] = 0; d[o + 10] = 0; d[o + 11] = 0;
+      }
+      const idx = [0, 1, 2, 0, 2, 3];
+      for (let i = 0; i < idx.length; i++) this.idata[i] = idx[i];
+
+      gl.useProgram(this.prog);
+      gl.uniform4fv(this.loc.view, view.viewUniform());
+      gl.uniform1i(this.loc.mode, 1);              // 单色贴图
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.bgTex);
+      gl.uniform1i(this.loc.tex, 0);
+      gl.disable(gl.BLEND);                        // 底色原样写入，不参与混合
+      gl.bindVertexArray(this.vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, d.subarray(0, 4 * VERTEX_FLOATS));
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
+      gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, this.idata.subarray(0, 6));
+      gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+      gl.enable(gl.BLEND);
+      gl.bindVertexArray(null);
+    }
+    /** 2×2 棋盘贴图：配 REPEAT + NEAREST，每个 texel 就是一格 */
+    _checkerTexture(spec) {
+      const gl = this.gl;
+      const a = spec.a, b = spec.b;
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      // UNPACK_FLIP_Y_WEBGL 为 false：数据首行对应 v=0，即屏幕上方那一行
+      const px = new Uint8Array([
+        a[0], a[1], a[2], 255, b[0], b[1], b[2], 255,
+        b[0], b[1], b[2], 255, a[0], a[1], a[2], 255,
+      ]);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+      return tex;
     }
     /**
      * 绘制骨架
+     *
+     * ── 批次（batch）规则，改这里前务必先读 ──────────────────────────
+     * 所有附件的顶点/索引先攒进 this.vdata / this.idata，最后才统一 drawElements。
+     * 也就是说 gl.bindTexture / gl.blendFunc / u_mode / u_color / scissor 这些
+     * **状态是在「攒几何」时设置的，却作用在「之后才真正执行」的那次绘制上**。
+     * 因此任何一处状态变化都必须先 flush()，把上一批用旧状态画完，
+     * 否则整帧会被最后一个状态「回溯性」地重绘一遍 —— 表现就是：
+     *   · 混合模式串味（例如最后一个 additive 的插槽会让全场景都变 additive，
+     *     于是暗色遮挡物不再遮挡，后面的东西"透"到前面来，看着像绘制顺序反了）；
+     *   · 多页图集全部用最后一页的贴图；
+     *   · 裁剪区域失效。
+     * setBatch() 就是这个「变状态先结算」的唯一入口；裁剪同理见下面的 flush()。
+     *
      * @param {SP.runtime.Skeleton} skeleton
      * @param {{textures?:boolean, onText?:Function}} opts
      */
@@ -6703,8 +6858,6 @@ void main () {
       const depth = 1 - (opts.depth || 0) * 0.001;
       this.stats.drawCalls = 0; this.stats.vertices = 0; this.stats.textureSwitches = 0;
       let vcount = 0, icount = 0;
-      let lastTexture = null;
-      let curBlend = -1;
       const clips = [];   // 裁剪栈 {x,y,w,h,endSlot}
       const scratch = new Float32Array(8192);
 
@@ -6720,6 +6873,32 @@ void main () {
         vcount = 0; icount = 0;
       };
 
+      // 当前批次的 GL 状态（u_tex / u_mode / u_color / blendFunc）。
+      // bMode 初值 -1 保证第一个附件一定会把全部状态写一遍。
+      let bTex = null, bMode = -1, bBlend = -1, bR = 0, bG = 0, bB = 0, bA = 0;
+      const setBatch = (texHandle, mode, blendMode, r, g, b, a) => {
+        if (bTex === texHandle && bMode === mode && bBlend === blendMode &&
+            (mode !== 0 || (bR === r && bG === g && bB === b && bA === a))) return;
+        flush();   // 状态要变了：先把已经攒下的几何用旧状态画掉
+        if (bTex !== texHandle) {
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, texHandle);
+          gl.uniform1i(this.loc.tex, 0);
+          bTex = texHandle;
+          this.stats.textureSwitches++;
+        }
+        if (bMode !== mode) { gl.uniform1i(this.loc.mode, mode); bMode = mode; }
+        if (bBlend !== blendMode) {
+          const bf = BLEND_FUNCS[blendMode] || BLEND_FUNCS[0];
+          gl.blendFuncSeparate(bf[0][0], bf[0][1], bf[1][0], bf[1][1]);
+          bBlend = blendMode;
+        }
+        if (mode === 0 && (bR !== r || bG !== g || bB !== b || bA !== a)) {
+          gl.uniform4f(this.loc.color, r, g, b, a);
+          bR = r; bG = g; bB = b; bA = a;
+        }
+      };
+
       gl.useProgram(this.prog);
       gl.bindVertexArray(this.vao);
       gl.uniform4fv(this.loc.view, view.viewUniform());
@@ -6727,9 +6906,10 @@ void main () {
       const drawOrder = skeleton.drawOrder;
       for (let si = 0; si < drawOrder.length; si++) {
         const slot = drawOrder[si];
-        // 裁剪段结束
+        // 裁剪段结束。scissor 也是「改了就要立刻生效」的状态，所以要先把上一批画掉。
         while (clips.length && clips[clips.length - 1].endSlot === slot) {
           clips.pop();
+          flush();
           if (clips.length) this._applyScissor(clips[clips.length - 1]);
           else gl.disable(gl.SCISSOR_TEST);
         }
@@ -6742,6 +6922,7 @@ void main () {
             const inter = prev ? this._intersect(prev, rect) : rect;
             inter.endSlot = att.endSlot || null;
             clips.push(inter);
+            flush();   // 同 setBatch：scissor 变了，先结算上一批
             this._applyScissor(inter);
             this.stats.clip = true;
           }
@@ -6798,25 +6979,17 @@ void main () {
 
         const tex = region && region.page ? region.page.texture : null;
         const useTexture = opts.textures !== false && tex && tex.handle;
-        let mode = useTexture ? (twoColor ? 2 : 1) : 0;
-        if (useTexture) {
-          if (lastTexture !== tex.handle) {
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, tex.handle);
-            gl.uniform1i(this.loc.tex, 0);
-            lastTexture = tex.handle;
-            this.stats.textureSwitches++;
-          }
-        } else {
-          // 没有贴图时用半透明纯色示意几何
-          gl.uniform4f(this.loc.color, light.r * 0.7, light.g * 0.85, light.b, Math.max(0.18, light.a * 0.55));
-        }
-        gl.uniform1i(this.loc.mode, mode);
-        if (curBlend !== att.blendMode) {
-          const bf = BLEND_FUNCS[att.blendMode] || BLEND_FUNCS[0];
-          gl.blendFunc(bf[0], bf[1]);
-          curBlend = att.blendMode;
-        }
+        const mode = useTexture ? (twoColor ? 2 : 1) : 0;
+        // 混合模式由 **插槽** 决定：官方 JSON 格式里只有 slots[].blend，
+        // 附件（region / mesh / …）的属性表里既没有 blend 也没有 blendMode。
+        // 没有贴图时用半透明纯色示意几何（只有 mode 0 会用到 u_color）。
+        // slot.blendOverride 是检查器里的临时覆盖值（PoseController 逐帧写入），优先于数据里的原始值。
+        setBatch(
+          useTexture ? tex.handle : null,
+          mode,
+          slot.blendOverride !== undefined ? slot.blendOverride : slot.data.blendMode,
+          light.r * 0.7, light.g * 0.85, light.b, Math.max(0.18, light.a * 0.55)
+        );
         // 写入顶点
         const base = vcount;
         for (let i = 0; i < vertexCount; i++) {
@@ -6874,11 +7047,12 @@ void main () {
     dispose() {
       const gl = this.gl;
       this.clearTextures();
+      if (this.bgTex) gl.deleteTexture(this.bgTex);
       if (this.vbo) gl.deleteBuffer(this.vbo);
       if (this.ibo) gl.deleteBuffer(this.ibo);
       if (this.vao) gl.deleteVertexArray(this.vao);
       if (this.prog) gl.deleteProgram(this.prog);
-      this.vbo = this.ibo = this.vao = this.prog = null;
+      this.bgTex = this.vbo = this.ibo = this.vao = this.prog = null;
     }
   }
 
@@ -6940,6 +7114,7 @@ SP.pose = (() => {
   class PoseController {
     constructor() {
       this.overrides = new Map();      // boneName -> { dRotation, dX, dY, dScaleX, dScaleY }
+      this.slotOverrides = new Map();  // slotIndex -> { blendMode?, color? }（混合模式 / 颜色覆盖）
       this.vertexEdits = new Map();    // slotIndex -> Float32Array（附加形变偏移）
       this.tool = "translate";         // translate | rotate | scale（顶点编辑常驻，不在工具列表里）
       this.selectedBone = null;
@@ -6983,7 +7158,51 @@ SP.pose = (() => {
       };
     }
     resetBone(bone) { if (bone) this.overrides.delete(bone.data.name); }
-    resetAll() { this.overrides.clear(); }
+    // ---------------- 插槽（部件）级覆盖：混合模式 / 颜色 ----------------
+    getSlotOverride(slot) { return slot ? (this.slotOverrides.get(slot.data.index) || null) : null; }
+    /**
+     * 覆盖某插槽的混合模式；传 null 表示恢复资源原始值。
+     * 覆盖值存在 PoseController 内部而非直接改写 slot.data，方便随时还原。
+     */
+    setSlotBlend(slot, blendMode) {
+      if (!slot) return;
+      const o = Object.assign({}, this.slotOverrides.get(slot.data.index));
+      if (blendMode === null || blendMode === undefined || blendMode === slot.data.blendMode) delete o.blendMode;
+      else o.blendMode = blendMode;
+      this._commitSlotOverride(slot, o);
+    }
+    /** 覆盖某插槽的颜色（r/g/b/a 均为 0..1）；传 null 表示恢复资源原始值 */
+    setSlotColor(slot, color) {
+      if (!slot) return;
+      const o = Object.assign({}, this.slotOverrides.get(slot.data.index));
+      if (!color) delete o.color;
+      else o.color = { r: color.r, g: color.g, b: color.b, a: color.a };
+      this._commitSlotOverride(slot, o);
+    }
+    _commitSlotOverride(slot, o) {
+      if (o.blendMode === undefined && !o.color) this.slotOverrides.delete(slot.data.index);
+      else this.slotOverrides.set(slot.data.index, o);
+    }
+    /**
+     * 把插槽级覆盖叠加到当前骨架上（每帧在动画之后调用）。
+     * 动画每帧都会 setToSetupPose() 重置 slot.color，因此颜色覆盖必须逐帧写入。
+     * 混合模式写入运行时的 slot.blendOverride（渲染器优先读它），不改 slot.data。
+     */
+    applySlotOverrides(skeleton) {
+      let any = false;
+      for (const slot of skeleton.slots) {
+        const o = this.slotOverrides.get(slot.data.index);
+        const bm = o && o.blendMode !== undefined ? o.blendMode : undefined;
+        if (slot.blendOverride !== bm) slot.blendOverride = bm;
+        if (o && o.color) {
+          const c = slot.color;
+          c.r = o.color.r; c.g = o.color.g; c.b = o.color.b; c.a = o.color.a;
+        }
+        if (o) any = true;
+      }
+      return any;
+    }
+    resetAll() { this.overrides.clear(); this.slotOverrides.clear(); }
     applyOverrides(skeleton) {
       if (!this.overrides.size) return false;
       let any = false;
@@ -7127,13 +7346,37 @@ SP.pose = (() => {
     gizmoActive() {
       return (this.tool === "translate" || this.tool === "rotate" || this.tool === "scale") && !!this.gizmoBone();
     }
-    /** Gizmo 屏幕几何：中心 + 两个轴端点（世界轴对齐，与 Unity 全局模式一致） */
+    /**
+     * Gizmo 参考轴的角度（弧度）。
+     * 缩放最终是作用在骨骼「自身」的 scaleX / scaleY 上，所以轴必须跟着骨骼转
+     * （Unity 的 Local 轴模式）；位移按的是世界轴、旋转是圆环，都与朝向无关，恒为 0。
+     * 拖拽过程中固定用起手时记下的角度，免得动画在跑时参考轴跟着漂。
+     */
+    gizmoAxisAngle() {
+      if (this.tool !== "scale") return 0;
+      if (this.drag && this.drag.kind === "gizmo" && this.drag.tool === "scale" && isFinite(this.drag.axisAngle)) {
+        return this.drag.axisAngle;
+      }
+      const bone = this.gizmoBone();
+      if (!bone || typeof bone.getWorldRotationX !== "function") return 0;
+      const deg = bone.getWorldRotationX();
+      return isFinite(deg) ? (deg * Math.PI) / 180 : 0;
+    }
+    /** Gizmo 屏幕几何：中心 + 两个轴端点。缩放时两轴随骨骼旋转，其余与世界轴对齐。 */
     gizmoScreen(view) {
       const bone = this.gizmoBone();
       if (!bone) return null;
       const o = view.worldToScreen(bone.worldX, bone.worldY);
       const L = GZ.axis;
-      return { o, xTip: { x: o.x + L, y: o.y }, yTip: { x: o.x, y: o.y - L } };
+      const a = this.gizmoAxisAngle();
+      const cos = Math.cos(a), sin = Math.sin(a);
+      // 屏幕 Y 轴向下：世界方向 (cos, sin) 画到屏幕上就是 (cos, -sin)；
+      // 本地 Y 是本地 X 逆时针 90°，世界方向 (-sin, cos) → 屏幕 (-sin, -cos)。
+      return {
+        o,
+        xTip: { x: o.x + L * cos, y: o.y - L * sin },
+        yTip: { x: o.x - L * sin, y: o.y - L * cos },
+      };
     }
     /** 命中测试：返回 "x" | "y" | "xy" | "ring"，未命中返回 null */
     pickGizmo(view, sx, sy) {
@@ -7147,9 +7390,15 @@ SP.pose = (() => {
       }
       // 中心方块（位移＝XY 平面拖动，缩放＝整体缩放）优先
       if (Math.abs(dx) <= GZ.sq + 4 && Math.abs(dy) <= GZ.sq + 4) return "xy";
-      const hitX = near(g.xTip.x, g.xTip.y, GZ.segR) || Math.hypot(dx - GZ.axis, dy) <= GZ.handleR;
-      const hitY = near(g.yTip.x, g.yTip.y, GZ.segR) || Math.hypot(dx, dy + GZ.axis) <= GZ.handleR;
-      if (hitX && hitY) return Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+      // 端点命中一律以 gizmoScreen 给出的端点为基准，这样轴转了也照样准
+      const hitX = near(g.xTip.x, g.xTip.y, GZ.segR) || Math.hypot(sx - g.xTip.x, sy - g.xTip.y) <= GZ.handleR;
+      const hitY = near(g.yTip.x, g.yTip.y, GZ.segR) || Math.hypot(sx - g.yTip.x, sy - g.yTip.y) <= GZ.handleR;
+      if (hitX && hitY) {
+        // 两条轴都命中时，选与拖拽点投影更贴合的那条（轴旋转后不能再比世界 x/y）
+        const px = Math.abs(dx * (g.xTip.x - g.o.x) + dy * (g.xTip.y - g.o.y));
+        const py = Math.abs(dx * (g.yTip.x - g.o.x) + dy * (g.yTip.y - g.o.y));
+        return px >= py ? "x" : "y";
+      }
       if (hitX) return "x";
       if (hitY) return "y";
       return null;
@@ -7161,10 +7410,13 @@ SP.pose = (() => {
       const handle = this.pickGizmo(view, sx, sy);
       if (handle) {
         const bone = this.gizmoBone();
+        // 先把参考轴角度定下来（此时 this.drag 还是旧值，gizmoAxisAngle 取的是骨骼实时朝向）
+        const axisAngle = this.gizmoAxisAngle();
         this.drag = {
           kind: "gizmo", tool: this.tool, handle, bone,
           startWorld: world, lastWorld: world,
           startOverride: this.readBoneDelta(bone),
+          axisAngle,
         };
         return this.drag;
       }
@@ -7223,13 +7475,18 @@ SP.pose = (() => {
             dScaleX: o.dScaleX, dScaleY: o.dScaleY,
           });
         } else if (d.tool === "scale") {
-          // 世界位移量 / Gizmo 轴长 → 缩放倍率（沿骨骼自身轴向生效）
+          // 世界位移量投影到骨骼自身轴向 / Gizmo 轴长 → 该轴的缩放倍率。
+          // 投影（而不是直接取 dwx / dwy）是必须的：轴随骨骼旋转后，
+          // 沿显示的红/绿方向拖动才会只影响对应的那一轴。
           const refLen = GZ.axis / Math.max(1e-6, view.scale);
           const dwx = world.x - d.startWorld.x, dwy = world.y - d.startWorld.y;
+          const ca = Math.cos(d.axisAngle || 0), sa = Math.sin(d.axisAngle || 0);
+          const along = dwx * ca + dwy * sa;    // 本地 X 分量
+          const perp = -dwx * sa + dwy * ca;    // 本地 Y 分量
           let fx = 1, fy = 1;
-          if (d.handle === "x") fx = 1 + dwx / refLen;
-          else if (d.handle === "y") fy = 1 + dwy / refLen;
-          else { const f = 1 + (dwx + dwy) / (refLen * Math.SQRT2); fx = f; fy = f; }
+          if (d.handle === "x") fx = 1 + along / refLen;
+          else if (d.handle === "y") fy = 1 + perp / refLen;
+          else { const f = 1 + (along + perp) / (refLen * Math.SQRT2); fx = f; fy = f; }
           const floor = (v) => (Math.abs(v) < 0.02 ? (v < 0 ? -0.02 : 0.02) : v);
           this.setBoneDelta(bone, {
             dRotation: o.dRotation, dX: o.dX, dY: o.dY,
@@ -7292,19 +7549,22 @@ SP.pose = (() => {
       if (opts.axis) this._paintAxis(ctx, view, skeleton);
       if (this.gizmoActive()) this._paintGizmo(ctx, view);
     }
-    /** Unity 风格变换 Gizmo：位移＝双箭头＋中心方块，旋转＝圆环，缩放＝双轴方点＋中心方点 */
+    /**
+     * Unity 风格变换 Gizmo：位移＝双箭头＋中心方块，旋转＝圆环，缩放＝双轴方点＋中心方点。
+     * 两个轴端点一律取自 gizmoScreen()，所以缩放时会随骨骼一起旋转。
+     */
     _paintGizmo(ctx, view) {
       const g = this.gizmoScreen(view);
       if (!g) return;
-      const o = g.o, L = GZ.axis, sq = GZ.sq;
+      const o = g.o, sq = GZ.sq;
       const hot = (this.drag && this.drag.kind === "gizmo") ? this.drag.handle : this.gizmoHover;
       const cx = hot === "x" ? COL.gizmoHot : COL.gizmoX;
       const cy = hot === "y" ? COL.gizmoHot : COL.gizmoY;
       ctx.save();
       ctx.lineCap = "round";
       if (this.tool === "translate") {
-        this._paintArrow(ctx, o.x, o.y, o.x + L, o.y, cx);
-        this._paintArrow(ctx, o.x, o.y, o.x, o.y - L, cy);
+        this._paintArrow(ctx, o.x, o.y, g.xTip.x, g.xTip.y, cx);
+        this._paintArrow(ctx, o.x, o.y, g.yTip.x, g.yTip.y, cy);
         // 中心方块：XY 平面自由位移
         ctx.fillStyle = hot === "xy" ? COL.gizmoPlaneHot : COL.gizmoPlane;
         ctx.fillRect(o.x - sq, o.y - sq, sq * 2, sq * 2);
@@ -7322,9 +7582,9 @@ SP.pose = (() => {
         ctx.fillStyle = COL.gizmoEdge;
         ctx.fill();
       } else if (this.tool === "scale") {
-        this._paintScaleAxis(ctx, o.x, o.y, o.x + L, o.y, cx);
-        this._paintScaleAxis(ctx, o.x, o.y, o.x, o.y - L, cy);
-        // 中心方块：整体缩放
+        this._paintScaleAxis(ctx, o.x, o.y, g.xTip.x, g.xTip.y, cx);
+        this._paintScaleAxis(ctx, o.x, o.y, g.yTip.x, g.yTip.y, cy);
+        // 中心方块：整体缩放。方块本身保持屏幕轴对齐（与 Unity 一致，不跟着转）
         ctx.fillStyle = hot === "xy" ? COL.gizmoHot : COL.gizmoEdge;
         ctx.fillRect(o.x - sq, o.y - sq, sq * 2, sq * 2);
         ctx.lineWidth = 1;
@@ -8805,48 +9065,67 @@ SP.app = (() => {
       const hasOv = !!state.pose.getOverride(bone);
       parts.push(`<div style="font-size:12px;font-weight:600;color:var(--accent)">🦴 骨骼 ${esc(bone.data.name)}</div>
         <div class="kv">
-          <span class="k">父级</span><span class="v">${esc(bone.data.parent ? bone.data.parent.name : "（根）")}</span>
-          <span class="k">局部角度</span><span class="v">${bone.rotation.toFixed(2)}° (setup ${bone.data.rotation.toFixed(2)}°)</span>
-          <span class="k">局部位移</span><span class="v">${bone.x.toFixed(2)}, ${bone.y.toFixed(2)} (setup ${bone.data.x.toFixed(2)}, ${bone.data.y.toFixed(2)})</span>
-          <span class="k">缩放</span><span class="v">${bone.scaleX.toFixed(3)}, ${bone.scaleY.toFixed(3)}</span>
-          <span class="k">剪切</span><span class="v">${bone.shearX.toFixed(2)}°, ${bone.shearY.toFixed(2)}°</span>
-          <span class="k">世界坐标</span><span class="v">${bone.worldX.toFixed(2)}, ${bone.worldY.toFixed(2)}</span>
-          <span class="k">世界角度</span><span class="v">${bone.getWorldRotationX().toFixed(2)}°</span>
-          <span class="k">长度</span><span class="v">${bone.data.length.toFixed(2)}${bone.data.transformMode ? " · " + D.TransformModeName[bone.data.transformMode] : ""}</span>
-          <span class="k">调试偏移</span><span class="v" style="color:${hasOv ? "var(--accent)" : "inherit"}">${hasOv ? `${ov.dRotation.toFixed(2)}° / ${ov.dX.toFixed(2)}, ${ov.dY.toFixed(2)} / ×${ov.dScaleX.toFixed(3)}, ${ov.dScaleY.toFixed(3)}` : "无"}</span>
+          <span class="k" title="父骨骼：该骨骼在骨架层级中的上一级；显示”（根）“表示它没有父级">父级</span><span class="v">${esc(bone.data.parent ? bone.data.parent.name : "（根）")}</span>
+          <span class="k" title="局部角度：相对父骨骼的旋转角度；括号内为资源 setup（初始）姿态角度">局部角度</span><span class="v">${bone.rotation.toFixed(2)}° (setup ${bone.data.rotation.toFixed(2)}°)</span>
+          <span class="k" title="局部位移：相对父骨骼本地空间的平移 x, y；括号内为 setup（初始）值">局部位移</span><span class="v">${bone.x.toFixed(2)}, ${bone.y.toFixed(2)} (setup ${bone.data.x.toFixed(2)}, ${bone.data.y.toFixed(2)})</span>
+          <span class="k" title="缩放：相对父骨骼的缩放倍率 scaleX, scaleY，1 表示原始大小">缩放</span><span class="v">${bone.scaleX.toFixed(3)}, ${bone.scaleY.toFixed(3)}</span>
+          <span class="k" title="剪切：相对父骨骼的剪切（错切）角度 shearX, shearY">剪切</span><span class="v">${bone.shearX.toFixed(2)}°, ${bone.shearY.toFixed(2)}°</span>
+          <span class="k" title="世界坐标：该骨骼在舞台坐标系中的最终位置（已累积所有父级变换）">世界坐标</span><span class="v">${bone.worldX.toFixed(2)}, ${bone.worldY.toFixed(2)}</span>
+          <span class="k" title="世界角度：该骨骼的最终旋转角度（已累积所有父级变换）">世界角度</span><span class="v">${bone.getWorldRotationX().toFixed(2)}°</span>
+          <span class="k" title="长度：骨骼长度；“·”后为变换模式 transformMode（决定缩放/旋转如何影响子骨骼）">长度</span><span class="v">${bone.data.length.toFixed(2)}${bone.data.transformMode ? " · " + D.TransformModeName[bone.data.transformMode] : ""}</span>
+          <span class="k" title="调试偏移：你在下方为该骨骼填入的临时调整量（角度 / 位置 / 缩放），只用于预览，不会修改原资源">调试偏移</span><span class="v" style="color:${hasOv ? "var(--accent)" : "inherit"}">${hasOv ? `${ov.dRotation.toFixed(2)}° / ${ov.dX.toFixed(2)}, ${ov.dY.toFixed(2)} / ×${ov.dScaleX.toFixed(3)}, ${ov.dScaleY.toFixed(3)}` : "无"}</span>
         </div>
         <div class="row" style="margin-top:4px;">
-          <label style="width:38px;">角度</label>
+          <label style="width:38px;" title="角度：对该骨骼附加的调试旋转量（度），仅影响预览">角度</label>
           <input type="number" id="inspRot" step="1" value="${ov.dRotation.toFixed(2)}" class="grow">
-          <label style="width:26px;">X</label>
+          <label style="width:26px;" title="X：对该骨骼附加的调试水平位移，单位为父级本地空间">X</label>
           <input type="number" id="inspX" step="1" value="${ov.dX.toFixed(2)}" style="width:64px">
-          <label style="width:20px;">Y</label>
+          <label style="width:20px;" title="Y：对该骨骼附加的调试垂直位移，单位为父级本地空间">Y</label>
           <input type="number" id="inspY" step="1" value="${ov.dY.toFixed(2)}" style="width:64px">
         </div>
         <div class="row">
-          <label style="width:38px;">缩放</label>
+          <label style="width:38px;" title="缩放：对该骨骼附加的调试缩放倍率，1 为原始大小，仅影响预览">缩放</label>
           <input type="number" id="inspSX" step="0.05" value="${ov.dScaleX.toFixed(3)}" class="grow">
-          <label style="width:26px;">Y</label>
+          <label style="width:26px;" title="Y：缩放倍率的纵向分量">Y</label>
           <input type="number" id="inspSY" step="0.05" value="${ov.dScaleY.toFixed(3)}" style="width:64px">
         </div>
-        <div class="row"><button class="btn sm" id="inspReset">↺ 重置该骨骼</button>
+        <div class="row"><button class="btn sm" id="inspReset" title="清除该骨骼上所有调试偏移，恢复为资源原始姿态">↺ 重置该骨骼</button>
           <span class="hint">位移＝父级本地空间，缩放＝倍率(1)</span></div>`);
     }
     if (slot) {
       const att = slot.attachment;
+      const so = state.pose.getSlotOverride(slot);
+      const blendOv = !!(so && so.blendMode !== undefined);
+      const colorOv = !!(so && so.color);
+      const blendNow = blendOv ? so.blendMode : slot.data.blendMode;
+      const colorNow = colorOv ? so.color : slot.color;
+      const blendOptions = D.BlendName
+        .map((n, i) => `<option value="${i}"${i === blendNow ? " selected" : ""}>${n}</option>`).join("");
       parts.push(`<div style="font-size:12px;font-weight:600;color:var(--accent)">🧩 部件 ${esc(slot.data.name)}</div>
         <div class="kv">
-          <span class="k">骨骼</span><span class="v">${esc(slot.data.boneData.name)}</span>
-          <span class="k">附件</span><span class="v">${esc(att ? att.name : "（无）")}</span>
-          <span class="k">类型</span><span class="v">${esc(att ? att.type : "-")}</span>
-          <span class="k">混合</span><span class="v">${esc(att ? D.BlendName[att.blendMode] : D.BlendName[slot.data.blendMode])}</span>
-          <span class="k">颜色</span><span class="v">${M.rgbToHex(slot.color, true)} × ${att ? M.rgbToHex(att.color, true) : "-"}</span>
-          ${slot.darkColor ? `<span class="k">暗色（双色）</span><span class="v">${M.rgbToHex(slot.darkColor, true)}</span>` : ""}
-          ${att && att.region ? `<span class="k">图集区域</span><span class="v">${esc(att.region.name)} (${att.region.page.name})</span>` : ""}
-          ${att && att.vertices ? `<span class="k">顶点数</span><span class="v">${att.worldVerticesLength / 2}${att.bones && att.bones.length ? " · 带权重" : ""}</span>` : ""}
-          ${att && att.sequence ? `<span class="k">序列帧</span><span class="v">${att.sequence.regions.length} 帧，当前 ${slot.sequenceIndex}</span>` : ""}
-          ${att && att.type === "clipping" ? `<span class="k">裁剪到</span><span class="v">${esc(att.endSlot ? att.endSlot.name : "（末尾）")}</span>` : ""}
-          ${att && att.type === "path" ? `<span class="k">路径</span><span class="v">${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}</span>` : ""}
+          <span class="k" title="骨骼：该部件所绑定的骨骼，部件会跟随此骨骼一起变换">骨骼</span><span class="v">${esc(slot.data.boneData.name)}</span>
+          <span class="k" title="附件：当前装配到该部件的附件名称；“（无）”表示未装配任何附件">附件</span><span class="v">${esc(att ? att.name : "（无）")}</span>
+          <span class="k" title="类型：附件类型，如 region 区域 / mesh 网格 / clipping 裁剪 / path 路径 / boundingbox 包围盒">类型</span><span class="v">${esc(att ? att.type : "-")}</span>
+          <span class="k" title="混合：混合模式 normal 正常 / additive 叠加 / multiply 正片叠底 / screen 滤色（决定该部件如何与下层合成）">混合</span><span class="v" id="inspBlendVal"${blendOv ? ' style="color:var(--accent)" title="已被检查器覆盖，可用下方 ↺ 恢复原始值"' : ""}>${esc(D.BlendName[blendNow])}${blendOv ? "（已改）" : ""}</span>
+          <span class="k" title="颜色：部件自身颜色 × 附件颜色（十六进制，含透明度）">颜色</span><span class="v" id="inspColorVal"${colorOv ? ' style="color:var(--accent)" title="已被检查器覆盖，可用下方 ↺ 恢复原始值"' : ""}>${M.rgbToHex(colorNow, true)} × ${att ? M.rgbToHex(att.color, true) : "-"}${colorOv ? "（已改）" : ""}</span>
+          ${slot.darkColor ? `<span class="k" title="暗色（双色）：双色着色时用于暗部的颜色，仅部分资源启用">暗色（双色）</span><span class="v">${M.rgbToHex(slot.darkColor, true)}</span>` : ""}
+          ${att && att.region ? `<span class="k" title="图集区域：该附件在图集纹理中引用的区域名称及所在图集页">图集区域</span><span class="v">${esc(att.region.name)} (${att.region.page.name})</span>` : ""}
+          ${att && att.vertices ? `<span class="k" title="顶点数：网格附件的顶点数量；“带权重”表示蒙皮网格（顶点受多根骨骼影响）">顶点数</span><span class="v">${att.worldVerticesLength / 2}${att.bones && att.bones.length ? " · 带权重" : ""}</span>` : ""}
+          ${att && att.sequence ? `<span class="k" title="序列帧：该附件的序列帧动画总帧数及当前显示帧的索引">序列帧</span><span class="v">${att.sequence.regions.length} 帧，当前 ${slot.sequenceIndex}</span>` : ""}
+          ${att && att.type === "clipping" ? `<span class="k" title="裁剪到：裁剪附件的结束部件，决定从本部件到该部件之间的裁剪生效范围">裁剪到</span><span class="v">${esc(att.endSlot ? att.endSlot.name : "（末尾）")}</span>` : ""}
+          ${att && att.type === "path" ? `<span class="k" title="路径：路径附件的形态（闭合/开放，以及是否匀速运动）">路径</span><span class="v">${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}</span>` : ""}
+        </div>
+        <div class="row" style="margin-top:6px;">
+          <label style="width:38px;" title="混合：为选中部件临时指定混合模式（覆盖资源原始值），立即生效">混合</label>
+          <select id="inspBlend" class="grow" title="为该部件选择混合模式：normal 正常 / additive 叠加 / multiply 正片叠底 / screen 滤色">${blendOptions}</select>
+          <button class="btn sm" id="inspBlendReset" title="恢复该部件的原始混合模式"${blendOv ? "" : " disabled"}>↺</button>
+        </div>
+        <div class="row">
+          <label style="width:38px;" title="颜色：为选中部件临时指定颜色（覆盖资源原始值），立即生效">颜色</label>
+          <input type="color" id="inspColor" value="${M.rgbToHex(colorNow, false)}" title="选择该部件的颜色（RGB）">
+          <input type="range" id="inspAlpha" min="0" max="1" step="0.01" value="${colorNow.a.toFixed(2)}" class="grow" title="该部件颜色的不透明度 alpha（0 = 全透明，1 = 不透明）">
+          <span class="hint" id="inspAlphaVal" style="width:34px;text-align:right;">${Math.round(colorNow.a * 100)}%</span>
+          <button class="btn sm" id="inspColorReset" title="恢复该部件的原始颜色"${colorOv ? "" : " disabled"}>↺</button>
         </div>
         <div class="hint" style="margin-top:4px;">用 Gizmo 变换该部件时，作用于其所属骨骼 <b>${esc(slot.data.boneData.name)}</b>（Spine 中部件随骨骼变换）。</div>`);
     }
@@ -8874,6 +9153,53 @@ SP.app = (() => {
         $(id).addEventListener("input", (e) => { if (e.target === document.activeElement) apply(); });
       }
       $("inspReset").addEventListener("click", () => { state.pose.resetBone(bone); log("info", `已重置骨骼 ${bone.data.name} 的调试姿态`); renderBones(); renderInspector(); });
+    }
+    if (slot) {
+      const blendValEl = $("inspBlendVal"), colorValEl = $("inspColorVal");
+      // 只刷新检查器里这两行的文案与高亮，避免重建 DOM 打断颜色选择器 / 滑杆的拖动
+      const refreshSlotKv = () => {
+        const o = state.pose.getSlotOverride(slot);
+        const hasB = !!(o && o.blendMode !== undefined), hasC = !!(o && o.color);
+        const bm = hasB ? o.blendMode : slot.data.blendMode;
+        const c = hasC ? o.color : slot.color;
+        const attNow = slot.attachment;
+        blendValEl.textContent = D.BlendName[bm] + (hasB ? "（已改）" : "");
+        blendValEl.style.color = hasB ? "var(--accent)" : "";
+        colorValEl.textContent = `${M.rgbToHex(c, true)} × ${attNow ? M.rgbToHex(attNow.color, true) : "-"}${hasC ? "（已改）" : ""}`;
+        colorValEl.style.color = hasC ? "var(--accent)" : "";
+        $("inspBlendReset").disabled = !hasB;
+        $("inspColorReset").disabled = !hasC;
+      };
+      const applyBlend = () => {
+        const v = parseInt($("inspBlend").value, 10);
+        state.pose.setSlotBlend(slot, isNaN(v) ? null : v);
+        refreshSlotKv();
+        renderSlots();
+      };
+      $("inspBlend").addEventListener("change", applyBlend);
+      $("inspBlendReset").addEventListener("click", () => {
+        state.pose.setSlotBlend(slot, null);
+        $("inspBlend").value = String(slot.data.blendMode);
+        log("info", `已恢复部件 ${slot.data.name} 的原始混合模式`);
+        refreshSlotKv(); renderSlots();
+      });
+      const applyColor = () => {
+        const rgb = M.parseHexColor($("inspColor").value) || { r: 1, g: 1, b: 1 };
+        const a = parseFloat($("inspAlpha").value);
+        state.pose.setSlotColor(slot, { r: rgb.r, g: rgb.g, b: rgb.b, a: isFinite(a) ? a : 1 });
+        $("inspAlphaVal").textContent = Math.round((isFinite(a) ? a : 1) * 100) + "%";
+        refreshSlotKv();
+        renderSlots();
+      };
+      $("inspColor").addEventListener("input", applyColor);
+      $("inspColor").addEventListener("change", applyColor);
+      $("inspAlpha").addEventListener("input", applyColor);
+      $("inspColorReset").addEventListener("click", () => {
+        state.pose.setSlotColor(slot, null);
+        log("info", `已恢复部件 ${slot.data.name} 的原始颜色`);
+        // 颜色由动画每帧写回 slot.color，等下一帧渲染完成后再刷新面板才能显示正确的原始色
+        requestAnimationFrame(() => { renderInspector(); renderSlots(); });
+      });
     }
   }
 
@@ -8911,7 +9237,7 @@ SP.app = (() => {
     if (!gl) return;
     gl.resize();
     state.view.resize(state.gl.clientWidth, state.gl.clientHeight, state.view.dpr);
-    gl.clear();
+    gl.drawBackground(state.prefs.bg);   // 底色画在 canvas 内，混合模式才拿得到不透明 destination
     const cur = state.current;
     if (cur) {
       gl.drawSkeleton(cur.skeleton, { textures: state.prefs.texture });
@@ -8944,6 +9270,7 @@ SP.app = (() => {
     const cur = state.current;
     if (!cur) return;
     if (state.pose.applyOverrides(cur.skeleton)) cur.skeleton.updateWorldTransform();
+    state.pose.applySlotOverrides(cur.skeleton);
     state.pose.applyVertexEdits(cur.skeleton);
   }
 
@@ -9165,13 +9492,10 @@ SP.app = (() => {
 
   /* -------------------------------------------------- 变换工具（Gizmo）
      只有位移 / 旋转 / 缩放三种；「选择」由「点空白平移 + 点对象选中」覆盖，
-     顶点编辑常驻（选中网格部件即可拖），都不再占用工具位。 */
+     顶点编辑常驻（选中网格部件即可拖），都不再占用工具位。
+     每种工具的操作说明只写在 #toolBar 按钮的 title 上（hover 才出现），
+     视口里不再常驻一块描述文本。 */
   const TOOLS = ["translate", "rotate", "scale"];
-  const TOOL_HINTS = {
-    translate: "拖 <b>绿色</b>（Y）/ <b>红色</b>（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。",
-    rotate: "拖动圆环绕关节旋转。",
-    scale: "拖轴上端点按轴缩放，拖中心方点整体缩放（沿骨骼自身轴向生效）。",
-  };
 
   function setTool(mode) {
     if (TOOLS.indexOf(mode) < 0) mode = "translate";
@@ -9180,11 +9504,9 @@ SP.app = (() => {
     state.pose.gizmoHover = null;
     if (state.pose.drag) state.pose.drag = null;
     state.dragging = false;
-    const seg = $("segTool");
-    if (seg) for (const x of seg.querySelectorAll("button")) x.classList.toggle("on", x.dataset.tool === mode);
+    const bar = $("toolBar");
+    if (bar) for (const x of bar.querySelectorAll("button")) x.classList.toggle("on", x.dataset.tool === mode);
     state.gl.className = "mode-" + mode;
-    const hint = $("toolHint");
-    if (hint) hint.innerHTML = TOOL_HINTS[mode];
     savePrefs();
   }
 
@@ -9322,7 +9644,7 @@ SP.app = (() => {
     $("speedText").textContent = state.prefs.speed.toFixed(2) + "×";
     $("bgSel").value = state.prefs.bg;
     applyBackground(state.prefs.bg);
-    for (const b of $("segTool").querySelectorAll("button")) {
+    for (const b of $("toolBar").querySelectorAll("button")) {
       b.addEventListener("click", () => setTool(b.dataset.tool));
     }
     setTool(state.prefs.tool);
@@ -9373,13 +9695,14 @@ SP.app = (() => {
     }
   }
 
+  /**
+   * 底色只改偏好，实际绘制在 WebGL 侧完成（SP.gl.Renderer.drawBackground，
+   * 图案表见同模块的 BG_SPECS）。
+   * 这里不再动 #viewportWrap 的 CSS background —— 底色必须写进 canvas 内部并铺满
+   * 不透明像素，加色 / screen / multiply 才有正确的 destination；只做 CSS 图层的话
+   * canvas 仍是透明的，这几种混合会失真。渲染循环每帧都会读 state.prefs.bg，所以改完立即生效。
+   */
   function applyBackground(mode) {
-    const wrap = $("viewportWrap");
-    const map = {
-      checker: "repeating-conic-gradient(#1b222c 0% 25%, #141a22 0% 50%) 50% / 22px 22px",
-      dark: "#1b222c", light: "#c9d3de", green: "#00b140", magenta: "#ff00ff", black: "#000000",
-    };
-    wrap.style.background = map[mode] || map.checker;
     state.prefs.bg = mode;
     savePrefs();
   }
