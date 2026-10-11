@@ -9471,6 +9471,11 @@ SP.app = (() => {
       const blendOptions = D.BlendName
         .map((n, i) => `<option value="${i}"${i === blendNow ? " selected" : ""}>${n}</option>`).join("");
       parts.push(`<div style="font-size:12px;font-weight:600;color:var(--accent)">🧩 部件 ${esc(slot.data.name)}</div>
+        <div class="row" style="margin:4px 0 6px;">
+          <label class="hint" style="display:flex;align-items:center;gap:6px;cursor:pointer;" title="显示 / 隐藏该部件（等价于左侧部件树的 👁）；隐藏后该部件不再绘制，仅影响预览，不改原资源">
+            <input type="checkbox" id="inspVisible"${slot.data.visible ? " checked" : ""}> 显示该部件
+          </label>
+        </div>
         <div class="kv">
           <span class="k" title="骨骼：该部件所绑定的骨骼，部件会跟随此骨骼一起变换">骨骼</span><span class="v">${esc(slot.data.boneData.name)}</span>
           <span class="k" title="位置：部件的位置由其所属骨骼决定，即该骨骼在父级本地空间中的平移 x, y">位置</span><span class="v">${tBone.x.toFixed(2)}, ${tBone.y.toFixed(2)}</span>
@@ -9551,6 +9556,12 @@ SP.app = (() => {
       $("inspReset").addEventListener("click", () => { state.pose.resetBone(bone); log("info", `已重置骨骼 ${bone.data.name} 的调试姿态`); renderBones(); renderInspector(); });
     }
     if (slot) {
+      // 显示 / 隐藏：勾选框直接切换 slot.data.visible，并同步左侧部件树的 👁
+      $("inspVisible").addEventListener("change", (e) => {
+        slot.data.visible = e.target.checked;
+        log("debug", `部件 ${slot.data.name} ${slot.data.visible ? "显示" : "隐藏"}`);
+        renderSlots();
+      });
       const blendValEl = $("inspBlendVal"), colorValEl = $("inspColorVal");
       // 只刷新检查器里这两行的文案与高亮，避免重建 DOM 打断颜色选择器 / 滑杆的拖动
       const refreshSlotKv = () => {
