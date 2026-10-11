@@ -1495,8 +1495,16 @@ SP.data = (() => {
       if (p >= 1 || type === M.CURVE_STEPPED) {
         for (let k = 0; k < n; k++) deform[k] = frames[base0 + k];
       } else if (type === M.CURVE_BEZIER) {
+        // 官方 DeformTimeline 覆写了 CurveTimeline.setBezier：它的两个端点 y 固定为 0 / 1，
+        // 因此贝塞尔句柄的 y 是「该段的百分比」而不是顶点数值（deform 是整段共享一条曲线，
+        // 而每个顶点分量的数值区间都不同，没法用数值空间句柄）。官方 getCurvePercent 求出的也是百分比，
+        // 再对每个分量做 v0 + (v1 - v0) * percent。
+        // 旧实现把 cy 当成数值空间的句柄直接立方插值，会让带曲线的形变帧整块网格塌缩 / 抽风
+        //（例如 goblins walk 的手持匕首会缩成一小团）。
+        const percent = M.bezierValueAtTime(time, t0, 0, curve[1], curve[2], curve[3], curve[4], t1, 1);
         for (let k = 0; k < n; k++) {
-          deform[k] = M.bezierValueAtTime(time, t0, frames[base0 + k], curve[1], curve[2], curve[3], curve[4], t1, frames[base1 + k]);
+          const v0 = frames[base0 + k], v1 = frames[base1 + k];
+          deform[k] = v0 + (v1 - v0) * percent;
         }
       } else {
         for (let k = 0; k < n; k++) {
@@ -2834,10 +2842,16 @@ SP.json = (() => {
       bd.scaleY = getNum(b, "scaleY", 1);
       bd.shearX = num(b.shearX, 0);
       bd.shearY = num(b.shearY, 0);
-      const tm = getv(b, "transform", null);
+      // 骨骼继承模式在 JSON 里的字段名随版本变化：
+      //   3.8 / 4.0 / 4.1 → "transform"；4.2 / 4.3 → "inherit"（官方 SkeletonJson 里
+      //   4.2+ 读的就是 `getValue(boneMap, "inherit", "Normal")`）。
+      // 取错字段会让 noRotationOrReflection 等骨骼退回 normal，父级旋转 / 缩放被错误地
+      // 全量继承 —— 这些骨骼本身的世界坐标看起来可能没问题，但引用它们做权重的
+      // 网格顶点（缩放 / 位置 / 旋转）会明显错位，所以要按版本优先读 inherit。
+      const tm = getv(b, "inherit", getv(b, "transform", null));
       if (tm) {
         const mode = D.TRANSFORM_MODE_BY_NAME[String(tm).toLowerCase()];
-        if (mode === undefined) warn(`骨骼 "${b.name}" 的 transform 模式 "${tm}" 无法识别，按 normal 处理`);
+        if (mode === undefined) warn(`骨骼 "${b.name}" 的继承模式 "${tm}" 无法识别，按 normal 处理`);
         else bd.transformMode = mode;
       }
       bd.skinRequired = bool(getv(b, "skin", false));
@@ -5648,19 +5662,25 @@ SP.runtime = (() => {
         return;
       }
       if (mode === D.TransformMode.NoRotationOrReflection) {
+        // 与官方 spine-ts BonePose.update 的 Inherit.NoRotationOrReflection 分支逐字对齐
+        // （本项目的骨骼矩阵已含骨架缩放，所以这里就是官方 sx = sy = 1 的情形）：
+        //   s = pa² + pc²；有效时 s = |pa*pd - pb*pc| / s，pb = pc*s，pd = pa*s，r = rotation - atan2Deg(pc, pa)
+        //   退化时 pa = pc = 0，r = rotation - 90 + atan2Deg(pd, pb)
+        //   rx = r + shearX，ry = r + shearY + 90
+        // 注意 ry 用的是「与 rx 同一个 r 再 +90」，不能再去减一次 atan2Deg(pd, pb)——
+        // 那等于把父级旋转扣掉两遍，会让带 noRotationOrReflection 的骨骼（及其加权网格）转反、缩放错乱。
         let pa = pa0, pb = pb0, pc = pc0, pd = pd0;
         let s = pa * pa + pc * pc;
-        let prx = 0, pry = 0;
+        let r;
         if (s > 0.0001) {
           s = Math.abs(pa * pd - pb * pc) / s;
           pb = pc * s; pd = pa * s;
-          prx = M.atan2Deg(pc, pa);
-          pry = M.atan2Deg(pd, pb);
+          r = rotation - M.atan2Deg(pc, pa);
         } else {
-          pa = 0; pc = 0; prx = 0; pry = M.atan2Deg(pd, pb);
+          pa = 0; pc = 0;
+          r = rotation - 90 + M.atan2Deg(pd, pb);
         }
-        const rx = rotation + shearX - prx;
-        const ry = rotation + shearY - pry + 90;
+        const rx = r + shearX, ry = r + shearY + 90;
         const la = M.cosDeg(rx) * scaleX, lb = M.cosDeg(ry) * scaleY;
         const lc = M.sinDeg(rx) * scaleX, ld = M.sinDeg(ry) * scaleY;
         this.a = pa * la - pb * lc;
@@ -5669,23 +5689,26 @@ SP.runtime = (() => {
         this.d = pc * lb + pd * ld;
         return;
       }
-      // NoScale / NoScaleOrReflection：去掉父级缩放
+      // NoScale / NoScaleOrReflection：去掉父级缩放（与官方 BonePose.update 对应分支一致；
+      // 本项目的骨骼矩阵已把骨架缩放折进根骨骼，所以这里等价于官方 sx = sy = 1 的情形）
       const sk = this.skeleton;
-      let pa2 = pa0, pb2 = pb0, pc2 = pc0, pd2 = pd0;
-      const psx = sk.scaleX || 1, psy = sk.scaleY || 1;
-      if (psx !== 0) { pa2 /= psx; pc2 /= psx; }
-      if (psy !== 0) { pb2 /= psy; pd2 /= psy; }
-      if (mode === D.TransformMode.NoScaleOrReflection && pb2 * pc2 - pa2 * pd2 > 0) { pa2 = -pa2; pc2 = -pc2; }
-      const rot = M.atan2Deg(pc2, pa2);
-      const rotY = M.atan2Deg(pd2, pb2);
-      const la = M.cosDeg(rotation + shearX - rot) * scaleX;
-      const lb = M.cosDeg(rotation + shearY - rotY + 90) * scaleY;
-      const lc = M.sinDeg(rotation + shearX - rot) * scaleX;
-      const ld = M.sinDeg(rotation + shearY - rotY + 90) * scaleY;
-      this.a = pa2 * la - pb2 * lc;
-      this.b = pa2 * lb - pb2 * ld;
-      this.c = pc2 * la + pd2 * lc;
-      this.d = pc2 * lb + pd2 * ld;
+      const cosR = M.cosDeg(rotation), sinR = M.sinDeg(rotation);
+      let za = pa0 * cosR + pb0 * sinR;
+      let zc = pc0 * cosR + pd0 * sinR;
+      let s = Math.sqrt(za * za + zc * zc);
+      if (s > 0.00001) s = 1 / s;
+      za *= s; zc *= s;
+      let zb = -zc, zd = za;
+      // 官方只在 NoScale 下按「父级行列式符号」与「骨架缩放符号」是否一致来决定翻转
+      if (mode === D.TransformMode.NoScale && (pa0 * pd0 - pb0 * pc0 < 0) !== ((sk.scaleX < 0) !== (sk.scaleY < 0))) {
+        zb = -zb; zd = -zd;
+      }
+      const la = M.cosDeg(shearX) * scaleX, lb = M.cosDeg(90 + shearY) * scaleY;
+      const lc = M.sinDeg(shearX) * scaleX, ld = M.sinDeg(90 + shearY) * scaleY;
+      this.a = za * la + zb * lc;
+      this.b = za * lb + zb * ld;
+      this.c = zc * la + zd * lc;
+      this.d = zc * lb + zd * ld;
     }
     localToWorld(lx, ly) {
       return { x: lx * this.a + ly * this.b + this.worldX, y: lx * this.c + ly * this.d + this.worldY };
@@ -5974,37 +5997,51 @@ SP.runtime = (() => {
       const d = this.data, source = this.target;
       const sk = source.skeleton;
       const sx = sk.scaleX || 1, sy = sk.scaleY || 1;
+      const local = !!d.localSource;
       const offRotation = d.offsetRotation || 0;
       const offX = d.offsetX || 0, offY = d.offsetY || 0;
       const offScaleX = d.offsetScaleX || 0, offScaleY = d.offsetScaleY || 0;
       const offShearY = d.offsetShearY || 0;
       switch (property) {
         case "rotate": {
+          // localSource：官方 FromRotate.value 直接用源骨骼的**本地** rotation
+          if (local) return source.rotation + offRotation;
           // 官方：世界旋转角 + 有向 offset（矩阵含镜像时取负）
           let value = M.atan2Deg(source.c / sy, source.a / sx)
             + ((source.a * source.d - source.b * source.c) * sx * sy > 0 ? offRotation : -offRotation);
           if (value < 0) value += 360;
           return value;
         }
-        case "x": return (offX * source.a + offY * source.b + source.worldX) / sx;
-        case "y": return (offX * source.c + offY * source.d + source.worldY) / sy;
+        case "x": return local ? source.x + offX : (offX * source.a + offY * source.b + source.worldX) / sx;
+        case "y": return local ? source.y + offY : (offX * source.c + offY * source.d + source.worldY) / sy;
         case "scaleX": {
+          if (local) return source.scaleX + offScaleX;
           const a = source.a / sx, c = source.c / sy;
           return Math.sqrt(a * a + c * c) + offScaleX;
         }
         case "scaleY": {
+          if (local) return source.scaleY + offScaleY;
           const b = source.b / sx, d2 = source.d / sy;
           return Math.sqrt(b * b + d2 * d2) + offScaleY;
         }
         case "shearY": {
+          if (local) return source.shearY + offShearY;
           return (M.atan2Deg(source.d / sy, source.b / sx) - M.atan2Deg(source.c / sy, source.a / sx)) - 90 + offShearY;
         }
         default: return 0;
       }
     }
     /**
-     * 把某个目标属性按官方 ToProperty.apply（世界空间分支）写到骨骼上。
-     * 目标值公式与官方一致：to.offset + (源值 + from.offset) * to.scale（clamp 时再夹到 [offset, max]）。
+     * 把某个目标属性按官方 ToProperty.apply 写到骨骼上。
+     * 目标值公式与官方一致：to.offset + (源值 - from.offset) * to.scale（clamp 时再夹到 [offset, max]）。
+     *
+     * localTarget = true  → 官方 local 分支：直接改骨骼的本地量；
+     * localTarget = false → 官方世界分支：改骨骼的**世界**变换。
+     * 本项目以本地量为准（约束之后会调用 bone.updateWorldTransform() 由本地量重算世界矩阵），
+     * 所以世界分支必须把结果折算回本地量 —— 直接写 a/b/c/d 会被紧随其后的重算覆盖掉。
+     * 世界分支与本地分支的等价性（父级矩阵为相似变换时）：
+     *   rotation 世界旋转 → 本地 rotation 增量；x/y 世界坐标 → 父级本地坐标；
+     *   世界 x/y 轴按 s 缩放 ⇔ 本地 scaleX/scaleY × s；shearY 两个分支的公式本来就相同。
      * @param bone     被约束骨骼
      * @param property 目标属性名
      * @param value    已经算好的目标值
@@ -6013,96 +6050,86 @@ SP.runtime = (() => {
       const d = this.data, sk = bone.skeleton;
       const sx = sk.scaleX || 1, sy = sk.scaleY || 1;
       const additive = !!d.additive;
+      const local = !!d.localTarget;
       switch (property) {
         case "rotate": {
           const mix = this.mixRotate;
           if (!mix) return;
-          // 官方 ToRotate.apply（世界分支）直接改写骨骼矩阵，因此最终世界旋转 = 目标值（不按 mix 插值）。
-          // 本运行时从本地量重算矩阵，所以把目标世界旋转折算成本地 rotation：
-          //   本骨骼世界旋转 = 父级 rotation + 父级 shearX + 自身 rotation + 自身 shearX
-          let local = value - (bone.shearX || 0);
+          if (local) {
+            bone.rotation += (additive ? value : value - bone.rotation) * mix;
+            break;
+          }
+          // 世界分支：官方直接把世界矩阵按 value 旋转。本骨骼世界旋转 =
+          // 父级 rotation + 父级 shearX + 自身 rotation + 自身 shearX，据此把目标世界旋转折成本地 rotation。
+          let target = value - (bone.shearX || 0);
           const parent = bone.parent;
-          if (parent) local -= parent.rotation + (parent.shearX || 0);
-          bone.rotation = local;
+          if (parent) target -= parent.rotation + (parent.shearX || 0);
+          bone.rotation += (target - bone.rotation) * mix;
           break;
         }
-        case "x": {
-          const mix = this.mixX;
-          if (!mix) return;
-          // 骨骼在父级本地空间的位置：local = parentInverse * world
-          const l = bone.parent ? bone.parent.worldToLocal(bone.worldX, bone.worldY) : { x: bone.x, y: bone.y };
-          const lx = additive ? l.x + value * mix : l.x + (value / sx - l.x) * mix;
-          bone.x = lx;
-          if (bone.parent) {
-            const w = bone.parent.localToWorld(lx, l.y);
-            bone.worldX = w.x; bone.worldY = w.y;
-          } else {
-            bone.worldX = lx * sx + sk.x;
-          }
-          break;
-        }
+        case "x":
         case "y": {
-          const mix = this.mixY;
+          const isX = property === "x";
+          const mix = isX ? this.mixX : this.mixY;
           if (!mix) return;
-          const l = bone.parent ? bone.parent.worldToLocal(bone.worldX, bone.worldY) : { x: bone.x, y: bone.y };
-          const ly = additive ? l.y + value * mix : l.y + (value / sy - l.y) * mix;
-          bone.y = ly;
-          if (bone.parent) {
-            const w = bone.parent.localToWorld(l.x, ly);
-            bone.worldX = w.x; bone.worldY = w.y;
-          } else {
-            bone.worldY = ly * sy + sk.y;
+          if (local) {
+            // 官方 ToX/ToY 的 local 分支：value 就是父级本地空间里的目标值
+            if (isX) bone.x += (additive ? value : value - bone.x) * mix;
+            else bone.y += (additive ? value : value - bone.y) * mix;
+            break;
           }
+          // 世界分支：官方只改世界坐标本身（另一分量与矩阵都不动），
+          // 即 <当前世界坐标> 按 mix 插值到 <目标世界坐标>。
+          // （旧实现把「世界坐标」直接和「父级本地坐标」插值，两边坐标系不一致，会让骨骼被甩到很远的地方。）
+          const scale = isX ? sx : sy;
+          const before = isX ? bone.worldX : bone.worldY;
+          const world = before + (additive ? value : value - before / scale) * mix * scale;
+          const wx = isX ? world : bone.worldX;
+          const wy = isX ? bone.worldY : world;
+          const parent = bone.parent;
+          if (parent) {
+            const l = parent.worldToLocal(wx, wy);
+            bone.x = l.x; bone.y = l.y;
+          } else {
+            bone.x = (wx - sk.x) / sx; bone.y = (wy - sk.y) / sy;
+          }
+          // 同一骨骼可能同时挂 x / y 两条映射，后面的那条要读到已经更新过的世界坐标
+          bone.worldX = wx; bone.worldY = wy;
           break;
         }
         case "scaleX": {
           const mix = this.mixScaleX;
           if (!mix) return;
-          if (additive) {
-            const k = 1 + (value - 1) * mix;
-            bone.a *= k; bone.c *= k;
-          } else {
-            const a = bone.a / sx, c = bone.c / sy;
-            let s = Math.sqrt(a * a + c * c);
-            if (s !== 0) {
-              s = 1 + (value - s) * mix / s;
-              bone.a *= s; bone.c *= s;
-            }
+          if (local) {
+            if (additive) bone.scaleX *= 1 + (value - 1) * mix;
+            else if (bone.scaleX !== 0) bone.scaleX += (value - bone.scaleX) * mix;
+            break;
           }
+          // 世界分支：官方把世界 x 轴列 (a, c) 乘 s；世界 x 轴 = 父级矩阵 × 本地 x 轴，故等价于 scaleX × s
+          const a = bone.a / sx, c = bone.c / sy;
+          const ws = Math.sqrt(a * a + c * c);
+          if (ws !== 0) bone.scaleX *= 1 + (value - ws) * mix / ws;
           break;
         }
         case "scaleY": {
           const mix = this.mixScaleY;
           if (!mix) return;
-          if (additive) {
-            const k = 1 + (value - 1) * mix;
-            bone.b *= k; bone.d *= k;
-          } else {
-            const b = bone.b / sx, dd = bone.d / sy;
-            let s = Math.sqrt(b * b + dd * dd);
-            if (s !== 0) {
-              s = 1 + (value - s) * mix / s;
-              bone.b *= s; bone.d *= s;
-            }
+          if (local) {
+            if (additive) bone.scaleY *= 1 + (value - 1) * mix;
+            else if (bone.scaleY !== 0) bone.scaleY += (value - bone.scaleY) * mix;
+            break;
           }
+          const b2 = bone.b / sx, d2 = bone.d / sy;
+          const ws = Math.sqrt(b2 * b2 + d2 * d2);
+          if (ws !== 0) bone.scaleY *= 1 + (value - ws) * mix / ws;
           break;
         }
         case "shearY": {
           const mix = this.mixShearY;
           if (!mix) return;
-          const b = bone.b / sx, dd = bone.d / sy;
-          const by = Math.atan2(dd, b);
-          let v = (value + 90) * M.DEG_RAD;
-          if (additive) v -= Math.PI / 2;
-          else {
-            v -= by - Math.atan2(bone.c / sy, bone.a / sx);
-            if (v > Math.PI) v -= Math.PI * 2;
-            else if (v < -Math.PI) v += Math.PI * 2;
-          }
-          v = by + v * mix;
-          const s = Math.sqrt(b * b + dd * dd);
-          bone.b = Math.cos(v) * s * sx;
-          bone.d = Math.sin(v) * s * sy;
+          // 官方 ToShearY 的 local / 世界两个分支折算到本地量后是同一个公式：
+          //   shearY += (additive ? value : value - shearY) * mix
+          bone.shearY += (additive ? value : value - bone.shearY) * mix;
           break;
         }
         default: break;
