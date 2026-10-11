@@ -81,11 +81,22 @@
   #statusBar{font-size:11.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw;}
   #statusBar.err{color:var(--err);}
 
+  /* ---------------- 最底部状态栏（固定高度，不随分栏拖动变化） ---------------- */
+  #footerBar{
+    height:var(--h-footer,26px);flex:0 0 var(--h-footer,26px);
+    display:flex;align-items:center;gap:10px;padding:0 12px;
+    background:linear-gradient(180deg,#0d1117,#141a23);border-top:1px solid var(--border-soft);
+    font-size:11.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;
+    position:relative;z-index:10;
+  }
+  #skelInfo{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--text-dim);}
+  #skelInfo b{color:var(--text);font-weight:600;}
+
   /* ---------------- 布局 ----------------
      上排：左栏（资源 / 层级 / 显示）｜中栏（视口）｜右栏（检查器）
      下排：底部面板（动画与播放｜日志）
      面板之间用 .splitter 分隔，可拖动改变占比（见文件末尾 setupSplitters）。 */
-  #layout{display:flex;flex-direction:column;height:calc(100% - 46px);min-height:0;}
+  #layout{display:flex;flex-direction:column;height:calc(100% - 46px - var(--h-footer,26px));min-height:0;}
   #mainCols{display:flex;flex:1 1 auto;min-width:0;min-height:0;}
   #left{
     width:var(--w-left,326px);flex:0 0 var(--w-left,326px);min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;
@@ -229,6 +240,20 @@
   #inspector .kv .k[title]{cursor:help;text-decoration:underline dotted;text-decoration-color:var(--border-soft);text-underline-offset:2px;}
   #inspector label[title]{cursor:help;}
   #inspector .kv .v{color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* 检查器底部：图集预览（完整图集 + 当前部件 UV 线框叠加） */
+  #inspAtlasHead{display:flex;align-items:baseline;gap:6px;font-size:11px;color:var(--text-dim);font-weight:600;}
+  #inspAtlasHead .meta{margin-left:auto;font-weight:400;font-size:10.5px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #inspAtlasFrame{
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--border);border-radius:8px;overflow:hidden;background-color:#0f1319;
+    background-image:
+      linear-gradient(45deg,#161d26 25%,transparent 25%,transparent 75%,#161d26 75%),
+      linear-gradient(45deg,#161d26 25%,#0f1319 25%,#0f1319 75%,#161d26 75%);
+    background-size:16px 16px;background-position:0 0,8px 8px;
+  }
+  #inspAtlasFrame .inspAtlasEmpty{width:100%;padding:10px 10px;font-size:11px;color:var(--text-faint);line-height:1.6;}
+  /* 画布缓冲区按图集页尺寸生成，显示尺寸交给 CSS：右栏改宽时无需重绘也保持清晰 */
+  #inspAtlas{display:block;width:100%;height:auto;max-width:100%;max-height:340px;object-fit:contain;}
   #logList{max-height:24vh;overflow:auto;border:1px solid var(--border-soft);border-radius:8px;background:#0f1319;font-size:11.5px;}
   .logRow{display:flex;gap:7px;padding:2px 8px;border-bottom:1px solid #161c24;}
   .logRow .t{color:#4a5563;flex:0 0 auto;font-family:Consolas,Menlo,monospace;font-size:10.5px;padding-top:1px;}
@@ -526,8 +551,6 @@
             <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkLoop" checked=""> 循环</label>
             <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkAutoPlay" checked=""> 加载后自动播放</label>
           </div>
-          <div class="sep"></div>
-          <div class="hint" id="skelInfo">未加载骨架</div>
         </div>
       </section>
 
@@ -543,6 +566,11 @@
 
   </div><!-- /#bottom -->
 
+</div><!-- /#layout -->
+
+<!-- ============================ 最底部状态栏（固定高度） ============================ -->
+<div id="footerBar">
+  <div id="skelInfo">未加载骨架</div>
 </div>
 
 <!-- ============================ 欢迎页 ============================ -->
@@ -9049,6 +9077,142 @@ SP.app = (() => {
     }
   }
 
+  /* --------------------------------------------------------- 图集预览 */
+  /**
+   * 检查器底部的「图集预览」：把当前部件所在图集页的**完整图片**画出来，
+   * 再叠加当前部件的 UV 线框（region 画矩形 + 细分网格，mesh 画三角形网格）。
+   *
+   * 坐标系：把 canvas 的变换矩阵设成「1 个绘制单位 = 1 个图集像素」，
+   * 于是 region.x / region.y / att.uvs * page 尺寸 都能直接落到画布上，
+   * 线宽再按「1 CSS 像素」反算，避免图集越大线越细。
+   */
+  function drawInspectorAtlas(slot) {
+    const frame = $("inspAtlasFrame");
+    if (!frame) return;
+    const meta = $("inspAtlasMeta");
+    frame.innerHTML = "";
+
+    const cur = state.current;
+    const att = slot ? slot.attachment : null;
+    // 序列帧附件：取当前帧对应的图集区域
+    let region = att && att.region ? att.region : null;
+    if (att && att.sequence && att.sequence.regions && att.sequence.regions.length) {
+      const i = M.clamp(slot.sequenceIndex >= 0 ? slot.sequenceIndex : att.sequence.setupIndex, 0, att.sequence.regions.length - 1);
+      region = att.sequence.regions[i] || region;
+    }
+    const page = region ? region.page : null;
+    const img = page ? page.image : null;
+
+    const showEmpty = (msg) => {
+      if (meta) meta.textContent = "";
+      const div = document.createElement("div");
+      div.className = "inspAtlasEmpty";
+      div.textContent = msg;
+      frame.appendChild(div);
+    };
+    if (!cur || !att) { showEmpty("当前部件未装配附件，无图集可显示。"); return; }
+    if (!region || !page) { showEmpty("该附件不引用图集区域（如骨骼点 / 裁剪 / 包围盒 / 路径），无图集可显示。"); return; }
+    if (!img) { showEmpty(`图集页 ${page.name} 的图片尚未加载完成。`); return; }
+
+    const pageW = page.width || img.width || 1;
+    const pageH = page.height || img.height || 1;
+
+    const canvas = document.createElement("canvas");
+    canvas.id = "inspAtlas";
+    canvas.title = `图集页 ${page.name} · ${pageW}×${pageH}px`;
+    canvas.dataset.seqIndex = String(slot.sequenceIndex);  // 记录已绘制的序列帧索引，供渲染循环判断是否需要刷新
+    frame.appendChild(canvas);
+
+    // 画布缓冲区直接按图集页尺寸（上限 2048，避免超大图集占内存）；
+    // 屏幕上的显示尺寸交给 CSS（width:100%;height:auto），右栏拖动改宽无需重绘也清晰。
+    const MAX_BUF = 2048;
+    const bufK = Math.min(1, MAX_BUF / Math.max(pageW, pageH));
+    canvas.width = Math.max(1, Math.round(pageW * bufK));
+    canvas.height = Math.max(1, Math.round(pageH * bufK));
+
+    const ctx = canvas.getContext("2d");
+    // 变换后 1 个绘制单位 == 1 个图集像素，region.x / uvs×页尺寸 可直接落到画布上
+    ctx.setTransform(canvas.width / pageW, 0, 0, canvas.height / pageH, 0, 0);
+    ctx.imageSmoothingEnabled = page.magFilter !== "nearest";
+    ctx.clearRect(0, 0, pageW, pageH);
+    ctx.drawImage(img, 0, 0, pageW, pageH);
+
+    // 1 个图集像素在屏幕上折合多少 CSS 像素（用于把线宽 / 点半径换算成视觉尺寸）
+    const shownW = canvas.clientWidth || frame.clientWidth || pageW;
+    const pxPerPage = shownW / pageW;
+    const px = (n) => n / Math.max(pxPerPage, 1e-6);
+
+    // 当前部件引用的图集区域（贴图内的实际矩形，旋转 90° 时宽高互换）
+    const rx = region.x, ry = region.y;
+    const rw = region.packedWidth || region.width || 0;
+    const rh = region.packedHeight || region.height || 0;
+    ctx.fillStyle = "rgba(78,161,255,.14)";
+    ctx.fillRect(rx, ry, rw, rh);
+
+    // ---- UV 线框 ----
+    ctx.strokeStyle = "rgba(78,161,255,.95)";
+    ctx.lineWidth = px(1);
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    const type = att.type;
+    const isMesh = (type === "mesh" || type === "weightedmesh" || type === "linkedmesh");
+    if (isMesh && att.uvs && att.triangles && att.triangles.length) {
+      // 网格附件：按三角形索引连线（真正的 UV 网格）
+      const uvs = att.uvs, tri = att.triangles;
+      for (let t = 0; t + 2 < tri.length; t += 3) {
+        const a = tri[t], b = tri[t + 1], c = tri[t + 2];
+        ctx.moveTo(uvs[a * 2] * pageW, uvs[a * 2 + 1] * pageH);
+        ctx.lineTo(uvs[b * 2] * pageW, uvs[b * 2 + 1] * pageH);
+        ctx.lineTo(uvs[c * 2] * pageW, uvs[c * 2 + 1] * pageH);
+        ctx.closePath();
+      }
+      ctx.stroke();
+      // 顶点
+      ctx.fillStyle = "rgba(255,209,102,.95)";
+      const vr = px(1.6);
+      for (let i = 0; i * 2 < uvs.length; i++) {
+        ctx.beginPath();
+        ctx.arc(uvs[i * 2] * pageW, uvs[i * 2 + 1] * pageH, vr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // region 附件：区域矩形 + 细分网格，模拟 UV 网格
+      ctx.rect(rx, ry, rw, rh);
+      ctx.stroke();
+      const DIV = 4;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      for (let i = 1; i < DIV; i++) {
+        const gx = rx + (rw * i) / DIV, gy = ry + (rh * i) / DIV;
+        ctx.moveTo(gx, ry); ctx.lineTo(gx, ry + rh);
+        ctx.moveTo(rx, gy); ctx.lineTo(rx + rw, gy);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // 区域四角标记
+    ctx.fillStyle = "#ffd166";
+    const cr = px(2.2);
+    for (const [cx, cy] of [[rx, ry], [rx + rw, ry], [rx + rw, ry + rh], [rx, ry + rh]]) {
+      ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
+    }
+
+    if (meta) meta.textContent = `${region.name} · ${rw}×${rh}px / 页 ${pageW}×${pageH}`;
+  }
+
+  /** 序列帧部件的图集区域会随帧变化，这里在渲染循环里按需刷新预览。 */
+  function refreshInspectorAtlas() {
+    const canvas = $("inspAtlas");
+    if (!canvas) return;
+    const slot = state.pose.selectedSlot;
+    if (!slot) return;
+    const att = slot.attachment;
+    if (!att || !att.sequence || !att.sequence.regions || !att.sequence.regions.length) return;
+    if (canvas.dataset.seqIndex === String(slot.sequenceIndex)) return;
+    drawInspectorAtlas(slot);
+  }
+
   function renderInspector() {
     const cur = state.current;
     const box = $("inspector");
@@ -9158,7 +9322,10 @@ SP.app = (() => {
         </div>
         <div class="row"><button class="btn sm" id="inspTReset" title="清除该骨骼上所有调试变换，恢复为资源原始姿态"${tHasOv ? "" : " disabled"}>↺ 重置变换</button>
           <span class="hint">位置＝父级本地空间，缩放＝倍率(1)</span></div>
-        <div class="hint" style="margin-top:4px;">用 Gizmo 变换该部件时，作用于其所属骨骼 <b>${esc(slot.data.boneData.name)}</b>（Spine 中部件随骨骼变换）。</div>`);
+        <div class="hint" style="margin-top:4px;">用 Gizmo 变换该部件时，作用于其所属骨骼 <b>${esc(slot.data.boneData.name)}</b>（Spine 中部件随骨骼变换）。</div>
+        <div class="sep" style="margin:8px 0 6px;"></div>
+        <div id="inspAtlasHead"><span>🗺️ 图集预览</span><span class="meta" id="inspAtlasMeta"></span></div>
+        <div id="inspAtlasFrame"></div>`);
     }
     if (!parts.length) {
       box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在左侧列表中选择。</div>';
@@ -9254,6 +9421,7 @@ SP.app = (() => {
         log("info", `已重置骨骼 ${tBoneNow.data.name} 的调试变换`);
         renderBones(); renderInspector();
       });
+      drawInspectorAtlas(slot);
     }
   }
 
@@ -9303,6 +9471,7 @@ SP.app = (() => {
       bounds: state.prefs.bounds && !!cur, names: state.prefs.names,
       axis: state.prefs.axis && !!cur, grid: state.prefs.grid,
     });
+    refreshInspectorAtlas();
     state.frameCount++;
     updateHud();
   }
