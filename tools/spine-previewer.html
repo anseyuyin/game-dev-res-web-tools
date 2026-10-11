@@ -1035,11 +1035,51 @@ SP.data = (() => {
       super(name);
       this.type = ATT.MESH;
       this.region = null; this.sequence = null;
-      this.uvs = null; this.triangles = null;
+      this.regionUVs = null;   // 文件里的原始 UV：相对**图集区域**（未裁剪原图）的 0-1 归一化坐标
+      this.uvs = null;         // 映射到**图集页**的绝对 UV（由 updateUVs 从 regionUVs 算出，渲染/线框只用这个）
+      this.triangles = null;
       this.hullLength = 0; this.edges = null;
       this.width = 0; this.height = 0; this.path = name;
     }
-    updateUVs() { /* UV 直接来自文件，无需计算 */ }
+    /**
+     * 与官方 MeshAttachment.updateUVs / 4.2 的 updateRegion 一致：
+     * 把「区域相对 UV」线性映射成「图集页绝对 UV」——官方语义是 regionUVs 铺满**未裁剪的原图**，
+     * 而 region.x/y/width/height 只是裁剪后的矩形，所以要同时折算裁剪偏移 offsetX/offsetY 与原始宽高。
+     *   0°  ：uv = (u - offsetX/W + s*origW/W, v - topTrim/H + t*origH/H)，topTrim = origH - offsetY - height
+     *        （Spine 的 offsetY 是「从原图底边裁掉的高度」，所以原图上边界 = v - topTrim/H）
+     *   90° ：UV 轴互换（U 轴对应原图高度、V 轴对应原图宽度，且 V 方向翻转），与本文件 AtlasRegion.computeUV 的 packedWidth/Height 约定一致
+     * 幂等：每次都从 regionUVs 重算，因此换区域 / 链接网格 / 图集后绑定都可以安全重复调用。
+     */
+    updateUVs() {
+      const r = this.region, regionUVs = this.regionUVs;
+      if (!regionUVs) return;
+      if (!r) { this.uvs = regionUVs; return; }   // 没有图集区域时保持文件原值（渲染层按纯色几何示意）
+      const n = regionUVs.length;
+      // 目标数组必须与源（regionUVs）不是同一个，否则会边读边写、把原始 UV 冲掉
+      if (!this.uvs || this.uvs === regionUVs || this.uvs.length !== n) this.uvs = new Float32Array(n);
+      const uvs = this.uvs;
+      const page = r.page;
+      const W = (page && page.width) || 1, H = (page && page.height) || 1;
+      const ow = r.originalWidth || r.width, oh = r.originalHeight || r.height;
+      if (r.degrees === 90) {
+        const u0 = r.u - (oh - r.offsetY - r.height) / W;   // 原图左边界（U 轴对应原图高度方向）
+        const v0 = r.v - (ow - r.offsetX - r.width) / H;    // 原图上边界（V 轴对应原图宽度方向）
+        const du = oh / W, dv = ow / H;
+        for (let i = 0; i < n; i += 2) {
+          const s = regionUVs[i], t = regionUVs[i + 1];
+          uvs[i] = u0 + t * du;
+          uvs[i + 1] = v0 + (1 - s) * dv;
+        }
+      } else {
+        const u0 = r.u - r.offsetX / W;
+        const v0 = r.v - (oh - r.offsetY - r.height) / H;
+        const du = ow / W, dv = oh / H;
+        for (let i = 0; i < n; i += 2) {
+          uvs[i] = u0 + regionUVs[i] * du;
+          uvs[i + 1] = v0 + regionUVs[i + 1] * dv;
+        }
+      }
+    }
   }
 
   class LinkedMeshAttachment extends MeshAttachment {
@@ -2704,10 +2744,10 @@ SP.json = (() => {
         warn(`网格附件 "${name}" 缺少 uvs`);
         att.worldVerticesLength = 0;
         att.vertices = new Float32Array(0);
-        att.uvs = new Float32Array(0);
+        att.regionUVs = new Float32Array(0);
       } else {
         readVertices(map, att, uvs.length);
-        att.uvs = f32(uvs);
+        att.regionUVs = f32(uvs);   // 官方语义：文件里的 uvs 是「区域相对」UV，须经 updateUVs 换算成页绝对 UV
       }
       const tris = getv(map, "triangles", null);
       att.triangles = tris ? Uint16Array.from(tris) : new Uint16Array(0);
@@ -2719,6 +2759,7 @@ SP.json = (() => {
         if (!region) warn(`网格附件 "${name}" 在图集里找不到同名区域 "${att.path}"`);
         att.region = region || null;
       }
+      att.updateUVs();   // 必须在 region 就绪之后再算（官方 SkeletonJson 也是在 setRegionUVs 后立刻调用）
       return att;
     }
 
@@ -3212,7 +3253,10 @@ SP.json = (() => {
       att.bones = parent.bones;
       att.vertices = parent.vertices;
       att.worldVerticesLength = parent.worldVerticesLength;
-      att.uvs = parent.uvs;
+      // 官方只共享「区域相对 UV」（regionUVs 是源数据），页绝对 UV 由子附件按自己的 region 重算，
+      // 因此这里必须复制 regionUVs 而不是 uvs，否则会二次映射 / 与父附件抢占同一个数组。
+      att.regionUVs = parent.regionUVs;
+      att.uvs = null;
       att.triangles = parent.triangles;
       att.hullLength = parent.hullLength;
       att.edges = parent.edges;
@@ -3221,6 +3265,7 @@ SP.json = (() => {
       att.path = childPath || parent.path;
       att.region = att.region || parent.region;
       att.sequence = att.sequence || parent.sequence;
+      att.updateUVs();   // region 就绪后按共享的 regionUVs 重算页绝对 UV（二进制路径此时 region 可能还没绑定，回落到 bindAtlas 再算）
       att.timelineAttachment = att.inheritTimelines ? (parent.timelineAttachment || parent) : att;
       att.resolved = true;
       resolving.delete(att);
@@ -4437,9 +4482,10 @@ SP.binary = (() => {
       lm.mesh.bones = parent.bones;
       lm.mesh.vertices = parent.vertices;
       lm.mesh.worldVerticesLength = parent.worldVerticesLength;
-      lm.mesh.uvs = parent.uvs;
+      lm.mesh.regionUVs = parent.regionUVs;   // 只共享区域相对 UV；页绝对 UV 在 bindAtlas 绑定 region 后由 updateUVs 重算
       lm.mesh.triangles = parent.triangles;
       lm.mesh.hullLength = parent.hullLength;
+      lm.mesh.updateUVs();
     }
 
     /* ---------- events ---------- */
@@ -4848,7 +4894,8 @@ SP.binary = (() => {
     mesh.bones = v.bones;
     mesh.vertices = v.vertices;
     mesh.worldVerticesLength = vertexCount << 1;
-    mesh.uvs = uvs;
+    mesh.regionUVs = uvs;   // 文件里存的是「区域相对」UV，绑定图集区域后由 updateUVs 换算成页绝对 UV
+    mesh.updateUVs();       // 此时还没绑定图集（bindAtlas 在后面），先用文件原值占位
     mesh.triangles = triangles;
     mesh.hullLength = hullLength << 1;
     mesh.edges = edges;
@@ -4888,7 +4935,8 @@ SP.binary = (() => {
     mesh.bones = v.bones;
     mesh.vertices = v.vertices;
     mesh.worldVerticesLength = vertexCount << 1;
-    mesh.uvs = uvs;
+    mesh.regionUVs = uvs;   // 文件里存的是「区域相对」UV，绑定图集区域后由 updateUVs 换算成页绝对 UV
+    mesh.updateUVs();       // 此时还没绑定图集（bindAtlas 在后面），先用文件原值占位
     mesh.triangles = triangles;
     mesh.hullLength = hullRaw << 1;
     mesh.edges = edges;
@@ -5493,6 +5541,7 @@ SP.binary = (() => {
           }
           att.region = region;
           if (att.type === D.ATT.REGION) att.updateOffset();
+          else att.updateUVs();   // 网格（含链接网格）：绑定区域后把「区域相对 UV」换算成「页绝对 UV」
         }
       }
     }
@@ -10187,12 +10236,13 @@ SP.app = (() => {
       animations: {},
     };
     // 网格：4x3 顶点网格（非权重，带 deform 时间轴）
+    // UV 是「区域相对」坐标（官方语义，渲染时由附件按 box 区域换算到图集页），这里留 2% 内缩铺满整块 box 区域
     const cols = 4, rows = 3, w = 160, h = 90;
     const verts = [], uvs = [], tris = [];
     for (let r = 0; r < rows; r++) {
       for (let cc = 0; cc < cols; cc++) {
         verts.push((cc / (cols - 1) - 0.5) * w, (0.5 - r / (rows - 1)) * h);
-        uvs.push(0.02 + (cc / (cols - 1)) * 0.21, 0.02 + (r / (rows - 1)) * 0.21);
+        uvs.push(0.02 + (cc / (cols - 1)) * 0.96, 0.02 + (r / (rows - 1)) * 0.96);
       }
     }
     for (let r = 0; r < rows - 1; r++) {
