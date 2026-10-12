@@ -501,6 +501,7 @@
         <button class="btn sm tgl" id="btnTBones" title="显示骨骼（B）" aria-pressed="true">🦴</button>
         <button class="btn sm tgl" id="btnTMesh" title="显示网格线框（M）· 网格线与顶点手柄一并显示" aria-pressed="true">🕸</button>
         <button class="btn sm tgl" id="btnTBounds" title="显示包围盒（U）" aria-pressed="false">▭</button>
+        <button class="btn sm tgl" id="btnTWeights" title="显示 Mesh 权重：在骨骼线下方叠加「彩色骨骼」示意线（每根骨骼一种颜色），并在 Mesh 顶点处画出按影响骨骼着色的圆形权重扇形图（扇形占比＝骨骼权重）" aria-pressed="false">◔</button>
         <button class="btn sm" id="btnTPause" title="播放 / 暂停（空格）" disabled>▶</button>
       </div>
 
@@ -648,6 +649,7 @@
       <div><b>3. 显示与 Gizmo 变换</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>骨骼 / 网格线框 / 包围盒 / 贴图 / 骨骼名 / 裁剪 均可独立开关；视口工具条上的骨骼 / 网格 / 包围盒按钮<b>高亮＝开启、压暗＝关闭</b>。</li>
+        <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽的<b>彩色骨骼</b>示意线，并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。</li>
         <li><b>骨骼显示关闭时，视口里点不到骨骼</b>：看不见的骨骼不参与拾取，点视口任意位置都只会命中部件（或取消选中），也不会因双击而重置骨骼。要选中 / 拖拽骨骼，先用工具条的 🦴 或 <b>B</b> 打开骨骼显示。</li>
         <li>视口<b>左上角的竖排工具条</b>（Unity 风格）切换交互类型：<b>位移 / 旋转 / 缩放</b> 会显示不同的 Gizmo，鼠标悬停在按钮上会弹出该工具的操作说明。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
         <li><b>位移</b>：拖动绿色（Y）/ 红色（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。</li>
@@ -8604,6 +8606,9 @@ SP.pose = (() => {
     vertexSel: "#4ea1ff",
     vertexDrag: "#ff6b6b",
     bounds: "rgba(199,146,234,.75)",
+    // Mesh 权重显示：顶点权重扇形图的底色 / 外圈（扇形本身按骨骼色由 _weightColor 生成）
+    weightPieBg: "rgba(12,16,22,.62)",
+    weightPieEdge: "rgba(255,255,255,.55)",
     clip: "rgba(255,120,180,.9)",
     path: "rgba(126,231,135,.9)",
     label: "rgba(230,237,243,.82)",
@@ -8621,6 +8626,14 @@ SP.pose = (() => {
 
   // Gizmo 在屏幕上的固定尺寸（像素），不随视图缩放变化
   const GZ = { axis: 78, ring: 72, head: 13, sq: 7, handleR: 12, segR: 8, ringHit: 9 };
+
+  /**
+   * 「Mesh 权重」显示的屏幕尺寸（像素，不随视图缩放变化）：
+   *   boneWidth 彩色骨骼示意线宽 —— 明显宽于骨骼线（1.6 / 选中 2.6），且半透明，压在上面仍看得清；
+   *   pieR      顶点权重扇形图的半径 —— 大于顶点手柄方块的半宽（3），两者同心；
+   *   pieCap    单帧最多绘制的扇形图数量，超大网格时兜底，避免叠加层拖慢帧率。
+   */
+  const WT = { boneWidth: 7, boneAlpha: 0.55, pieR: 11, pieCap: 6000 };
 
   /**
    * IK 约束上可在检查器里调试的运行时字段（与官方 IkConstraint 一一对应）。
@@ -9198,8 +9211,12 @@ SP.pose = (() => {
       if (opts.grid) this._paintGrid(ctx, view);
       if (opts.mesh) this._paintMeshes(ctx, view, skeleton);
       if (opts.bounds) this._paintBounds(ctx, view, skeleton);
+      // Mesh 权重扇形图：垫在顶点手柄「之下」，圆比手柄方块大，两者同心不互相遮挡
+      if (opts.weights) this._paintWeightPies(ctx, view, skeleton);
       // 顶点手柄常驻显示（选中网格部件时），与工具无关；但跟随「网格」开关
       if (this.meshVisible && this.selectedSlot) this._paintVertexHandles(ctx, view, skeleton);
+      // 彩色骨骼（稍宽）垫在骨骼线之下，两者用同一种骨骼色，粗线即「这根骨骼的影响范围色」
+      if (opts.bones && opts.weights) this._paintWeightBones(ctx, view, skeleton);
       if (opts.bones) this._paintBones(ctx, view, skeleton, opts.names);
       if (opts.axis) this._paintAxis(ctx, view, skeleton);
       if (this.gizmoActive()) this._paintGizmo(ctx, view);
@@ -9324,6 +9341,41 @@ SP.pose = (() => {
       ctx.font = "10px Consolas, monospace";
       ctx.fillStyle = "rgba(248,81,73,.9)"; ctx.fillText("X", o.x + 37, o.y + 4);
       ctx.fillStyle = "rgba(63,185,80,.9)"; ctx.fillText("Y", o.x - 4, o.y - 38);
+    }
+    /**
+     * 「Mesh 权重」显示用：骨骼下标 → 颜色。
+     * 用黄金角散列色相，相邻下标的颜色差异明显，且同一骨骼在所有地方（骨骼示意线、
+     * 顶点扇形图）取到的颜色恒定（下标就是 skeleton.bones 里的位置，也是 att.bones 里的值）。
+     */
+    _weightHue(index) {
+      const cache = this._weightHues || (this._weightHues = []);
+      let h = cache[index];
+      if (h === undefined) { h = (index * 137.508) % 360; cache[index] = h; }
+      return h;
+    }
+    _weightColor(index, alpha) {
+      const h = this._weightHue(index).toFixed(0);
+      return alpha === undefined ? `hsl(${h},75%,62%)` : `hsla(${h},75%,62%,${alpha})`;
+    }
+    /** 彩色骨骼示意线：比骨骼线更宽、半透明，画在骨骼线之下，用来对应顶点扇形图里的颜色 */
+    _paintWeightBones(ctx, view, skeleton) {
+      const bones = skeleton.bones;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineWidth = WT.boneWidth;
+      for (let i = 0; i < bones.length; i++) {
+        const bone = bones[i];
+        if (bone.data.skinRequired || !bone.data.length) continue;
+        const a = view.worldToScreen(bone.worldX, bone.worldY);
+        const tip = bone.localToWorld(bone.data.length, 0);
+        const b = view.worldToScreen(tip.x, tip.y);
+        ctx.strokeStyle = this._weightColor(i, WT.boneAlpha);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
     _boneColor(skeleton, bone) {
       if (this.selectedBone === bone) return COL.boneSel;
@@ -9472,6 +9524,67 @@ SP.pose = (() => {
         ctx.strokeRect(x0, y0, Math.max(1 / dpr, maxX - minX), Math.max(1 / dpr, maxY - minY));
       }
       ctx.restore();
+    }
+    /** 顶点世界坐标复用的临时缓冲（按需增长，避免每帧分配） */
+    _weightBuffer(len) {
+      let buf = this._weightWv;
+      if (!buf || buf.length < len) { buf = this._weightWv = new Float32Array(Math.max(1024, len)); }
+      return buf;
+    }
+    /**
+     * Mesh 权重的顶点扇形图：每个顶点画一个圆，按「影响它的骨骼」的权重切成扇形，
+     * 扇形颜色 = 该骨骼的颜色（与彩色骨骼示意线同色），扇形角度 ∝ 权重。
+     * 只处理带权重（att.bones 非空）的网格顶点；垫在顶点手柄之下、半径大于手柄方块。
+     */
+    _paintWeightPies(ctx, view, skeleton) {
+      const rad = WT.pieR, TAU = Math.PI * 2;
+      let drawn = 0;
+      for (const slot of skeleton.drawOrder) {
+        const att = slot.attachment;
+        if (!att || slot.data.visible === false) continue;
+        if (!isEditableMesh(att)) continue;
+        const bones = att.bones, verts = att.vertices;
+        if (!bones || !bones.length || !verts) continue;
+        const count = att.worldVerticesLength / 2;
+        if (!count) continue;
+        const wv = this._weightBuffer(att.worldVerticesLength);
+        R.computeAttachmentWorldVertices(att, slot, 0, att.worldVerticesLength, wv, 0, 2);
+        // bones 布局：每顶点 [boneCount, boneIndex…]；vertices 布局：每个「(顶点,骨骼)对」[x, y, weight]
+        let v = 0, impact = 0;
+        for (let i = 0; i < count; i++) {
+          const n = bones[v++];
+          if (drawn >= WT.pieCap) return;
+          let total = 0;
+          for (let k = 0; k < n; k++) total += verts[(impact + k) * 3 + 2];
+          if (total > 0) {
+            const p = view.worldToScreen(wv[i * 2], wv[i * 2 + 1]);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, rad, 0, TAU);
+            ctx.fillStyle = COL.weightPieBg;
+            ctx.fill();
+            let ang = -Math.PI / 2;   // 从 12 点方向起、顺时针铺开，读图习惯固定
+            for (let k = 0; k < n; k++) {
+              const w = verts[(impact + k) * 3 + 2] / total;
+              if (w <= 0) continue;
+              const next = ang + w * TAU;
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.arc(p.x, p.y, rad, ang, next);
+              ctx.closePath();
+              ctx.fillStyle = this._weightColor(bones[v + k], 0.92);
+              ctx.fill();
+              ang = next;
+            }
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, rad, 0, TAU);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = COL.weightPieEdge;
+            ctx.stroke();
+            drawn++;
+          }
+          v += n; impact += n;
+        }
+      }
     }
     _paintVertexHandles(ctx, view, skeleton) {
       const slot = this.selectedSlot;
@@ -9622,7 +9735,7 @@ SP.app = (() => {
   };
 
   const DEFAULT_PREFS = {
-    bones: true, mesh: true, bounds: false, texture: true, names: false, axis: true,
+    bones: true, mesh: true, bounds: false, weights: false, texture: true, names: false, axis: true,
     grid: true, clip: true, bg: "checker", tool: "translate", speed: 1, loop: true,
     autoPlay: true, onlySkel: true, groupFolder: true, logDebug: false,
   };
@@ -12054,6 +12167,7 @@ SP.app = (() => {
       bones: state.prefs.bones && !!cur, mesh: state.prefs.mesh && !!cur,
       bounds: state.prefs.bounds && !!cur, names: state.prefs.names,
       axis: state.prefs.axis && !!cur, grid: state.prefs.grid,
+      weights: state.prefs.weights && !!cur,
     });
     refreshInspectorAtlas();
     refreshInspectorIk();
@@ -12301,7 +12415,7 @@ SP.app = (() => {
   }
 
   // 视口工具条上的显示开关按钮：与 prefs 双向同步，用 .on 表现「开」
-  const TOGGLE_BTNS = { bones: "btnTBones", mesh: "btnTMesh", bounds: "btnTBounds" };
+  const TOGGLE_BTNS = { bones: "btnTBones", mesh: "btnTMesh", bounds: "btnTBounds", weights: "btnTWeights" };
   function syncToggleButtons() {
     for (const [key, id] of Object.entries(TOGGLE_BTNS)) {
       const b = $(id);
@@ -12314,12 +12428,19 @@ SP.app = (() => {
 
   function setToggle(key, value) {
     state.prefs[key] = value;
+    // 「显示与调试」面板里的复选框；视口工具条上的按钮（weights）没有对应复选框
     const map = { bones: "chkBones", mesh: "chkMesh", bounds: "chkBounds", texture: "chkTexture", names: "chkNames", axis: "chkAxis", grid: "chkGrid", clip: "chkClip" };
-    const el = $(map[key]);
+    const el = map[key] ? $(map[key]) : null;
     if (el) el.checked = !!value;
     savePrefs();
     syncToggleButtons();
-    $("viewTag").textContent = [state.prefs.bones ? "骨骼" : "", state.prefs.mesh ? "网格" : "", state.prefs.bounds ? "包围盒" : ""].filter(Boolean).join("/");
+    $("viewTag").textContent = viewTagText();
+  }
+
+  /** 「显示与调试」标题右侧的标签：只汇总视口里一眼可见的叠加层开关 */
+  function viewTagText() {
+    return [state.prefs.bones ? "骨骼" : "", state.prefs.mesh ? "网格" : "",
+      state.prefs.bounds ? "包围盒" : "", state.prefs.weights ? "权重" : ""].filter(Boolean).join("/");
   }
 
   /* -------------------------------------------------- 变换工具（Gizmo）
@@ -12483,7 +12604,7 @@ SP.app = (() => {
     setTool(state.prefs.tool);
     bindEvents();
     renderLog();
-    $("viewTag").textContent = [state.prefs.bones ? "骨骼" : "", state.prefs.mesh ? "网格" : "", state.prefs.bounds ? "包围盒" : ""].filter(Boolean).join("/");
+    $("viewTag").textContent = viewTagText();
     renderRestoreBox();
     renderAllPanels();
     requestAnimationFrame(frame);
@@ -12511,7 +12632,7 @@ SP.app = (() => {
   }
 
   function applyParamToggles(params) {
-    for (const key of ["bones", "mesh", "bounds", "texture", "names", "axis", "grid"]) {
+    for (const key of ["bones", "mesh", "bounds", "weights", "texture", "names", "axis", "grid"]) {
       const v = params.get(key);
       if (v !== null) setToggle(key, v !== "0" && v !== "false");
     }
@@ -12683,6 +12804,7 @@ SP.app = (() => {
     $("btnTBones").addEventListener("click", () => setToggle("bones", !state.prefs.bones));
     $("btnTMesh").addEventListener("click", () => setToggle("mesh", !state.prefs.mesh));
     $("btnTBounds").addEventListener("click", () => setToggle("bounds", !state.prefs.bounds));
+    $("btnTWeights").addEventListener("click", () => setToggle("weights", !state.prefs.weights));
     $("btnHelp").addEventListener("click", () => $("help").classList.remove("hidden"));
     $("btnWelcomeHelp").addEventListener("click", () => $("help").classList.remove("hidden"));
     $("btnHelpClose").addEventListener("click", () => $("help").classList.add("hidden"));
