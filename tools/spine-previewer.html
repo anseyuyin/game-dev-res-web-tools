@@ -246,6 +246,19 @@
   #inspector .kv .k[title]{cursor:help;text-decoration:underline dotted;text-decoration-color:var(--border-soft);text-underline-offset:2px;}
   #inspector label[title]{cursor:help;}
   #inspector .kv .v{color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* 检查器里的 IK 约束卡片：选中骨骼时列出它参与的 IK，并可直接调参数 */
+  #inspector .ikCard{
+    border:1px solid var(--border-soft);border-radius:8px;padding:6px 8px;background:#11151b;
+    display:flex;flex-direction:column;gap:6px;margin-bottom:6px;min-width:0;
+  }
+  #inspector .ikCard.hasOv{border-color:rgba(78,161,255,.5);background:#101a24;}
+  #inspector .ikCard .kv{grid-template-columns:56px 1fr;}
+  #inspector .ikHead{display:flex;align-items:center;gap:6px;font-size:12px;min-width:0;}
+  #inspector .ikHead .nm{font-weight:600;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  #inspector .ikHead .btn{margin-left:auto;}
+  #inspector .ikBadge{font-size:10px;padding:0 5px;border-radius:5px;border:1px solid var(--border-soft);color:var(--text-faint);flex:0 0 auto;white-space:nowrap;}
+  #inspector .ikBadge.ov{color:var(--accent);border-color:rgba(78,161,255,.5);}
+  #inspector .ikCard input[type=number]{width:60px;flex:0 0 auto;}
   /* 检查器底部：图集预览（完整图集 + 当前部件 UV 线框叠加，支持滚轮缩放 / 拖拽平移） */
   #inspAtlasHead{display:flex;align-items:baseline;gap:6px;font-size:11px;color:var(--text-dim);font-weight:600;}
   #inspAtlasHead .hint{font-weight:400;font-size:10px;}
@@ -635,15 +648,24 @@
       <div><b>3. 显示与 Gizmo 变换</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>骨骼 / 网格线框 / 包围盒 / 贴图 / 骨骼名 / 裁剪 均可独立开关；视口工具条上的骨骼 / 网格 / 包围盒按钮<b>高亮＝开启、压暗＝关闭</b>。</li>
+        <li><b>骨骼显示关闭时，视口里点不到骨骼</b>：看不见的骨骼不参与拾取，点视口任意位置都只会命中部件（或取消选中），也不会因双击而重置骨骼。要选中 / 拖拽骨骼，先用工具条的 🦴 或 <b>B</b> 打开骨骼显示。</li>
         <li>视口<b>左上角的竖排工具条</b>（Unity 风格）切换交互类型：<b>位移 / 旋转 / 缩放</b> 会显示不同的 Gizmo，鼠标悬停在按钮上会弹出该工具的操作说明。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
         <li><b>位移</b>：拖动绿色（Y）/ 红色（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。</li>
         <li><b>旋转</b>：拖动 Gizmo 圆环绕关节旋转。</li>
         <li><b>缩放</b>：拖动轴端方点按轴缩放，拖中心方点整体缩放。缩放的 Gizmo <b>会随骨骼朝向一起旋转</b>（Unity 的 Local 轴模式）：红色轴＝骨骼自身 X 轴（沿骨骼长度方向），绿色轴＝骨骼自身 Y 轴，与骨骼 scaleX / scaleY 一一对应。位移与旋转仍按世界轴 / 整体圆环显示。</li>
         <li>变换结果叠加在动画之上、以「调试偏移」保存，可一键清空（<b>Shift</b>+R 或按钮）。选中<b>部件</b>时，变换作用于该部件所属的骨骼（与 Spine 编辑器一致）。</li>
         <li><b>顶点编辑默认开启</b>：选中<b>网格</b>部件即显示顶点手柄，无需切换工具，拖动即可修改当前帧的网格形变（建议先暂停）。Gizmo 手柄命中优先，其余位置都交给顶点手柄。顶点手柄跟随「<b>网格线框</b>」开关：关掉网格线后手柄一并隐藏、也不再可拖。</li>
-        <li>部件层级列表里 👁 可隐藏部件，双击部件＝把视图对准它；双击骨骼＝重置该骨骼姿态。</li>
+        <li>部件层级列表里 👁 可隐藏部件，双击部件＝把视图对准它；双击骨骼＝重置该骨骼姿态（需骨骼显示开启，关闭时双击视口＝适配视图）。</li>
       </ul>
-      <div><b>4. 快捷键</b></div>
+      <div><b>4. IK 约束调试</b></div>
+      <ul class="helpList hint" style="color:var(--text-dim);">
+        <li>在视口或骨骼树里<b>选中一根骨骼</b>：只要它参与 IK（是链条里的骨骼，或是 IK 的目标骨骼），检查器下半部分就会出现 <b>🎯 IK 约束</b> 卡片，列出它参与的每条 IK，并标注当前骨骼的角色（<b>链条骨骼</b> / <b>目标骨骼</b>）、链条顺序、目标骨骼与求值顺序。骨骼树里这类骨骼也会标 <b>IK</b> / <b>IK 目标</b>。</li>
+        <li>卡片上可直接调 <b>混合 mix</b>（0–1）、<b>柔和 softness</b>（0–100）、<b>弯曲方向</b>（正向 / 反向＝bendPositive）、<b>压缩 compress</b>、<b>拉伸 stretch</b>、<b>统一缩放 uniform</b>，每一项都有悬浮说明。</li>
+        <li><b>改动即时生效，并且压过动画</b>：覆盖值写在每帧动画之后，所以即使该动画有 IK 时间轴，你调的值也不会被冲掉。未改动的参数会跟随动画实时刷新显示（例如 running 动作里柔和的逐帧变化）。</li>
+        <li>改过的约束在卡片上标「<b>已改</b>」并高亮边框，点卡片右上角的 <b>↺</b> 单独还原这一条；「显示与调试」里的 <b>↺ 清空姿态调试</b> 会把骨骼偏移与 IK 覆盖一起还原。覆盖只在运行时，<b>不会修改资源文件</b>。</li>
+        <li>典型用法：把 mix 调到 0 看「没有 IK 时动画原本的姿势」，或在目标超出骨骼链长度（够不到）时打开 <b>拉伸</b> / 调 <b>柔和</b> 观察关节如何取舍。</li>
+      </ul>
+      <div><b>5. 快捷键</b></div>
       <div class="kbdList hint" style="color:var(--text-dim);">
         <kbd>空格</kbd><span>播放 / 暂停</span>
         <kbd>← →</kbd><span>上一帧 / 下一帧</span>
@@ -661,13 +683,14 @@
         <kbd>/</kbd><span>聚焦资源搜索</span>
         <kbd>Esc</kbd><span>取消选中 / 关闭弹窗</span>
       </div>
-      <div><b>5. 兼容性与限制</b></div>
+      <div><b>6. 兼容性与限制</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>JSON 导出支持 Spine <b>3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组与变换约束的 <code class="inl">properties</code> 属性映射，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>3.6 / 3.8 / 4.0 / 4.1 完整支持</b>（官方 3.8 样例 20/20、4.0 样例 20/20、4.1 样例 21/21 整文件字节对齐），4.2 部分支持（28 个官方样例中 20 个整文件对齐，snowglobe / sack / cloud-pot / spineboy 等常用资源正常），<b>4.3 的二进制字节布局有变，请改用同名 JSON 导出</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
         <li>二进制 <code class="inl">.skel</code> 的版本在扫描时会读文件头判定：<b>3.6 没有共享字符串表、骨骼没有 skinRequired、IK 约束没有 softness、普通皮肤没有 bones/constraints 列表</b>，这些差异都按版本分支处理；<b>3.6 / 3.8 的曲线控制点是归一化比例且写在本帧数据之后</b>，与 4.0+ 的绝对控制点写法不同。</li>
         <li>骨骼 <code class="inl">rotate</code> / <code class="inl">translate</code> / <code class="inl">shear</code> 关键帧是<b>相对 setup 的增量</b>、<code class="inl">scale</code> 是<b>相对 setup 的乘数</b>（与官方一致）；关键帧没写 <code class="inl">x</code> / <code class="inl">y</code> 时按增量 0 处理。</li>
         <li>物理约束（<code class="inl">physics</code>）暂不模拟，相关骨骼会保持动画本身的结果。</li>
         <li>变换约束在源骨骼带剪切（shear）时、以及路径约束 / 长 IK 链上，可能与官方运行时存在可见差异（官方 <code class="inl">*-pro</code> 样例中的 eye-stalk、vine、celestial-circus 等）。</li>
+        <li>检查器里的 IK 参数覆盖写在每帧动画之后，只影响预览；<b>柔和 softness 按资源原值直接作用</b>（官方 3.8–4.2 的 JSON / 二进制里都是 0–100 的百分比写法，与官方 4.1 运行时的取值方式一致），所以滑杆的 0–100 与资源里的数值一一对应，工具不做换算。</li>
         <li>需要 <code class="inl">file://</code> 或 <code class="inl">http://</code> 打开；不支持文件夹选择器时用兼容选择。</li>
         <li>直接用 <code class="inl">?asset=</code> 参数可在 http 环境下直链加载某个骨架（自动按名称逐个尝试 .atlas 候选名，可用 <code class="inl">&amp;atlas=</code> 指定）。</li>
       </ul>
@@ -7375,6 +7398,13 @@ SP.pose = (() => {
   // Gizmo 在屏幕上的固定尺寸（像素），不随视图缩放变化
   const GZ = { axis: 78, ring: 72, head: 13, sq: 7, handleR: 12, segR: 8, ringHit: 9 };
 
+  /**
+   * IK 约束上可在检查器里调试的运行时字段（与官方 IkConstraint 一一对应）。
+   * mix / softness / bendDirection 会被动画的 IK 时间轴逐帧改写，
+   * compress / stretch / uniform 只来自资源。
+   */
+  const IK_KEYS = ["mix", "softness", "bendDirection", "compress", "stretch", "uniform"];
+
   /** 可作为「顶点编辑」目标的附件：只要网格类（排除包围盒 / 裁剪 / 路径这些同为 VertexAttachment 的附件） */
   function isEditableMesh(att) {
     return !!att && att instanceof D.VertexAttachment &&
@@ -7385,6 +7415,7 @@ SP.pose = (() => {
     constructor() {
       this.overrides = new Map();      // boneName -> { dRotation, dX, dY, dScaleX, dScaleY }
       this.slotOverrides = new Map();  // slotIndex -> { blendMode?, color? }（混合模式 / 颜色覆盖）
+      this.ikOverrides = new Map();    // ikConstraintName -> { mix?, softness?, bendDirection?, compress?, stretch?, uniform? }
       this.vertexEdits = new Map();    // slotIndex -> Float32Array（附加形变偏移）
       this.tool = "translate";         // translate | rotate | scale（顶点编辑常驻，不在工具列表里）
       this.selectedBone = null;
@@ -7473,7 +7504,7 @@ SP.pose = (() => {
       }
       return any;
     }
-    resetAll() { this.overrides.clear(); this.slotOverrides.clear(); }
+    resetAll() { this.overrides.clear(); this.slotOverrides.clear(); this.ikOverrides.clear(); }
     applyOverrides(skeleton) {
       if (!this.overrides.size) return false;
       let any = false;
@@ -7485,6 +7516,38 @@ SP.pose = (() => {
         bone.y += o.dY || 0;
         if (o.dScaleX !== undefined && o.dScaleX !== null && o.dScaleX !== 1) bone.scaleX *= o.dScaleX;
         if (o.dScaleY !== undefined && o.dScaleY !== null && o.dScaleY !== 1) bone.scaleY *= o.dScaleY;
+        any = true;
+      }
+      return any;
+    }
+    // ---------------- IK 约束覆盖：mix / softness / bendDirection / compress / stretch / uniform ----------------
+    getIkOverride(c) { return c ? (this.ikOverrides.get(c.data.name) || null) : null; }
+    /**
+     * 写入 IK 参数覆盖；patch 里值为 null 表示「该字段恢复资源 / 动画的原始值」。
+     * 覆盖只存在于运行时，不改 data，也不修改资源文件。
+     */
+    setIkOverride(c, patch) {
+      if (!c || !patch) return;
+      const o = Object.assign({}, this.ikOverrides.get(c.data.name));
+      for (const k of IK_KEYS) {
+        if (patch[k] === undefined) continue;
+        if (patch[k] === null) delete o[k]; else o[k] = patch[k];
+      }
+      if (Object.keys(o).length) this.ikOverrides.set(c.data.name, o);
+      else this.ikOverrides.delete(c.data.name);
+    }
+    resetIk(c) { if (c) this.ikOverrides.delete(c.data.name); }
+    /**
+     * 把 IK 覆盖写回运行时约束。必须在每帧的 setToSetupPose + 动画之后调用：
+     * IK 时间轴会逐帧改写 mix / softness / bendDirection，只有写在其后才能真正压过动画。
+     */
+    applyIkOverrides(skeleton) {
+      if (!this.ikOverrides.size) return false;
+      let any = false;
+      for (const c of skeleton.ikConstraints) {
+        const o = this.ikOverrides.get(c.data.name);
+        if (!o) continue;
+        for (const k of IK_KEYS) if (o[k] !== undefined) c[k] = o[k];
         any = true;
       }
       return any;
@@ -8135,7 +8198,7 @@ SP.pose = (() => {
     }
   }
 
-  return { PoseController, COL, GZ };
+  return { PoseController, COL, GZ, IK_KEYS };
 })();
 /* =========================================================================
  * 模块 7 · 应用层：目录选择 / 扫描 / 加载 / 面板 / 交互 / 渲染循环
@@ -8144,6 +8207,16 @@ SP.app = (() => {
   const M = SP.math;
   const D = SP.data;
   const R = SP.runtime;
+  const IK_KEYS = SP.pose.IK_KEYS;   // IK 可调参数名（检查器与调试 API 共用）
+  /** IK 各参数的悬浮说明（检查器输入框复用同一份文案） */
+  const IK_TIPS = {
+    mix: "混合 mix：IK 结果与动画姿态的混合比例，0 = 完全不生效，1 = 完全由 IK 决定",
+    softness: "柔和 softness：官方单位为 0–100（按资源原值直接作用，不做换算），只对两根骨骼的 IK 链有效。数值越大，目标接近骨骼链最大伸展距离时旋转变化越平缓",
+    bendDirection: "弯曲方向：正向 = 关节朝一侧弯，反向 = 朝另一侧弯（对应资源里的 bendPositive）",
+    compress: "压缩 compress：单骨骼 IK 且目标比骨骼长度更近时，缩短骨骼以碰到目标",
+    stretch: "拉伸 stretch：目标超出骨骼链最大伸展距离时，拉长骨骼链以够到目标（两骨骼链上父骨骼带非均匀缩放时不生效）",
+    uniform: "统一缩放 uniform：配合压缩 / 拉伸使用，缩放时 X / Y 一起变化",
+  };
 
   const PREFS_KEY = "spine-previewer.prefs.v1";
   const DIR_KEY = "spine-previewer.dir.v1";
@@ -9351,6 +9424,7 @@ SP.app = (() => {
       const ov = state.pose.getOverride(bone);
       let meta = "";
       if (cur.skeleton.ikConstraints.some((c) => c.bones.indexOf(bone) >= 0)) meta = "IK";
+      else if (cur.skeleton.ikConstraints.some((c) => c.target === bone)) meta = "IK 目标";
       else if (cur.skeleton.transformConstraints.some((c) => c.bones.indexOf(bone) >= 0)) meta = "变换";
       else if (bone.data.length) meta = bone.data.length.toFixed(0);
       const hasChild = bone.children.length > 0;
@@ -9624,9 +9698,202 @@ SP.app = (() => {
     paintInspectorAtlas();
   }
 
+  /* --------------------------------------------------- 检查器 · IK 约束调试 */
+  /**
+   * IK 参数调节：选中骨骼时，列出「这根骨骼参与的 IK 约束」（它是链条里的骨骼，
+   * 或是目标骨骼），每条约束一张卡片，可直接调 mix / softness / 弯曲方向 /
+   * 压缩 / 拉伸 / 统一缩放。
+   *
+   * 覆盖值存在 PoseController.ikOverrides 里，由 applyEditsAndUpdate() 在每帧的
+   * 「setup 姿态 + 动画」之后写回运行时约束，所以能压过 IK 时间轴；只影响预览，
+   * 不改资源数据，用卡片上的 ↺ 或「清空姿态调试」即可还原。
+   */
+  let inspIkCtx = null;   // { skeleton, items:[{ c, els, root }] }，供 refreshInspectorIk 逐帧同步显示值
+
+  /** 该骨骼参与的 IK 约束（链条骨骼或目标骨骼） */
+  function ikConstraintsOfBone(skeleton, bone) {
+    return bone ? skeleton.ikConstraints.filter((c) => c.bones.indexOf(bone) >= 0 || c.target === bone) : [];
+  }
+
+  /** 数值显示：去掉多余小数位，同时避免出现科学计数法 */
+  function fmtIkNum(v) {
+    const n = Number(v);
+    if (!isFinite(n)) return "0";
+    return String(+n.toFixed(4));
+  }
+
+  /**
+   * 生成选中骨骼的 IK 卡片 HTML（没有参与任何 IK 时返回空串）。
+   * 输入框的初值 = 覆盖值（已改时）或当前运行时值（动画在当前时刻算出来的值）。
+   */
+  function buildIkCards(bone, skeleton) {
+    const list = ikConstraintsOfBone(skeleton, bone);
+    if (!list.length) return "";
+    const cards = list.map((c, i) => {
+      const d = c.data;
+      const ov = state.pose.getIkOverride(c) || {};
+      const pick = (k) => (ov[k] !== undefined ? ov[k] : c[k]);
+      const ovStyle = (k) => (ov[k] !== undefined ? ` style="color:var(--accent)"` : "");
+      const on = (k) => (pick(k) ? " checked" : "");
+      const changed = IK_KEYS.some((k) => ov[k] !== undefined);
+      const mix = M.clamp(Number(pick("mix")) || 0, 0, 1);
+      const soft = Number(pick("softness")) || 0;
+      const bend = pick("bendDirection") >= 0 ? 1 : -1;
+      const role = c.bones.indexOf(bone) >= 0 ? "链条骨骼" : "目标骨骼";
+      const chain = d.boneNames.join(" → ") || "（无）";
+      return `<div class="ikCard${changed ? " hasOv" : ""}" id="inspIk${i}">
+        <div class="ikHead">
+          <span class="nm" title="IK 约束名：${esc(d.name)}">🎯 ${esc(d.name)}</span>
+          <span class="ikBadge" title="当前骨骼在这条 IK 里的角色">${role}</span>
+          <span class="ikBadge ov" id="inspIk${i}Ov" title="该约束有检查器覆盖，参数已被临时改动（只影响预览）"${changed ? "" : ' style="display:none"'}>已改</span>
+          <button class="btn sm ghost" id="inspIk${i}Reset" title="清除该 IK 约束上的全部覆盖，恢复资源与动画原本的值">↺</button>
+        </div>
+        <div class="kv">
+          <span class="k" title="IK 链：被该约束驱动的骨骼；末端骨骼的尖端会尽量贴到目标">链条</span><span class="v" title="${esc(chain)}">${esc(chain)}</span>
+          <span class="k" title="目标骨骼：IK 要贴住的骨骼。在视口或骨骼树里选中它并拖动，即可看到这条链跟随">目标</span><span class="v" title="${esc(d.targetName || "")}">${esc(d.targetName || "（无）")}</span>
+          <span class="k" title="求值顺序：数值越小越先求值；顺序相同时 IK 先于变换 / 路径约束">顺序</span><span class="v">${d.order} · ${d.bones.length === 1 ? "单骨骼" : d.bones.length === 2 ? "双骨骼" : d.bones.length + " 骨骼"}</span>
+        </div>
+        <div class="row">
+          <label style="width:56px;" title="${IK_TIPS.mix}">混合</label>
+          <input type="range" class="grow" id="inspIk${i}MixR" min="0" max="1" step="0.01" value="${mix}" title="${IK_TIPS.mix}">
+          <input type="number" id="inspIk${i}Mix" min="0" max="1" step="0.05" value="${fmtIkNum(mix)}"${ovStyle("mix")} title="${IK_TIPS.mix}">
+        </div>
+        <div class="row">
+          <label style="width:56px;" title="${IK_TIPS.softness}">柔和</label>
+          <input type="range" class="grow" id="inspIk${i}SoftR" min="0" max="100" step="1" value="${M.clamp(soft, 0, 100)}" title="${IK_TIPS.softness}">
+          <input type="number" id="inspIk${i}Soft" min="0" max="100" step="1" value="${fmtIkNum(soft)}"${ovStyle("softness")} title="${IK_TIPS.softness}">
+        </div>
+        <div class="row">
+          <label style="width:56px;" title="${IK_TIPS.bendDirection}">弯曲方向</label>
+          <select class="grow" id="inspIk${i}Bend" title="${IK_TIPS.bendDirection}">
+            <option value="1"${bend === 1 ? " selected" : ""}>正向（bendPositive）</option>
+            <option value="-1"${bend === -1 ? " selected" : ""}>反向</option>
+          </select>
+        </div>
+        <div class="row wrap" style="gap:10px;">
+          <label class="hint" style="display:flex;align-items:center;gap:4px;" title="${IK_TIPS.compress}"><input type="checkbox" id="inspIk${i}Compress"${on("compress")}> 压缩</label>
+          <label class="hint" style="display:flex;align-items:center;gap:4px;" title="${IK_TIPS.stretch}"><input type="checkbox" id="inspIk${i}Stretch"${on("stretch")}> 拉伸</label>
+          <label class="hint" style="display:flex;align-items:center;gap:4px;" title="${IK_TIPS.uniform}"><input type="checkbox" id="inspIk${i}Uniform"${on("uniform")}> 统一缩放</label>
+        </div>
+      </div>`;
+    }).join("");
+    return `<div style="font-size:12px;font-weight:600;color:var(--text-dim);margin-bottom:6px;">🎯 IK 约束（${list.length}）
+      <span class="hint" style="font-weight:400;">· 改动即时生效并压过动画</span></div>${cards}`;
+  }
+
+  /** 挂上 IK 卡片的监听器；同时登记逐帧同步用的上下文 */
+  function bindIkCards(bone, skeleton) {
+    const list = ikConstraintsOfBone(skeleton, bone);
+    if (!list.length) return;
+    const items = [];
+    list.forEach((c, i) => {
+      const root = $("inspIk" + i);
+      const els = {
+        mix: $("inspIk" + i + "Mix"), mixR: $("inspIk" + i + "MixR"),
+        softness: $("inspIk" + i + "Soft"), softnessR: $("inspIk" + i + "SoftR"),
+        bendDirection: $("inspIk" + i + "Bend"),
+        compress: $("inspIk" + i + "Compress"),
+        stretch: $("inspIk" + i + "Stretch"),
+        uniform: $("inspIk" + i + "Uniform"),
+      };
+      const ovBadge = $("inspIk" + i + "Ov");
+      /** 覆盖状态变了只更新卡片自身的高亮与「已改」角标，不重建 DOM（否则会打断滑杆拖动） */
+      const mark = () => {
+        const changed = IK_KEYS.some((k) => {
+          const o = state.pose.getIkOverride(c);
+          return !!o && o[k] !== undefined;
+        });
+        root.classList.toggle("hasOv", changed);
+        ovBadge.style.display = changed ? "" : "none";
+      };
+      const set = (k, v) => {
+        state.pose.setIkOverride(c, { [k]: v });
+        mark();
+        applyEditsAndUpdate();   // 立即重算，暂停时也能马上看到结果
+      };
+      // 混合 mix：滑杆与数字框双向同步，数字框输入非法（空 / 只有负号）时忽略
+      els.mixR.addEventListener("input", () => {
+        const v = M.clamp(parseFloat(els.mixR.value) || 0, 0, 1);
+        els.mix.value = fmtIkNum(v);
+        set("mix", v);
+      });
+      els.mix.addEventListener("input", () => {
+        const raw = parseFloat(els.mix.value);
+        if (!isFinite(raw)) return;
+        const v = M.clamp(raw, 0, 1);
+        els.mixR.value = String(v);
+        set("mix", v);
+      });
+      els.mix.addEventListener("change", () => { els.mix.value = fmtIkNum(M.clamp(parseFloat(els.mix.value) || 0, 0, 1)); });
+      // 柔和 softness：官方单位，不做换算
+      els.softnessR.addEventListener("input", () => {
+        const v = Math.max(0, parseFloat(els.softnessR.value) || 0);
+        els.softness.value = fmtIkNum(v);
+        set("softness", v);
+      });
+      els.softness.addEventListener("input", () => {
+        const raw = parseFloat(els.softness.value);
+        if (!isFinite(raw)) return;
+        const v = Math.max(0, raw);
+        els.softnessR.value = String(M.clamp(v, 0, 100));
+        set("softness", v);
+      });
+      els.softness.addEventListener("change", () => { els.softness.value = fmtIkNum(Math.max(0, parseFloat(els.softness.value) || 0)); });
+      // 弯曲方向
+      els.bendDirection.addEventListener("change", () => set("bendDirection", els.bendDirection.value === "-1" ? -1 : 1));
+      // 压缩 / 拉伸 / 统一缩放
+      for (const k of ["compress", "stretch", "uniform"]) {
+        els[k].addEventListener("change", () => set(k, !!els[k].checked));
+      }
+      $("inspIk" + i + "Reset").addEventListener("click", () => {
+        state.pose.resetIk(c);
+        log("info", `已清除 IK 约束 ${c.data.name} 的调试覆盖`);
+        applyEditsAndUpdate();
+        renderInspector();
+      });
+      items.push({ c, els, root });
+    });
+    inspIkCtx = { skeleton, items };
+  }
+
+  /**
+   * 逐帧同步 IK 输入框的显示值（只在「没有覆盖、且当前没有焦点」时刷新）：
+   * mix / softness / 弯曲方向会被动画时间轴逐帧改写，面板不重建 DOM 也要跟得上。
+   */
+  function refreshInspectorIk() {
+    const ctx = inspIkCtx;
+    if (!ctx) return;
+    const cur = state.current;
+    if (!cur || cur.skeleton !== ctx.skeleton || !ctx.items[0] || !ctx.items[0].root.isConnected) { inspIkCtx = null; return; }
+    for (const it of ctx.items) {
+      const ov = state.pose.getIkOverride(it.c) || {};
+      for (const k of IK_KEYS) {
+        if (ov[k] !== undefined) continue;         // 已覆盖：输入框是权威值
+        const el = it.els[k];
+        if (!el || el === document.activeElement) continue;
+        const v = it.c[k];
+        if (k === "bendDirection") {
+          const s = String(v >= 0 ? 1 : -1);
+          if (el.value !== s) el.value = s;
+        } else if (k === "compress" || k === "stretch" || k === "uniform") {
+          if (el.checked !== !!v) el.checked = !!v;
+        } else {
+          const s = fmtIkNum(v);
+          if (el.value !== s) el.value = s;
+          const range = it.els[k + "R"];
+          if (range && range !== document.activeElement) {
+            const rs = String(M.clamp(v, parseFloat(range.min), parseFloat(range.max)));
+            if (range.value !== rs) range.value = rs;
+          }
+        }
+      }
+    }
+  }
+
   function renderInspector() {
     const cur = state.current;
     const box = $("inspector");
+    inspIkCtx = null;   // 面板即将重建，先撤销上一轮的逐帧同步上下文
     if (!cur) {
       box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在左侧列表中选择。</div>';
       $("inspTag").textContent = "";
@@ -9670,6 +9937,8 @@ SP.app = (() => {
         </div>
         <div class="row"><button class="btn sm" id="inspReset" title="清除该骨骼上所有调试偏移，恢复为资源原始姿态">↺ 重置该骨骼</button>
           <span class="hint">位移＝父级本地空间，缩放＝倍率(1)</span></div>`);
+      const ikCards = buildIkCards(bone, cur.skeleton);
+      if (ikCards) parts.push(ikCards);
     }
     if (slot) {
       const att = slot.attachment;
@@ -9767,6 +10036,7 @@ SP.app = (() => {
         $(id).addEventListener("input", (e) => { if (e.target === document.activeElement) apply(); });
       }
       $("inspReset").addEventListener("click", () => { state.pose.resetBone(bone); log("info", `已重置骨骼 ${bone.data.name} 的调试姿态`); renderBones(); renderInspector(); });
+      bindIkCards(bone, cur.skeleton);
     }
     if (slot) {
       // 显示 / 隐藏：勾选框直接切换 slot.data.visible，并同步左侧部件树的 👁
@@ -9894,6 +10164,7 @@ SP.app = (() => {
       axis: state.prefs.axis && !!cur, grid: state.prefs.grid,
     });
     refreshInspectorAtlas();
+    refreshInspectorIk();
     state.frameCount++;
     updateHud();
   }
@@ -9910,11 +10181,14 @@ SP.app = (() => {
     renderTimeUI();
   }
 
-  // 把「姿态调试 / 网格形变」叠加到当前骨架上（渲染前调用；frame 与 renderNow 共用）
+  // 把「姿态调试 / IK 参数覆盖 / 网格形变」叠加到当前骨架上（渲染前调用；frame 与 renderNow 共用）
   function applyEditsAndUpdate() {
     const cur = state.current;
     if (!cur) return;
-    if (state.pose.applyOverrides(cur.skeleton)) cur.skeleton.updateWorldTransform();
+    // 骨骼调试偏移与 IK 覆盖都要在 setup 姿态 / 动画之后写入，再统一重算一次世界变换
+    const bones = state.pose.applyOverrides(cur.skeleton);
+    const ik = state.pose.applyIkOverrides(cur.skeleton);
+    if (bones || ik) cur.skeleton.updateWorldTransform();
     state.pose.applySlotOverrides(cur.skeleton);
     state.pose.applyVertexEdits(cur.skeleton);
   }
@@ -10011,7 +10285,9 @@ SP.app = (() => {
     if (!cur || !wasPending || state.pointerMoved || e.button !== 0) return;
     // 点击选择
     const p = screenPos(e);
-    const boneHit = state.pose.pickBone(cur.skeleton, state.view, p.x, p.y, 10);
+    // 骨骼显示关闭时，视口里就没有「可点的骨骼节点」了：
+    // 此时整块视口的点击都不参与骨骼拾取（否则会看不见骨骼却选中骨骼）。
+    const boneHit = state.prefs.bones ? state.pose.pickBone(cur.skeleton, state.view, p.x, p.y, 10) : null;
     if (boneHit) {
       state.pose.selectedBone = boneHit.bone;
       state.pose.selectedSlot = null;
@@ -10044,7 +10320,8 @@ SP.app = (() => {
     const cur = state.current;
     if (!cur) return;
     const p = screenPos(e);
-    const boneHit = state.pose.pickBone(cur.skeleton, state.view, p.x, p.y, 10);
+    // 与单击选中同一规则：骨骼不显示时也不做骨骼命中（否则会重置看不见的骨骼），直接落到「适应视图」
+    const boneHit = state.prefs.bones ? state.pose.pickBone(cur.skeleton, state.view, p.x, p.y, 10) : null;
     if (boneHit) {
       state.pose.resetBone(boneHit.bone);
       log("info", `已重置骨骼 ${boneHit.bone.data.name} 的调试姿态`);
@@ -10873,6 +11150,44 @@ SP.app = (() => {
     },
     resetPose: () => { state.pose.resetAll(); renderBones(); renderInspector(); },
     resetDeform: () => { state.pose.clearDeform(); renderInspector(); },
+    /** 当前骨架的所有 IK 约束：当前运行时值 + 检查器覆盖值（自动化 / 调试用） */
+    ikParams: () => {
+      const cur = state.current;
+      if (!cur) return [];
+      return cur.skeleton.ikConstraints.map((c) => {
+        const ov = state.pose.getIkOverride(c) || {};
+        const now = { bones: c.bones.map((b) => b.data.name), target: c.target ? c.target.data.name : c.data.targetName, order: c.data.order };
+        for (const k of IK_KEYS) now[k] = c[k];
+        const overridden = {};
+        for (const k of IK_KEYS) if (ov[k] !== undefined) overridden[k] = ov[k];
+        return { name: c.data.name, ...now, overridden };
+      });
+    },
+    /** 覆盖某条 IK 约束的参数：setIkParam("front-leg-ik", { mix: 0.5, softness: 20 }) */
+    setIkParam: (name, patch) => {
+      const cur = state.current;
+      if (!cur) return false;
+      const c = cur.skeleton.ikConstraints.find((x) => x.data.name === name);
+      if (!c) return false;
+      state.pose.setIkOverride(c, patch || {});
+      applyEditsAndUpdate();
+      renderInspector();
+      return true;
+    },
+    /** 清除某条 IK 约束（缺省为全部）的覆盖值 */
+    resetIk: (name) => {
+      const cur = state.current;
+      if (!cur) return false;
+      if (name === undefined) { state.pose.ikOverrides.clear(); }
+      else {
+        const c = cur.skeleton.ikConstraints.find((x) => x.data.name === name);
+        if (!c) return false;
+        state.pose.resetIk(c);
+      }
+      applyEditsAndUpdate();
+      renderInspector();
+      return true;
+    },
     deformLength: () => {
       const cur = state.current;
       const s = state.pose.selectedSlot;
