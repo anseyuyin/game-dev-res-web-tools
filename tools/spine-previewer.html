@@ -1346,7 +1346,17 @@ SP.data = (() => {
       this.segCount = Math.max(0, frameCount - 1);
       this.curves = new Float32Array(this.segCount * 5);          // 段级共用曲线（默认线性）
       this.propCurves = new Map();                                 // seg*propertyCount+prop -> Float32Array(5)
+      /**
+       * 单轴时间轴标记（null = 双通道；"x" / "y" = 只驱动该轴）。
+       * 官方 4.0+ 的 TranslateXTimeline / TranslateYTimeline / ScaleX… / ShearX… 是**独立类**，
+       * 求值时只写自己那一列，另一列完全不动。本运行时用双通道类表示它们，所以 apply 里
+       * 必须靠这个标记跳过另一轴——否则同一根骨骼同时有 translatex 与 translatey 时，
+       * 后应用的那条会把另一轴复位到 setup（表现为「X 轴位移被固定死」）。
+       */
+      this.singleAxis = null;
     }
+    /** 本次求值是否应当写 axis（"x" / "y"）这一列 */
+    drivesAxis(axis) { return this.singleAxis === null || this.singleAxis === axis; }
     setFrame(i, time) {
       this.frames[i * this.frameSize] = time;
       for (let k = 1; k < arguments.length && k <= this.propertyCount; k++) {
@@ -1359,15 +1369,26 @@ SP.data = (() => {
       this.frames[base] = time;
       for (let k = 0; k < this.propertyCount; k++) this.frames[base + 1 + k] = values[offset + k];
     }
+    /**
+     * 「整个段」的曲线操作（不传 prop）要把该段**所有属性**的单独曲线一起清掉。
+     * ⚠ 曾经写成 `propCurves.delete(i)`：单属性时间轴的键恰好就是段号 i，看着没问题；
+     * 但多属性时间轴的键是 `i * propertyCount + prop`，删键 i 会误删**别的段**的记录
+     * （例如 2 通道 translate 的 `18*2+1 = 37` 正好等于段号 37）——表现为某些段的
+     * 贝塞尔曲线凭空消失、退化成线性（二进制样例与官方对不上就是这么来的）。
+     */
+    clearPropCurves(i) {
+      if (this.propertyCount === 1) { this.propCurves.delete(i); return; }
+      for (let p = 0; p < this.propertyCount; p++) this.propCurves.delete(i * this.propertyCount + p);
+    }
     /** 该段该属性置为线性 */
     setLinear(i, prop) {
       if (i >= this.segCount) return;
-      if (prop === undefined) { this.curves[i * 5] = M.CURVE_LINEAR; this.propCurves.delete(i); return; }
+      if (prop === undefined) { this.curves[i * 5] = M.CURVE_LINEAR; this.clearPropCurves(i); return; }
       this.propCurves.set(i * this.propertyCount + prop, Float32Array.from([M.CURVE_LINEAR, 0, 0, 0, 0]));
     }
     setStepped(i, prop) {
       if (i >= this.segCount) return;
-      if (prop === undefined) { this.curves[i * 5] = M.CURVE_STEPPED; this.propCurves.delete(i); return; }
+      if (prop === undefined) { this.curves[i * 5] = M.CURVE_STEPPED; this.clearPropCurves(i); return; }
       this.propCurves.set(i * this.propertyCount + prop, Float32Array.from([M.CURVE_STEPPED, 0, 0, 0, 0]));
     }
     /** 绝对 (时间, 数值) 控制点；不传 prop 表示该段所有属性共用 */
@@ -1376,7 +1397,7 @@ SP.data = (() => {
       const rec = Float32Array.from([M.CURVE_BEZIER, cx1, cy1, cx2, cy2]);
       if (prop === undefined) {
         this.curves.set(rec, i * 5);
-        this.propCurves.delete(i);
+        this.clearPropCurves(i);
       } else {
         this.propCurves.set(i * this.propertyCount + prop, rec);
       }
@@ -1507,19 +1528,22 @@ SP.data = (() => {
       const bone = skeleton.bones[this.boneIndex];
       if (!bone) return;
       const frames = this.frames;
+      // 单轴时间轴（translatex / translatey）只写自己那一轴，另一轴保持原值：
+      // 官方是独立的类，两条时间轴（X / Y）作用在同一根骨骼上是互不干扰的。
+      const wantX = this.drivesAxis("x"), wantY = this.drivesAxis("y");
       if (time < frames[0]) {
         if (blend) {
-          bone.x += (bone.data.x - bone.x) * alpha;
-          bone.y += (bone.data.y - bone.y) * alpha;
-        } else { bone.x = bone.data.x; bone.y = bone.data.y; }
+          if (wantX) bone.x += (bone.data.x - bone.x) * alpha;
+          if (wantY) bone.y += (bone.data.y - bone.y) * alpha;
+        } else { if (wantX) bone.x = bone.data.x; if (wantY) bone.y = bone.data.y; }
         return;
       }
       // 关键帧里没有 x / y 时按增量 0 处理，即回到 setup 值
       const x = bone.data.x + this.getValue(time, 0), y = bone.data.y + this.getValue(time, 1);
       if (blend) {
-        bone.x += (x - bone.x) * alpha;
-        bone.y += (y - bone.y) * alpha;
-      } else { bone.x = x; bone.y = y; }
+        if (wantX) bone.x += (x - bone.x) * alpha;
+        if (wantY) bone.y += (y - bone.y) * alpha;
+      } else { if (wantX) bone.x = x; if (wantY) bone.y = y; }
     }
   }
 
@@ -1529,19 +1553,20 @@ SP.data = (() => {
       const bone = skeleton.bones[this.boneIndex];
       if (!bone) return;
       const frames = this.frames;
+      const wantX = this.drivesAxis("x"), wantY = this.drivesAxis("y");
       if (time < frames[0]) {
         if (blend) {
-          bone.scaleX += (bone.data.scaleX - bone.scaleX) * alpha;
-          bone.scaleY += (bone.data.scaleY - bone.scaleY) * alpha;
-        } else { bone.scaleX = bone.data.scaleX; bone.scaleY = bone.data.scaleY; }
+          if (wantX) bone.scaleX += (bone.data.scaleX - bone.scaleX) * alpha;
+          if (wantY) bone.scaleY += (bone.data.scaleY - bone.scaleY) * alpha;
+        } else { if (wantX) bone.scaleX = bone.data.scaleX; if (wantY) bone.scaleY = bone.data.scaleY; }
         return;
       }
       // 官方 getScaleValue：关键帧值 * setup
       const x = this.getValue(time, 0) * bone.data.scaleX, y = this.getValue(time, 1) * bone.data.scaleY;
       if (blend) {
-        bone.scaleX += (x - bone.scaleX) * alpha;
-        bone.scaleY += (y - bone.scaleY) * alpha;
-      } else { bone.scaleX = x; bone.scaleY = y; }
+        if (wantX) bone.scaleX += (x - bone.scaleX) * alpha;
+        if (wantY) bone.scaleY += (y - bone.scaleY) * alpha;
+      } else { if (wantX) bone.scaleX = x; if (wantY) bone.scaleY = y; }
     }
   }
 
@@ -1551,18 +1576,19 @@ SP.data = (() => {
       const bone = skeleton.bones[this.boneIndex];
       if (!bone) return;
       const frames = this.frames;
+      const wantX = this.drivesAxis("x"), wantY = this.drivesAxis("y");
       if (time < frames[0]) {
         if (blend) {
-          bone.shearX += (bone.data.shearX - bone.shearX) * alpha;
-          bone.shearY += (bone.data.shearY - bone.shearY) * alpha;
-        } else { bone.shearX = bone.data.shearX; bone.shearY = bone.data.shearY; }
+          if (wantX) bone.shearX += (bone.data.shearX - bone.shearX) * alpha;
+          if (wantY) bone.shearY += (bone.data.shearY - bone.shearY) * alpha;
+        } else { if (wantX) bone.shearX = bone.data.shearX; if (wantY) bone.shearY = bone.data.shearY; }
         return;
       }
       const x = bone.data.shearX + this.getValue(time, 0), y = bone.data.shearY + this.getValue(time, 1);
       if (blend) {
-        bone.shearX += (x - bone.shearX) * alpha;
-        bone.shearY += (y - bone.shearY) * alpha;
-      } else { bone.shearX = x; bone.shearY = y; }
+        if (wantX) bone.shearX += (x - bone.shearX) * alpha;
+        if (wantY) bone.shearY += (y - bone.shearY) * alpha;
+      } else { if (wantX) bone.shearX = x; if (wantY) bone.shearY = y; }
     }
   }
 
@@ -1763,7 +1789,13 @@ SP.data = (() => {
         }
         return;
       }
-      const mix = this.getValue(time, 0), soft = this.getValue(time, 1), bend = this.getValue(time, 2);
+      // bendDirection 官方是**直接取当前段的帧值**、不插值（spine-ts IkConstraintTimeline.apply 里的
+      // `frames[i + BEND_DIRECTION]`）。曾经用 getValue(time, 2) 插值：只要该段有贝塞尔曲线，
+      // 第 3 列就会套用 mix / softness 的手柄，把恒为 -1 的 bend 拉成正数 → IK 反向，骨骼角度
+      // 整段失真（spineboy-pro 的 walk / front-leg-ik）。所以这里按段取原值。
+      const found = this.findFrame(time);
+      const bend = this.frames[(found ? found[0] : 0) * this.frameSize + 3];
+      const mix = this.getValue(time, 0), soft = this.getValue(time, 1);
       if (blend) {
         c.mix += (mix - c.mix) * alpha;
         c.softness += (soft - c.softness) * alpha;
@@ -2438,6 +2470,7 @@ SP.json = (() => {
     setFrame(i, time, value) { const b = i * 2; this.frames[b] = time; this.frames[b + 1] = value; return this; }
     setLinear(i, prop) {
       if (i >= this.segCount) return;
+      // 本类 propertyCount 恒为 1，键就是段号 i，所以未指定 prop 时删键 i 是正确的
       if (prop === undefined) { this.curves[i * 5] = M.CURVE_LINEAR; this.propCurves.delete(i); return; }
       this.propCurves.set(i * this.propertyCount + prop, Float32Array.from([M.CURVE_LINEAR, 0, 0, 0, 0]));
     }
@@ -4014,7 +4047,8 @@ SP.json = (() => {
     if (k === "translatex" || k === "translatey" || k === "scalex" || k === "scaley" || k === "shearx" || k === "sheary") {
       // 4.0+ 的「单轴」时间轴：官方是**独立的类**（TranslateXTimeline / ScaleYTimeline …），
       // 每帧只有 1 个数值。这里用双通道类 + singleAxis 表示，把数值写进**对应**的通道、
-      // 另一个通道补 0 —— 与二进制解析器同一套处理。
+      // 另一个通道补 0 —— 与二进制解析器同一套处理（apply 侧靠 singleAxis 跳过那一轴，
+      // 所以补的 0 不会被写回骨骼）。
       // 早期实现固定把数值写进第 1 列，于是 y 轴时间轴的值落进 x 列、y 列因为写入 undefined
       // 在 Float32Array 里变成 NaN（部件位置显示 NaN、整个部件不显示）；也不能像以前那样
       // 只当成「只存数据、不参与求值」的 TimelineStore，否则 4.x 的 translateX/Y 完全不生效。
@@ -5838,13 +5872,17 @@ SP.binary = (() => {
             else if (type === S_RGB2) tl.setFrame(f, fr.time, c[0], c[1], c[2], 1, c[3], c[4], c[5]);
             else if (type === S_RGBA2) tl.setFrame(f, fr.time, c[0], c[1], c[2], c[3], c[4], c[5], c[6]);
           };
-          // 4.x：曲线在「下一帧数值之后」，BEZIER 时读 comps×4 个**绝对** float
+          // 4.x：曲线在「下一帧数值之后」，BEZIER 时读 comps×4 个**绝对** float，
+          // 第 k 个通道的 4 个数落到该通道自己的列（列号偏移 = 0：r=0 / g=1 / b=2 / a=3…）。
+          // ⚠ 这里曾经把 fr.c / next.c（颜色分量数组）当成 propOffset 传进去，列号变成
+          // `"0.5,0.2,0.1,10"` 这种字符串键，per 通道曲线永远取不到 → 4.x 颜色贝塞尔曲线
+          // 静默退化成线性。颜色分量只用来换算归一化曲线，本工具读的是绝对控制点，用不到。
           let fr = readFrame();
           for (let f = 0; ; f++) {
             applyFrame(f, fr);
             if (f === last) break;
             const next = readFrame();
-            readCurve4(r, tl, f, comps, fr.c, next.c);
+            readCurve4(r, tl, f, comps, 0);
             fr = next;
           }
           timelines.push(tl);
@@ -5910,7 +5948,8 @@ SP.binary = (() => {
         if (singleAxis) {
           // 单轴时间轴（官方 4.0+ 的 TranslateX/Y、ScaleX/Y、ShearX/Y）在官方是**独立的类**，
           // 每帧只有 1 个数值；本工具统一用双通道类表示，所以要把这个数值放进**对应**的通道，
-          // 另一个通道补 0。
+          // 另一个通道补 0（apply 侧靠 tl.singleAxis 跳过那一轴，补的 0 不会写回骨骼）。
+          // 同一根骨骼常常同时有 translatex 与 translatey，两条都必须各写各的轴。
           // readTimeline1 / readTimeline38 固定把单通道数值写进第 1 列，因此 y 轴时间轴的值会落进
           // x 列、而 y 列始终没被写过（Float32Array 里就是 NaN）——表现是「部件位置 y 为 NaN、
           // 整个部件不显示」。曾经把补 0 放在读取**之前**，同样会被随后的读取覆盖掉。
@@ -5990,9 +6029,14 @@ SP.binary = (() => {
           const softness2 = (flags & 0x04) ? r.float() : 0;
           if (flags & 0x40) tl.setStepped(f);
           else if (flags & 0x80) {
-            // IK 的 2 条曲线：mix 与 softness，各 4 个绝对控制点
-            tl.setBezier(f, r.float(), r.float(), r.float(), r.float());
-            r.float(); r.float(); r.float(); r.float();
+            // IK 的 2 条曲线：mix（第 1 列）与 softness（第 2 列），各 4 个绝对控制点。
+            // ⚠ 必须**逐通道**落到自己的列（官方是 setBezier(..., 0/1, ...)）。曾经只
+            // `setBezier(f, ...)` 写段级曲线、把 softness 的 4 个数丢掉：这样 softness 会套用
+            // mix 的手柄，IK 求值出来的骨骼角度和官方差出上百单位（spineboy-pro 的 walk /
+            // front-leg-ik 就是这么错的）。也不要写段级曲线：bend 列不参与插值（apply 里按段
+            // 取原值），写进去只会让第 3 列被 mix 的手柄污染。
+            tl.setBezierAt(f, 0, r.float(), r.float(), r.float(), r.float());
+            tl.setBezierAt(f, 1, r.float(), r.float(), r.float(), r.float());
           } else tl.setLinear(f);
           time = time2; mix = mix2; softness = softness2;
         }
