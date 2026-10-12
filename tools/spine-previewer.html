@@ -500,7 +500,7 @@
 
       <div id="busy"><span class="spin"></span><span id="busyText">正在加载…</span></div>
 
-      <div id="dropMask"><span class="big">📥</span><span>松开鼠标即可加载：<b>骨架文件</b>（.json / .skel）、或 <b>整个文件夹</b></span>
+      <div id="dropMask"><span class="big">📥</span><span>松开鼠标即可加载：<b>骨架文件</b>（.json / .skel / .skel.bytes）、或 <b>整个文件夹</b></span>
         <span class="hint">同时拖入同名的 .atlas 与贴图，可一次加载完整资源</span></div>
     </main>
 
@@ -588,7 +588,7 @@
   <div class="card">
     <h3>🦴 Spine 动画预览与调试器</h3>
     <div class="body">
-      <div>轻量的 Spine 资源预览 / 播放 / 调试工具：<b>纯本地运行</b>，不上传任何文件，支持 <b>JSON</b> 与 <b>二进制（.skel）</b> 两种导出，WebGL2 渲染。</div>
+      <div>轻量的 Spine 资源预览 / 播放 / 调试工具：<b>纯本地运行</b>，不上传任何文件，支持 <b>JSON</b> 与 <b>二进制（.skel / .skel.bytes）</b> 两种导出，WebGL2 渲染。</div>
       <div class="restoreBox" id="welcomeRestore" style="display:none;">
         <div style="font-size:12.5px;">上次使用的目录（已缓存）：<br><b id="welcomeRestorePath"></b></div>
         <div class="row"><button class="btn sm primary" id="btnWelcomeRestore">恢复上次目录并扫描</button></div>
@@ -620,7 +620,7 @@
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>点「📁 选择文件夹」授权一个目录，工具会<b>递归扫描</b>其中所有 Spine 资源并列举在左侧。</li>
         <li><b>双击</b>列表项：先清理当前预览（释放纹理与显存），再加载该资源。</li>
-        <li>资源识别规则：骨架文件（<code class="inl">.json</code> / <code class="inl">.skel</code> / <code class="inl">.skel.bytes</code> / <code class="inl">.bytes</code>）＋ 图集（<code class="inl">.atlas</code>，及图集里的贴图）＝ 一个资源。</li>
+        <li>资源识别规则：骨架文件（<code class="inl">.json</code> / <code class="inl">.skel</code> / <code class="inl">.skel.bytes</code> / <code class="inl">.skel.json</code> / <code class="inl">.bytes</code> / <code class="inl">.bin</code>）＋ 图集（<code class="inl">.atlas</code>，及图集里的贴图）＝ 一个资源。<code class="inl">.skel.bytes</code> / <code class="inl">.bytes</code> / <code class="inl">.bin</code> 会读文件头判断内容：二进制按二进制解析，被改名的 JSON 文本按 JSON 解析（Unity 的 TextAsset 常见做法）。</li>
         <li>骨架与图集<b>不同名也能配对</b>：先找同目录同名图集，再按名称打分（如 <code class="inl">hero-ess.json</code> ↔ <code class="inl">hero.atlas</code>、<code class="inl">1-weight-and-mass-balls-ess.json</code> ↔ <code class="inl">1-weight-and-mass.atlas</code>），必要时用「图集区域名是否出现在骨架里」交叉核对；自动配对的资源会标「图集推断」。缺图集 / 缺贴图的资源仍会列出并标红，取消勾选「仅可用资源」即可看到。</li>
         <li>同目录有多个图集时，资源行右侧会出现<b>图集下拉框</b>，可手动指定用哪个图集（切换后立即重新配对并重载预览）。</li>
         <li>二进制 <code class="inl">.skel</code> 的版本在扫描时就会读取：本工具不支持的版本（如 4.3）会直接打红标并提示改用同名 JSON，而不是点开才报错。</li>
@@ -663,7 +663,8 @@
       </div>
       <div><b>5. 兼容性与限制</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
-        <li>JSON 导出支持 Spine <b>3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组与变换约束的 <code class="inl">properties</code> 属性映射，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>4.0 / 4.1 完整支持</b>，4.2 / 3.8 部分支持，<b>4.3 的二进制字节布局有变，请改用同名 JSON 导出</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
+        <li>JSON 导出支持 Spine <b>3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组与变换约束的 <code class="inl">properties</code> 属性映射，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>3.6 / 3.8 / 4.0 / 4.1 完整支持</b>（官方 3.8 样例 20/20、4.0 样例 20/20、4.1 样例 21/21 整文件字节对齐），4.2 部分支持（28 个官方样例中 20 个整文件对齐，snowglobe / sack / cloud-pot / spineboy 等常用资源正常），<b>4.3 的二进制字节布局有变，请改用同名 JSON 导出</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
+        <li>二进制 <code class="inl">.skel</code> 的版本在扫描时会读文件头判定：<b>3.6 没有共享字符串表、骨骼没有 skinRequired、IK 约束没有 softness、普通皮肤没有 bones/constraints 列表</b>，这些差异都按版本分支处理；<b>3.6 / 3.8 的曲线控制点是归一化比例且写在本帧数据之后</b>，与 4.0+ 的绝对控制点写法不同。</li>
         <li>骨骼 <code class="inl">rotate</code> / <code class="inl">translate</code> / <code class="inl">shear</code> 关键帧是<b>相对 setup 的增量</b>、<code class="inl">scale</code> 是<b>相对 setup 的乘数</b>（与官方一致）；关键帧没写 <code class="inl">x</code> / <code class="inl">y</code> 时按增量 0 处理。</li>
         <li>物理约束（<code class="inl">physics</code>）暂不模拟，相关骨骼会保持动画本身的结果。</li>
         <li>变换约束在源骨骼带剪切（shear）时、以及路径约束 / 长 IK 链上，可能与官方运行时存在可见差异（官方 <code class="inl">*-pro</code> 样例中的 eye-stalk、vine、celestial-circus 等）。</li>
@@ -3926,7 +3927,20 @@ SP.json = (() => {
  *   SP.binary.lastReadOffset           -> 上次 parse 实际消费的字节数（== 文件大小即完全对齐）
  *   SP.binary.lastByteLength           -> 上次 parse 输入的字节数
  *
- * 支持：3.8 / 4.0 / 4.1 / 4.2。布局按文件头部版本字符串判定。
+ * 支持：3.6 / 3.8 / 4.0 / 4.1 / 4.2。布局按文件头部版本字符串判定。
+ *   3.6 与 3.8 的差别（依据官方 spine-c 3.6 与 spine-libgdx 3.6 的 SkeletonBinary）：
+ *     · 头部没有 x / y（version 之后直接是 width / height）
+ *     · nonessential 块只有 fps + imagesPath（没有 audioPath）
+ *     · **没有共享字符串表**：所有 ref string 都是内联 string
+ *     · bone 没有 skinRequired 布尔
+ *     · IK 约束没有 skinRequired / softness / compress / stretch / uniform
+ *     · transform / path 约束没有 skinRequired
+ *     · 普通皮肤没有 bones / constraints 索引列表（只有 slotCount）
+ *     · event 没有 audioPath / volume / balance
+ *     · IK 时间轴每帧只有 [time][mix][bendDirection]
+ *     · event 时间轴每帧没有 volume / balance
+ *   其余（附件、顶点、mesh/region/linked/path/point/clipping、骨骼与插槽时间轴、
+ *   deform 时间轴、绘制顺序、曲线归一化语义）与 3.8 完全一致。
  *
  * 实现依据：.scratch/dev/SPEC-binary.md（逐版本字段表 + 逐字节手工解码 + 90/90 官方
  * 文件“整文件字节消耗”验证），并逐项对照官方 spine-ts SkeletonBinary。
@@ -3993,18 +4007,26 @@ SP.binary = (() => {
     return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : null;
   }
 
-  /** 版本键："3.8" / "4.0" / "4.1" / "4.2"；不支持返回 null。 */
+  /** 版本键："3.6" / "3.8" / "4.0" / "4.1" / "4.2"；不支持返回 null。 */
   function layoutOf(version) {
     const p = versionParts(version);
     if (!p) return null;
     const maj = p[0], min = p[1];
-    if (maj === 3) return min >= 8 ? "3.8" : null;
+    if (maj === 3) {
+      if (min >= 8) return "3.8";
+      if (min === 6) return "3.6";
+      return null;   // 3.7 的布局未做验证，宁可明确报不支持
+    }
     if (maj === 4 && min <= 2) return "4." + min;
     return null;
   }
 
+  const is36 = (v) => v === "3.6";
+  const is38 = (v) => v === "3.8";
   const is42 = (v) => v === "4.2";
-  const atLeast40 = (v) => v !== "3.8";
+  /** 3.6 / 3.8 共用的“老式”字节布局：无 bezierCount、曲线控制点归一化、颜色是 int32 */
+  const isLegacy38 = (v) => v === "3.8" || v === "3.6";
+  const atLeast40 = (v) => v === "4.0" || v === "4.1" || v === "4.2";
   const atLeast41 = (v) => v === "4.1" || v === "4.2";
 
   /* ------------------------------------------------------------ 字节读取 */
@@ -4029,6 +4051,7 @@ SP.binary = (() => {
       if (this.end < 16) throw new Error("二进制骨架解析失败：文件太小，不是有效的 .skel");
       this.index = 0;
       this.strings = [];
+      this.inlineStrings = false;   // 3.6：没有共享字符串表，stringRef() 退化成内联 string
     }
 
     need(n) {
@@ -4093,8 +4116,13 @@ SP.binary = (() => {
       return chars;
     }
 
-    /** 共享字符串引用（1 基，0 = null）。 */
+    /**
+     * 共享字符串引用（1 基，0 = null）。
+     * 3.6 没有共享字符串表，同一个位置的字段是内联 string —— 由 inlineStrings 开关切换，
+     * 这样上层所有 stringRef() 调用点都不用再按版本分支。
+     */
     stringRef() {
+      if (this.inlineStrings) return this.string();
       const index = this.int(true);
       if (index === 0) return null;
       const s = this.strings[index - 1];
@@ -4161,6 +4189,36 @@ SP.binary = (() => {
    * 交给 timeline.curves（数据模型每段只有一条曲线 -> 只保留第一通道）。
    * 官方曲线控制点是**绝对量纲**（cx 是绝对时间，cy 是绝对数值），直接原样保存。
    */
+  /**
+   * 3.6 / 3.8 的曲线：字节位置在**本帧数据之后、下一帧数据之前**，
+   * BEZIER 时是 4 个 **归一化(0..1)** 控制点，且**一段只有一条曲线、被该段所有通道共用**。
+   *
+   * 麻烦点：读到归一化控制点时，下一帧的时间/数值还没出现（它们在曲线字节之后），
+   * 而 SP.data 的 CurveTimeline 需要绝对 (时间, 数值) 控制点。
+   * 所以这里先把曲线记下来（readLegacyCurve），等下一帧读出来后再换算并写入（applyLegacyCurve）。
+   */
+  function readLegacyCurve(r) {
+    const type = r.byte();
+    if (type === CURVE_STEPPED) return { type: CURVE_STEPPED };
+    if (type !== CURVE_BEZIER) return { type: CURVE_LINEAR };
+    return { type: CURVE_BEZIER, cx1: r.float(), cy1: r.float(), cx2: r.float(), cy2: r.float() };
+  }
+
+  /**
+   * 把 readLegacyCurve 记下的曲线写进时间轴：按通道把归一化控制点换算成绝对控制点。
+   * @param values0/values1 该段两端各通道的数值（长度 = 通道数）
+   */
+  function applyLegacyCurve(tl, frame, curve, t0, values0, t1, values1) {
+    if (!curve) return;
+    if (curve.type === CURVE_STEPPED) { tl.setStepped(frame); return; }
+    if (curve.type !== CURVE_BEZIER) { tl.setLinear(frame); return; }
+    for (let k = 0; k < values0.length; k++) {
+      const abs = M.normalizeToAbsoluteCurve(
+        t0, values0[k], t1, values1[k], curve.cx1, curve.cy1, curve.cx2, curve.cy2);
+      tl.setBezierAt(frame, k, abs[0], abs[1], abs[2], abs[3]);
+    }
+  }
+
   function readCurve(r, tl, frame, channels) {
     const type = r.byte();
     if (type === CURVE_STEPPED) { tl.setStepped(frame); return type; }
@@ -4187,26 +4245,6 @@ SP.binary = (() => {
     return type;
   }
 
-  /**
-   * 3.8 的曲线：每个「非最后帧」的帧数据之后恰好 1 个曲线字节，
-   * BEZIER 时再读 4 个 **归一化(0..1)** 控制点，且**一段只有一条曲线、被该段所有通道共用**。
-   * SP.data 的 CurveTimeline 要求绝对 (时间, 数值) 控制点，所以要用
-   * SP.math.normalizeToAbsoluteCurve 把每个通道各转一次。
-   *
-   * @param valuesOf  (frameIndex) => 该帧各通道数值数组（长度 = channels）
-   */
-  function readCurve38(r, tl, frame, channels, t0, values0, t1, values1) {
-    const type = r.byte();
-    if (type === CURVE_STEPPED) { tl.setStepped(frame); return type; }
-    if (type !== CURVE_BEZIER) { tl.setLinear(frame); return type; }
-    const cx1 = r.float(), cy1 = r.float(), cx2 = r.float(), cy2 = r.float();
-    for (let k = 0; k < channels; k++) {
-      const abs = M.normalizeToAbsoluteCurve(t0, values0[k], t1, values1[k], cx1, cy1, cx2, cy2);
-      tl.setBezierAt(frame, k, abs[0], abs[1], abs[2], abs[3]);
-    }
-    return type;
-  }
-
   /* ------------------------------------------------------------ 主解析器 */
 
   function parse(arrayBuffer, atlas) {
@@ -4228,7 +4266,7 @@ SP.binary = (() => {
       let second = null;
       if (first !== null) { try { second = r.string(); } catch (e) { second = null; } }
       if (second && layoutOf(second)) {
-        // 3.8：hash 是字符串
+        // 3.6 / 3.8：hash 是字符串
         sd.hash = first === "" ? null : first;
         version = second;
       } else {
@@ -4244,14 +4282,25 @@ SP.binary = (() => {
     if (!layout) {
       const p = versionParts(version);
       if (p && p[0] === 4 && p[1] >= 3) {
-        throw new Error(`不支持的 Spine 二进制版本 ${version}：4.3+ 的二进制字节布局有变（本工具支持 3.8 / 4.0 / 4.1 / 4.2）。请改用同名 JSON 导出预览`);
+        throw new Error(`不支持的 Spine 二进制版本 ${version}：4.3+ 的二进制字节布局有变（本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2）。请改用同名 JSON 导出预览`);
       }
-      throw new Error(`不支持的 Spine 二进制版本 ${JSON.stringify(version)}：本工具支持 3.8 / 4.0 / 4.1 / 4.2`);
+      if (p && p[0] === 3 && p[1] === 7) {
+        throw new Error(`不支持的 Spine 二进制版本 ${version}：3.7 的二进制布局未做字节级验证（本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2）。请改用同名 JSON 导出预览`);
+      }
+      throw new Error(`不支持的 Spine 二进制版本 ${JSON.stringify(version)}：本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2`);
     }
     sd.version = version;
+    // 3.6 没有共享字符串表：所有 ref string 位置都是内联 string
+    r.inlineStrings = is36(layout);
 
-    sd.x = r.float();
-    sd.y = r.float();
+    if (is36(layout)) {
+      // 3.6 头部没有 x / y（官方 3.6 的 SkeletonData 只有 width / height）
+      sd.x = 0;
+      sd.y = 0;
+    } else {
+      sd.x = r.float();
+      sd.y = r.float();
+    }
     sd.width = r.float();
     sd.height = r.float();
     if (is42(layout)) {
@@ -4263,11 +4312,12 @@ SP.binary = (() => {
     if (nonessential) {
       sd.fps = r.float();
       sd.imagesPath = r.string();
-      sd.audioPath = r.string();
+      // 3.6 的 nonessential 块只到 imagesPath（没有 audioPath）
+      if (!is36(layout)) sd.audioPath = r.string();
     }
 
-    /* ---------- 共享字符串表（四版本都有） ---------- */
-    {
+    /* ---------- 共享字符串表（3.8+；3.6 没有） ---------- */
+    if (!is36(layout)) {
       const n = r.int(true);
       for (let i = 0; i < n; i++) r.pushString();
     }
@@ -4294,7 +4344,8 @@ SP.binary = (() => {
       bone.length = r.float();
       // ≤4.1：transformMode 是 varint+；4.2：inherit 是 byte（值域相同）
       bone.transformMode = is42(layout) ? r.byte() : r.int(true);
-      bone.skinRequired = r.boolean();
+      // 3.6 的 bone 没有 skinRequired 布尔
+      if (!is36(layout)) bone.skinRequired = r.boolean();
       if (nonessential) {
         bone.color = r.color({});
         if (is42(layout)) {
@@ -4331,7 +4382,7 @@ SP.binary = (() => {
       if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个 IK 约束没有名字`);
       const data = new D.IkConstraintData(name);
       data.order = r.int(true);
-      if (!is42(layout)) data.skinRequired = r.boolean();
+      if (!is42(layout) && !is36(layout)) data.skinRequired = r.boolean();
       const nn = r.int(true);
       for (let ii = 0; ii < nn; ii++) {
         const b = sd.bones[r.int(true)];
@@ -4352,6 +4403,10 @@ SP.binary = (() => {
         if (flags & 0x20) data.mix = (flags & 0x40) ? r.float() : 1;
         else data.mix = 0;
         data.softness = (flags & 0x80) ? r.float() : 0;
+      } else if (is36(layout)) {
+        // 3.6：只有 mix + bendDirection（没有 softness / compress / stretch / uniform）
+        data.mix = r.float();
+        data.bendDirection = r.byte();
       } else {
         data.mix = r.float();
         data.softness = r.float();
@@ -4370,7 +4425,7 @@ SP.binary = (() => {
       if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个变换约束没有名字`);
       const data = new D.TransformConstraintData(name);
       data.order = r.int(true);
-      if (!is42(layout)) data.skinRequired = r.boolean();
+      if (!is42(layout) && !is36(layout)) data.skinRequired = r.boolean();
       const nn = r.int(true);
       for (let ii = 0; ii < nn; ii++) {
         const b = sd.bones[r.int(true)];
@@ -4412,7 +4467,7 @@ SP.binary = (() => {
         data.offsetScaleX = r.float();
         data.offsetScaleY = r.float();
         data.offsetShearY = r.float();
-        if (layout === "3.8") {
+        if (isLegacy38(layout)) {
           const rotateMix = r.float();
           const translateMix = r.float();
           const scaleMix = r.float();
@@ -4440,8 +4495,8 @@ SP.binary = (() => {
       if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个路径约束没有名字`);
       const data = new D.PathConstraintData(name);
       data.order = r.int(true);
-      // 4.2 的 path 约束 skinRequired 仍是独立 bool（没有并进 flags）
-      data.skinRequired = r.boolean();
+      // 4.2 的 path 约束 skinRequired 仍是独立 bool（没有并进 flags）；3.6 完全没有这个字段
+      if (!is36(layout)) data.skinRequired = r.boolean();
       const nn = r.int(true);
       for (let ii = 0; ii < nn; ii++) {
         const b = sd.bones[r.int(true)];
@@ -4470,7 +4525,7 @@ SP.binary = (() => {
         data.offsetRotation = r.float();
         data.position = r.float();
         data.spacing = r.float();
-        if (layout === "3.8") {
+        if (isLegacy38(layout)) {
           data.rotateMix = r.float();
           data.translateMix = r.float();
         } else {
@@ -4569,10 +4624,13 @@ SP.binary = (() => {
       data.intValue = r.int(false);
       data.floatValue = r.float();
       data.stringValue = r.string();
-      data.audioPath = r.string();
-      if (data.audioPath) {
-        data.volume = r.float();
-        data.balance = r.float();
+      // 3.6 的 event 没有 audioPath / volume / balance
+      if (!is36(layout)) {
+        data.audioPath = r.string();
+        if (data.audioPath) {
+          data.volume = r.float();
+          data.balance = r.float();
+        }
       }
       sd.events.push(data);
     }
@@ -4633,31 +4691,34 @@ SP.binary = (() => {
       // 4.1 官方源码里没有这一行（4.1 SkeletonBinary.readSkin 只读 name/索引/slotCount），
       // 已用 4.1 分支源码逐行核对；多读一个 int32 会让之后所有皮肤错位。
       if (is42(layout) && nonessential) skin.color = r.color({});
-      const boneCount = r.int(true);
-      for (let i = 0; i < boneCount; i++) {
-        const b = sd.bones[r.int(true)];
-        if (b) skin.bones.push(b);
-      }
-      const ikCount = r.int(true);
-      for (let i = 0; i < ikCount; i++) {
-        const c = sd.ikConstraints[r.int(true)];
-        if (c) skin.constraints.push(c);
-      }
-      const tfCount = r.int(true);
-      for (let i = 0; i < tfCount; i++) {
-        const c = sd.transformConstraints[r.int(true)];
-        if (c) skin.constraints.push(c);
-      }
-      const pCount = r.int(true);
-      for (let i = 0; i < pCount; i++) {
-        const c = sd.pathConstraints[r.int(true)];
-        if (c) skin.constraints.push(c);
-      }
-      if (is42(layout)) {
-        const phCount = r.int(true);
-        for (let i = 0; i < phCount; i++) {
-          const c = sd.physicsConstraints[r.int(true)];
+      // 3.6 的普通皮肤只有 slotCount + 附件（bones / 各约束索引列表是 3.8 才加的）
+      if (!is36(layout)) {
+        const boneCount = r.int(true);
+        for (let i = 0; i < boneCount; i++) {
+          const b = sd.bones[r.int(true)];
+          if (b) skin.bones.push(b);
+        }
+        const ikCount = r.int(true);
+        for (let i = 0; i < ikCount; i++) {
+          const c = sd.ikConstraints[r.int(true)];
           if (c) skin.constraints.push(c);
+        }
+        const tfCount = r.int(true);
+        for (let i = 0; i < tfCount; i++) {
+          const c = sd.transformConstraints[r.int(true)];
+          if (c) skin.constraints.push(c);
+        }
+        const pCount = r.int(true);
+        for (let i = 0; i < pCount; i++) {
+          const c = sd.pathConstraints[r.int(true)];
+          if (c) skin.constraints.push(c);
+        }
+        if (is42(layout)) {
+          const phCount = r.int(true);
+          for (let i = 0; i < phCount; i++) {
+            const c = sd.physicsConstraints[r.int(true)];
+            if (c) skin.constraints.push(c);
+          }
         }
       }
       slotCount = r.int(true);
@@ -5020,7 +5081,10 @@ SP.binary = (() => {
   /* ------------------------------------------------------------ 动画读取 */
 
   function readAnimation(r, name, sd, layout, deformTimelines, sequenceTimelines) {
-    const is38 = layout === "3.8";
+    // 3.6 与 3.8 共用同一套“老式”时间轴布局（无 bezierCount、曲线控制点归一化、颜色 int32）；
+    // 只有 IK 时间轴的每帧字段数不同（见下面的 is36 分支），这里先用 legacy 走通其余部分。
+    const is36L = is36(layout);
+    const is38 = isLegacy38(layout);
     // 4.0+ 开头有一个“Number of timelines”，读完即弃（仅用于对齐自检）
     const declaredTimelineCount = atLeast40(layout) ? r.int(true) : -1;
     const timelines = [];
@@ -5063,13 +5127,14 @@ SP.binary = (() => {
             for (let f = 0; ; f++) {
               applyFrame(f, fr);
               if (f === last) break;
+              const curve = readLegacyCurve(r);   // 3.6/3.8：曲线紧跟本帧数据
               const next = readFrame();
-              readCurve38(r, tl, f, channels, fr.time, valuesOf(fr), next.time, valuesOf(next));
+              applyLegacyCurve(tl, f, curve, fr.time, valuesOf(fr), next.time, valuesOf(next));
               fr = next;
             }
             timelines.push(tl);
           } else {
-            throw new Error(`不支持的 timeline 类型 ${type}（插槽时间轴，版本 ${sd.version}）`);
+            throw new Error(`不支持的 timeline 类型 ${type}（插槽时间轴，版本 ${sd.version}，偏移 ${r.index}）`);
           }
         } else {
           const channels = SLOT_CHANNELS[type];
@@ -5147,7 +5212,7 @@ SP.binary = (() => {
             case B38_TRANSLATE: tl = new D.TranslateTimeline(frameCount, 0); channels = 2; break;
             case B38_SCALE: tl = new D.ScaleTimeline(frameCount, 0); channels = 2; break;
             case B38_SHEAR: tl = new D.ShearTimeline(frameCount, 0); channels = 2; break;
-            default: throw new Error(`不支持的 timeline 类型 ${type}（骨骼时间轴，版本 ${sd.version}）`);
+            default: throw new Error(`不支持的 timeline 类型 ${type}（骨骼时间轴，版本 ${sd.version}，偏移 ${r.index}）`);
           }
         } else {
           switch (type) {
@@ -5161,7 +5226,7 @@ SP.binary = (() => {
             case B_SCALEY: tl = new D.ScaleTimeline(frameCount, 0); channels = 1; singleAxis = "y"; break;
             case B_SHEARX: tl = new D.ShearTimeline(frameCount, 0); channels = 1; singleAxis = "x"; break;
             case B_SHEARY: tl = new D.ShearTimeline(frameCount, 0); channels = 1; singleAxis = "y"; break;
-            default: throw new Error(`不支持的 timeline 类型 ${type}（骨骼时间轴，版本 ${sd.version}）`);
+            default: throw new Error(`不支持的 timeline 类型 ${type}（骨骼时间轴，版本 ${sd.version}，偏移 ${r.index}）`);
           }
         }
         tl.boneIndex = boneIndex;
@@ -5187,7 +5252,22 @@ SP.binary = (() => {
       const frameCount = r.int(true);
       const tl = new D.IkConstraintTimeline(frameCount, 0);
       tl.ikConstraintIndex = index;
-      if (is38) {
+      if (is36L) {
+        // 3.6：无 bezierCount；每帧 [time][mix][bendDirection]，本帧数据之后紧跟 1 个曲线字节
+        // （BEZIER 时 4 个归一化控制点，只有 mix 一条通道）
+        const last = frameCount - 1;
+        const readFrame = () => ({ time: r.float(), mix: r.float(), bend: r.byte() });
+        const valuesOf = (fr) => [fr.mix];
+        let fr = readFrame();
+        for (let f = 0; ; f++) {
+          tl.setFrame(f, fr.time, fr.mix, 0, fr.bend);
+          if (f === last) break;
+          const curve = readLegacyCurve(r);
+          const next = readFrame();
+          applyLegacyCurve(tl, f, curve, fr.time, valuesOf(fr), next.time, valuesOf(next));
+          fr = next;
+        }
+      } else if (is38) {
         // 3.8：无 bezierCount；每帧 [time][mix][softness][bendDirection][compress][stretch]，
         // 本帧数据之后紧跟 1 个曲线字节（BEZIER 时 4 个归一化控制点，按 2 个通道归一化）
         const last = frameCount - 1;
@@ -5202,8 +5282,9 @@ SP.binary = (() => {
         for (let f = 0; ; f++) {
           tl.setFrame(f, fr.time, fr.mix, fr.softness, fr.bend);
           if (f === last) break;
+          const curve = readLegacyCurve(r);
           const next = readFrame();
-          readCurve38(r, tl, f, 2, fr.time, valuesOf(fr), next.time, valuesOf(next));
+          applyLegacyCurve(tl, f, curve, fr.time, valuesOf(fr), next.time, valuesOf(next));
           fr = next;
         }
       } else if (layout === "4.2") {
@@ -5273,10 +5354,16 @@ SP.binary = (() => {
       for (let f = 0; ; f++) {
         applyFrame(f, fr);
         if (f === last) break;
-        const next = readFrame();
-        if (is38) readCurve38(r, tl, f, 4, fr.time, valuesOf(fr), next.time, valuesOf(next));
-        else readCurve4(r, tl, f, 6);
-        fr = next;
+        if (is38) {
+          const curve = readLegacyCurve(r);
+          const next = readFrame();
+          applyLegacyCurve(tl, f, curve, fr.time, valuesOf(fr), next.time, valuesOf(next));
+          fr = next;
+        } else {
+          const next = readFrame();
+          readCurve4(r, tl, f, 6);
+          fr = next;
+        }
       }
       timelines.push(tl);
     }
@@ -5305,11 +5392,18 @@ SP.binary = (() => {
           for (let f = 0; ; f++) {
             applyFrame(f, time, value);
             if (f === last) break;
-            const nextTime = r.float();
-            const nextValue = r.float();
-            if (is38) readCurve38(r, tl, f, 1, time, [value], nextTime, [nextValue]);
-            else readCurve4(r, tl, f, 1);
-            time = nextTime; value = nextValue;
+            if (is38) {
+              const curve = readLegacyCurve(r);
+              const nextTime = r.float();
+              const nextValue = r.float();
+              applyLegacyCurve(tl, f, curve, time, [value], nextTime, [nextValue]);
+              time = nextTime; value = nextValue;
+            } else {
+              const nextTime = r.float();
+              const nextValue = r.float();
+              readCurve4(r, tl, f, 1);
+              time = nextTime; value = nextValue;
+            }
           }
         } else if (type === P_MIX) {
           const propCount = is38 ? 2 : 3;
@@ -5323,12 +5417,20 @@ SP.binary = (() => {
           for (let f = 0; ; f++) {
             applyFrame(f, time, vals);
             if (f === last) break;
-            const nextTime = r.float();
-            const next = [];
-            for (let k = 0; k < propCount; k++) next.push(r.float());
-            if (is38) readCurve38(r, tl, f, propCount, time, vals, nextTime, next);
-            else readCurve4(r, tl, f, propCount);
-            time = nextTime; vals = next;
+            if (is38) {
+              const curve = readLegacyCurve(r);
+              const nextTime = r.float();
+              const next = [];
+              for (let k = 0; k < propCount; k++) next.push(r.float());
+              applyLegacyCurve(tl, f, curve, time, vals, nextTime, next);
+              time = nextTime; vals = next;
+            } else {
+              const nextTime = r.float();
+              const next = [];
+              for (let k = 0; k < propCount; k++) next.push(r.float());
+              readCurve4(r, tl, f, propCount);
+              time = nextTime; vals = next;
+            }
           }
         } else {
           throw new Error(`不支持的 timeline 类型 ${type}（路径约束时间轴，版本 ${sd.version}）`);
@@ -5411,17 +5513,23 @@ SP.binary = (() => {
                 for (let v = 0; v < deformLength; v++) deform[v] = baseVertices[v];
               }
             };
-            // 3.8 与 4.x 的曲线位置都是「本帧数据之后 / 下一帧数据之后」，读顺序一致；
-            // 差别只在 3.8 没有 bezierCount、且控制点是归一化的。
+            // 3.6/3.8：曲线紧随本帧数据（且在下一帧时间之前）；4.x：曲线在下一帧数值之后。
+            // 差别还在于 3.8 没有 bezierCount、且控制点是归一化的。
             let time = r.float();                 // 帧首的时间
             for (let f = 0; ; f++) {
               readDeformFrame();
               tl.setFrameValues(f, time, deform, 0);
               if (f === last) break;
-              const nextTime = r.float();         // 下一帧时间
-              if (is38) readCurve38(r, tl, f, 1, time, [deform[0] || 0], nextTime, [deform[0] || 0]);
-              else readCurve4(r, tl, f, 1);
-              time = nextTime;
+              if (is38) {
+                const curve = readLegacyCurve(r);
+                const nextTime = r.float();       // 下一帧时间
+                applyLegacyCurve(tl, f, curve, time, [deform[0] || 0], nextTime, [deform[0] || 0]);
+                time = nextTime;
+              } else {
+                const nextTime = r.float();       // 下一帧时间
+                readCurve4(r, tl, f, 1);
+                time = nextTime;
+              }
             }
             timelines.push(tl);
             deformTimelines.push({ timeline: tl, slotIndex, attachmentName });
@@ -5512,9 +5620,9 @@ SP.binary = (() => {
   /* ------------------------------------------------- 单值/双值时间轴读取 */
 
   /**
-   * 3.8 的单值/双值时间轴（骨骼 rotate/translate/scale/shear）：
-   *   每帧 [time][v1(,v2)]，本帧数据之后紧跟本段曲线字节；BEZIER 的 4 个控制点是归一化比例，
-   *   需要按每个通道各转一次绝对控制点（3.8 一段只有一条曲线、所有通道共用）。
+   * 3.6 / 3.8 的单值/双值时间轴（骨骼 rotate/translate/scale/shear）。
+   * 每帧 [time][v1(,v2)]，**曲线字节紧跟本帧数据**（下一帧数据之前），
+   * BEZIER 的 4 个控制点是归一化比例、被该段所有通道共用。
    */
   function readTimeline38(r, tl, frameCount, channels) {
     const last = frameCount - 1;
@@ -5529,8 +5637,9 @@ SP.binary = (() => {
       if (channels === 1) tl.setFrame(f, fr.time, fr.vals[0]);
       else tl.setFrame(f, fr.time, fr.vals[0], fr.vals[1]);
       if (f === last) break;
+      const curve = readLegacyCurve(r);
       const next = readFrame();
-      readCurve38(r, tl, f, channels, fr.time, fr.vals, next.time, next.vals);
+      applyLegacyCurve(tl, f, curve, fr.time, fr.vals, next.time, next.vals);
       fr = next;
     }
     return tl;
@@ -8043,7 +8152,13 @@ SP.app = (() => {
 
   const $ = (id) => document.getElementById(id);
 
-  const SKEL_EXT = [".json", ".skel", ".skel.bytes", ".bytes", ".bin", ".skel.json"];
+  // 骨架扩展名：双扩展名（.skel.bytes / .skel.json）由 extOf() 整体识别，这里也按整体登记。
+  // JSON 导出常见 .json / .skel.json；二进制导出常见 .skel / .skel.bytes / .bytes / .bin。
+  const SKEL_JSON_EXT = new Set([".json", ".skel.json"]);
+  const SKEL_BINARY_EXT = new Set([".skel", ".skel.bytes", ".bytes", ".bin"]);
+  // 这几个后缀两种内容都可能：Unity 的 TextAsset 会把 JSON 导出改名成 .bytes / .skel.bytes，
+  // 所以不能只看后缀，要读头部嗅探（见 sniffSkeletonFormat）。
+  const SKEL_SNIFF_EXT = new Set([".skel.bytes", ".bytes", ".bin"]);
   const ATLAS_EXT = [".atlas", ".atlas.txt"];
   const TEX_EXT = [".png", ".jpg", ".jpeg", ".webp", ".avif", ".gif"];
   const SKIP_DIRS = new Set(["node_modules", ".git", ".svn", ".hg", "__pycache__", "$recycle.bin", "system volume information"]);
@@ -8115,12 +8230,43 @@ SP.app = (() => {
   }
   function isSkeletonExt(name) {
     const e = extOf(name);
-    if (e === ".json") return true;
-    return e === ".skel" || e === ".bytes" || e === ".bin";
+    return SKEL_JSON_EXT.has(e) || SKEL_BINARY_EXT.has(e);
   }
   function isBinaryExt(name) {
-    const e = extOf(name);
-    return e === ".skel" || e === ".bytes" || e === ".bin";
+    return SKEL_BINARY_EXT.has(extOf(name));
+  }
+  /** 该后缀既可能是二进制骨架、也可能是改名后的 JSON 文本（需要读头部嗅探） */
+  function needsSkeletonSniff(name) {
+    return SKEL_SNIFF_EXT.has(extOf(name));
+  }
+  /** 骨架条目是否为二进制：优先用扫描阶段嗅探出的 _format，其次按后缀判断 */
+  function isBinaryEntry(entry) {
+    if (entry && entry._format) return entry._format === "binary";
+    return isBinaryExt(entry ? entry.name : "");
+  }
+  /**
+   * 嗅探骨架文件到底是 JSON 文本还是二进制字节流。
+   * 只看后缀不可靠：.skel.bytes / .bytes / .bin 在真实项目里两种都可能
+   * （Unity 的 TextAsset 常把 JSON 导出改名成 .bytes / .skel.bytes）。
+   * 返回 "json" / "binary" / null（读不出来或看不出来时由调用方按后缀兜底）。
+   */
+  async function sniffSkeletonFormat(entry) {
+    let head;
+    try {
+      head = new Uint8Array(await (await entry.getBlob()).slice(0, 512).arrayBuffer());
+    } catch (err) {
+      return null;
+    }
+    // 1. 文本形态：去掉 BOM 与前置空白后以 { 开头，且带骨架特征字段
+    const text = new TextDecoder("utf-8").decode(head).replace(/^\uFEFF/, "").trimStart();
+    if (text.charCodeAt(0) === 0x7b /* { */ && (/"skeleton"\s*:/.test(text) || /"bones"\s*:/.test(text))) {
+      return "json";
+    }
+    // 2. 二进制形态：头部能读出 Spine 版本字符串（3.8 的 hash+版本 / 4.0+ 的两个 int32+版本）
+    if (SP.binary && SP.binary.versionOf && head.length >= 16) {
+      if (SP.binary.versionOf(head.buffer)) return "binary";
+    }
+    return null;
   }
   function dirOf(path) {
     const i = path.lastIndexOf("/");
@@ -8426,23 +8572,29 @@ SP.app = (() => {
       for (const e of entries) {
         if (!isSkeletonExt(e.name)) continue;
         const e2 = extOf(e.name);
-        if (e2 === ".json") {
+        if (SKEL_JSON_EXT.has(e2)) {
           if (jsonProbed >= MAX_JSON_PROBE) continue;
           jsonProbed++;
         }
         candidates.push(e);
       }
-      // 2. JSON 需要确认是骨架而不是普通 json（读头部探针）
+      // 2. JSON 需要确认是骨架而不是普通 json（读头部探针）；
+      //    .skel.bytes / .bytes / .bin 先嗅探内容，是 JSON 文本就走同一套探针
       const skeletons = [];
       const queue = candidates.slice();
       const workers = new Array(Math.min(12, Math.max(1, queue.length))).fill(0).map(async () => {
         while (queue.length) {
           const e = queue.shift();
-          if (isBinaryExt(e.name)) { skeletons.push(e); continue; }
+          let format = SKEL_JSON_EXT.has(extOf(e.name)) ? "json" : "binary";
+          if (needsSkeletonSniff(e.name)) {
+            const sniffed = await sniffSkeletonFormat(e);
+            if (sniffed) format = sniffed;
+          }
+          if (format === "binary") { e._format = "binary"; skeletons.push(e); continue; }
           try {
             const blob = await e.getBlob();
             const head = await blob.slice(0, 800).text();
-            if (/"skeleton"\s*:/.test(head) || /"bones"\s*:/.test(head)) skeletons.push(e);
+            if (/"skeleton"\s*:/.test(head) || /"bones"\s*:/.test(head)) { e._format = "json"; skeletons.push(e); }
           } catch (err) { /* 读不到就跳过 */ }
         }
       });
@@ -8529,7 +8681,7 @@ SP.app = (() => {
           return { entry: best, inferred: true, score: ranked[0].score, ambiguous: false };
         }
         // 二进制骨架没法按文本验证，只能取分数最高的（并标注为推断）
-        if (!isBinaryExt(sk.name)) {
+        if (!isBinaryEntry(sk)) {
           const text = await skeletonText(sk);
           const pool = best ? [best, runnerUp].filter(Boolean) : inDir.slice(0, 8);
           let picked = best, bestHit = -1, tie = false;
@@ -8562,7 +8714,7 @@ SP.app = (() => {
           skeletonPath: sk.path,
           skeletonName: sk.name,
           dir,
-          format: isBinaryExt(sk.name) ? "binary" : "json",
+          format: sk._format || (isBinaryExt(sk.name) ? "binary" : "json"),
           atlasPath: atlasEntry ? atlasEntry.path : null,
           atlasName: atlasEntry ? atlasEntry.name : null,
           atlasInferred: inferred,
@@ -8668,6 +8820,19 @@ SP.app = (() => {
       // 3. 骨架
       const t1 = performance.now();
       const bytes = await (await res.skeletonEntry.getBlob()).arrayBuffer();
+      // 兜底：后缀写着二进制（.skel.bytes / .bytes / .bin），内容却是 JSON 文本
+      // （Unity 的 TextAsset 常见做法；直链加载那条路径没有扫描阶段的嗅探，全靠这里）
+      if (res.format !== "json") {
+        const headText = new TextDecoder("utf-8")
+          .decode(new Uint8Array(bytes, 0, Math.min(512, bytes.byteLength)))
+          .replace(/^\uFEFF/, "").trimStart();
+        if (headText.charCodeAt(0) === 0x7b /* { */ &&
+            (/"skeleton"\s*:/.test(headText) || /"bones"\s*:/.test(headText))) {
+          res.format = "json";
+          res.binaryVersion = null;
+          log("warn", `${res.skeletonName} 虽为二进制后缀，但内容是 JSON 文本，已按 JSON 解析`);
+        }
+      }
       let data;
       if (res.format === "json") {
         const text = new TextDecoder("utf-8").decode(new Uint8Array(bytes));
@@ -8792,10 +8957,11 @@ SP.app = (() => {
     src.kind = "url";
     const baseUrl = url;
     // 图集候选名：同名 → 逐步剥掉导出变体后缀（-balls-ess / -pro / -pma …），
-    //   与目录扫描用同一套打分（SP.match），避免出现「扫描能配、直链配不上」的差异
-    const stemBase = baseUrl.replace(/\.[^.\/]+$/, "");
-    const dirPath = stemBase.slice(0, stemBase.lastIndexOf("/") + 1);
-    const stem = stemBase.slice(stemBase.lastIndexOf("/") + 1);
+    //   与目录扫描用同一套打分（SP.match），避免出现「扫描能配、直链配不上」的差异。
+    //   去后缀交给 SP.match.baseName，这样 .skel.bytes / .skel.json 这类双扩展名会被整体剥掉。
+    const lastSlash = baseUrl.lastIndexOf("/");
+    const dirPath = baseUrl.slice(0, lastSlash + 1);
+    const stem = SP.match.baseName(baseUrl.slice(lastSlash + 1));
     const stems = SP.match.atlasBaseCandidates(stem);
     const atlasUrlCandidates = [];
     if (opts.atlas) atlasUrlCandidates.push(opts.atlas);
@@ -8942,7 +9108,7 @@ SP.app = (() => {
       } else if (state.resources.length) {
         box.textContent = `已扫描到 ${state.resources.length} 个骨架，但当前过滤条件下没有可显示的项。`;
       } else {
-        box.textContent = "未扫描到 Spine 资源：这个目录（含子目录）里没有 .json / .skel 骨架文件，或 JSON 不是 Spine 导出的（可在日志里看扫描详情）。";
+        box.textContent = "未扫描到 Spine 资源：这个目录（含子目录）里没有 .json / .skel / .skel.bytes 骨架文件，或 JSON 不是 Spine 导出的（可在日志里看扫描详情）。";
       }
       list.appendChild(box);
       $("resStat").textContent = `共 0 个资源（目录内已识别 ${state.resources.length} 个骨架）`;
