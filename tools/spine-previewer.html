@@ -8283,6 +8283,13 @@ void main () {
       if (!this.bgTex) this.bgTex = this._checkerTexture(spec);
       const view = this.view;
       const w = view.width, h = view.height;
+      // 兜底：先用棋盘主色把整屏铺成不透明，再叠格子图案。
+      // canvas 自身是 alpha 的（且 preserveDrawingBuffer 会保留上一帧内容），
+      // 只要有任何像素没被下面的四边形覆盖，就会透出 #viewportWrap 的 #0a0d12 底色 ——
+      // 表现就是视口里凭空多出一块"黑三角/黑块"。gl.clear 不受混合影响、alpha 恒为 1。
+      const base = spec.a;
+      gl.clearColor(base[0] / 255, base[1] / 255, base[2] / 255, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
       // 屏幕四角 → 世界坐标（a_pos 走 u_view 变换）；外扩 1px 防止边缘露缝
       const tl = view.screenToWorld(-1, -1);
       const br = view.screenToWorld(w + 1, h + 1);
@@ -8291,10 +8298,13 @@ void main () {
       const span = spec.cell * 2;
       const u0 = -1 / span, v0 = -1 / span;
       const u1 = (w + 1) / span, v1 = (h + 1) / span;
-      // 顶点顺序：左上、右上、左下、右下（与 UV 的 v 向下递增对应）
+      // 顶点顺序必须「沿矩形周长绕一圈」：左上 → 右上 → 右下 → 左下（UV 的 v 向下递增）。
+      // 若写成 左上 → 右上 → 左下 → 右下，四边形就是自交的「蝴蝶结」：
+      // 下面固定用 0,1,2 / 0,2,3 切出来的两个三角形分别是 {y ≥ x} 与 {x + y ≤ 0}，
+      // 并集恰好漏掉右侧楔形 {x ≥ |y|}（约占整屏 1/4），棋盘底色就会缺一大块。
       const quad = [
         [minX, maxY, u0, v0], [maxX, maxY, u1, v0],
-        [minX, minY, u0, v1], [maxX, minY, u1, v1],
+        [maxX, minY, u1, v1], [minX, minY, u0, v1],
       ];
       const d = this.vdata;
       for (let i = 0; i < 4; i++) {
@@ -8303,7 +8313,7 @@ void main () {
         d[o + 4] = 1; d[o + 5] = 1; d[o + 6] = 1; d[o + 7] = 1;   // v_light = 白、不透明
         d[o + 8] = 0; d[o + 9] = 0; d[o + 10] = 0; d[o + 11] = 0;
       }
-      const idx = [0, 1, 2, 0, 2, 3];
+      const idx = [0, 1, 2, 0, 2, 3];   // 按周长顺序切两刀，两个三角形刚好铺满整屏
       for (let i = 0; i < idx.length; i++) this.idata[i] = idx[i];
 
       gl.useProgram(this.prog);
