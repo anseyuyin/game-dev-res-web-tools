@@ -656,6 +656,8 @@
         <li>变换结果叠加在动画之上、以「调试偏移」保存，可一键清空（<b>Shift</b>+R 或按钮）。选中<b>部件</b>时，变换作用于该部件所属的骨骼（与 Spine 编辑器一致）。</li>
         <li><b>顶点编辑默认开启</b>：选中<b>网格</b>部件即显示顶点手柄，无需切换工具，拖动即可修改当前帧的网格形变（建议先暂停）。Gizmo 手柄命中优先，其余位置都交给顶点手柄。顶点手柄跟随「<b>网格线框</b>」开关：关掉网格线后手柄一并隐藏、也不再可拖。</li>
         <li>部件层级列表里 👁 可隐藏部件，双击部件＝把视图对准它；双击骨骼＝重置该骨骼姿态（需骨骼显示开启，关闭时双击视口＝适配视图）。</li>
+        <li><b>检查器里显示的都是「当前帧的实际值」</b>：骨骼的位置 / 旋转 / 缩放 / 剪切 / 世界坐标与角度、部件所属骨骼的变换、附件 / 类型 / 混合 / 颜色 / 序列帧索引等，都会随动画播放逐帧刷新——面板只更新数值、不重建 DOM，所以不会打断你正在拖动的滑杆、颜色选择器，也不会让面板滚动位置跳回顶部。附件随动画时间轴切换时，「图集区域 / 顶点数 / 序列帧 / 裁剪到 / 路径」这些行会自动出现或隐藏。</li>
+        <li><b>调试偏移（含 Gizmo 拖动结果）也实时同步</b>：上方「调试偏移」数值与下方输入框会跟着变；正在编辑（获得焦点）的输入框不会被覆盖，失去焦点后再同步成规范小数值。</li>
       </ul>
       <div><b>4. IK 约束调试</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
@@ -9890,10 +9892,14 @@ SP.app = (() => {
     }
   }
 
+  /** 检查器逐帧同步上下文（renderInspector 建好 DOM 后登记，refreshInspectorValues 使用） */
+  let inspCtx = null;
+
   function renderInspector() {
     const cur = state.current;
     const box = $("inspector");
     inspIkCtx = null;   // 面板即将重建，先撤销上一轮的逐帧同步上下文
+    inspCtx = null;
     if (!cur) {
       box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在左侧列表中选择。</div>';
       $("inspTag").textContent = "";
@@ -9908,14 +9914,14 @@ SP.app = (() => {
       parts.push(`<div style="font-size:12px;font-weight:600;color:var(--accent)">🦴 骨骼 ${esc(bone.data.name)}</div>
         <div class="kv">
           <span class="k" title="父骨骼：该骨骼在骨架层级中的上一级；显示”（根）“表示它没有父级">父级</span><span class="v">${esc(bone.data.parent ? bone.data.parent.name : "（根）")}</span>
-          <span class="k" title="位置：该骨骼在父级本地空间中的平移 x, y">位置</span><span class="v">${bone.x.toFixed(2)}, ${bone.y.toFixed(2)}</span>
-          <span class="k" title="旋转：该骨骼相对父级的旋转角度（度）">旋转</span><span class="v">${bone.rotation.toFixed(2)}°</span>
-          <span class="k" title="缩放：该骨骼相对父级的缩放倍率 scaleX, scaleY，1 表示原始大小">缩放</span><span class="v">${bone.scaleX.toFixed(3)}, ${bone.scaleY.toFixed(3)}</span>
-          <span class="k" title="剪切：相对父骨骼的剪切（错切）角度 shearX, shearY">剪切</span><span class="v">${bone.shearX.toFixed(2)}°, ${bone.shearY.toFixed(2)}°</span>
-          <span class="k" title="世界坐标：该骨骼在舞台坐标系中的最终位置（已累积所有父级变换）">世界坐标</span><span class="v">${bone.worldX.toFixed(2)}, ${bone.worldY.toFixed(2)}</span>
-          <span class="k" title="世界角度：该骨骼的最终旋转角度（已累积所有父级变换）">世界角度</span><span class="v">${bone.getWorldRotationX().toFixed(2)}°</span>
+          <span class="k" title="位置：该骨骼在父级本地空间中的平移 x, y">位置</span><span class="v" id="inspBonePos">${bone.x.toFixed(2)}, ${bone.y.toFixed(2)}</span>
+          <span class="k" title="旋转：该骨骼相对父级的旋转角度（度）">旋转</span><span class="v" id="inspBoneRot">${bone.rotation.toFixed(2)}°</span>
+          <span class="k" title="缩放：该骨骼相对父级的缩放倍率 scaleX, scaleY，1 表示原始大小">缩放</span><span class="v" id="inspBoneScale">${bone.scaleX.toFixed(3)}, ${bone.scaleY.toFixed(3)}</span>
+          <span class="k" title="剪切：相对父骨骼的剪切（错切）角度 shearX, shearY">剪切</span><span class="v" id="inspBoneShear">${bone.shearX.toFixed(2)}°, ${bone.shearY.toFixed(2)}°</span>
+          <span class="k" title="世界坐标：该骨骼在舞台坐标系中的最终位置（已累积所有父级变换）">世界坐标</span><span class="v" id="inspBoneWorld">${bone.worldX.toFixed(2)}, ${bone.worldY.toFixed(2)}</span>
+          <span class="k" title="世界角度：该骨骼的最终旋转角度（已累积所有父级变换）">世界角度</span><span class="v" id="inspBoneWorldRot">${bone.getWorldRotationX().toFixed(2)}°</span>
           <span class="k" title="长度：骨骼长度；“·”后为变换模式 transformMode（决定缩放/旋转如何影响子骨骼）">长度</span><span class="v">${bone.data.length.toFixed(2)}${bone.data.transformMode ? " · " + D.TransformModeName[bone.data.transformMode] : ""}</span>
-          <span class="k" title="调试偏移：你在下方为该骨骼填入的临时调整量（角度 / 位置 / 缩放），只用于预览，不会修改原资源">调试偏移</span><span class="v" style="color:${hasOv ? "var(--accent)" : "inherit"}">${hasOv ? `${ov.dRotation.toFixed(2)}° / ${ov.dX.toFixed(2)}, ${ov.dY.toFixed(2)} / ×${ov.dScaleX.toFixed(3)}, ${ov.dScaleY.toFixed(3)}` : "无"}</span>
+          <span class="k" title="调试偏移：你在下方为该骨骼填入的临时调整量（角度 / 位置 / 缩放），只用于预览，不会修改原资源">调试偏移</span><span class="v" id="inspBoneDelta" style="color:${hasOv ? "var(--accent)" : "inherit"}">${hasOv ? `${ov.dRotation.toFixed(2)}° / ${ov.dX.toFixed(2)}, ${ov.dY.toFixed(2)} / ×${ov.dScaleX.toFixed(3)}, ${ov.dScaleY.toFixed(3)}` : "无"}</span>
         </div>
         <div class="row" style="margin-top:4px;">
           <label style="width:38px;" title="旋转：对该骨骼附加的调试旋转量（度），仅影响预览，不改原资源">旋转</label>
@@ -9960,19 +9966,19 @@ SP.app = (() => {
         </div>
         <div class="kv">
           <span class="k" title="骨骼：该部件所绑定的骨骼，部件会跟随此骨骼一起变换">骨骼</span><span class="v">${esc(slot.data.boneData.name)}</span>
-          <span class="k" title="位置：部件的位置由其所属骨骼决定，即该骨骼在父级本地空间中的平移 x, y">位置</span><span class="v">${tBone.x.toFixed(2)}, ${tBone.y.toFixed(2)}</span>
-          <span class="k" title="旋转：部件的旋转由其所属骨骼决定，即该骨骼相对父级的旋转角度（度）">旋转</span><span class="v">${tBone.rotation.toFixed(2)}°</span>
-          <span class="k" title="缩放：部件的缩放由其所属骨骼决定，即该骨骼相对父级的缩放倍率 scaleX, scaleY，1 为原始大小">缩放</span><span class="v">${tBone.scaleX.toFixed(3)}, ${tBone.scaleY.toFixed(3)}</span>
-          <span class="k" title="附件：当前装配到该部件的附件名称；“（无）”表示未装配任何附件">附件</span><span class="v">${esc(att ? att.name : "（无）")}</span>
-          <span class="k" title="类型：附件类型，如 region 区域 / mesh 网格 / clipping 裁剪 / path 路径 / boundingbox 包围盒">类型</span><span class="v">${esc(att ? att.type : "-")}</span>
+          <span class="k" title="位置：部件的位置由其所属骨骼决定，即该骨骼在父级本地空间中的平移 x, y">位置</span><span class="v" id="inspSlotBonePos">${tBone.x.toFixed(2)}, ${tBone.y.toFixed(2)}</span>
+          <span class="k" title="旋转：部件的旋转由其所属骨骼决定，即该骨骼相对父级的旋转角度（度）">旋转</span><span class="v" id="inspSlotBoneRot">${tBone.rotation.toFixed(2)}°</span>
+          <span class="k" title="缩放：部件的缩放由其所属骨骼决定，即该骨骼相对父级的缩放倍率 scaleX, scaleY，1 为原始大小">缩放</span><span class="v" id="inspSlotBoneScale">${tBone.scaleX.toFixed(3)}, ${tBone.scaleY.toFixed(3)}</span>
+          <span class="k" title="附件：当前装配到该部件的附件名称；“（无）”表示未装配任何附件">附件</span><span class="v" id="inspSlotAttName">${esc(att ? att.name : "（无）")}</span>
+          <span class="k" title="类型：附件类型，如 region 区域 / mesh 网格 / clipping 裁剪 / path 路径 / boundingbox 包围盒">类型</span><span class="v" id="inspSlotAttType">${esc(att ? att.type : "-")}</span>
           <span class="k" title="混合：混合模式 normal 正常 / additive 叠加 / multiply 正片叠底 / screen 滤色（决定该部件如何与下层合成）">混合</span><span class="v" id="inspBlendVal"${blendOv ? ' style="color:var(--accent)" title="已被检查器覆盖，可用下方 ↺ 恢复原始值"' : ""}>${esc(D.BlendName[blendNow])}${blendOv ? "（已改）" : ""}</span>
           <span class="k" title="颜色：部件自身颜色 × 附件颜色（十六进制，含透明度）">颜色</span><span class="v" id="inspColorVal"${colorOv ? ' style="color:var(--accent)" title="已被检查器覆盖，可用下方 ↺ 恢复原始值"' : ""}>${M.rgbToHex(colorNow, true)} × ${att ? M.rgbToHex(att.color, true) : "-"}${colorOv ? "（已改）" : ""}</span>
-          ${slot.darkColor ? `<span class="k" title="暗色（双色）：双色着色时用于暗部的颜色，仅部分资源启用">暗色（双色）</span><span class="v">${M.rgbToHex(slot.darkColor, true)}</span>` : ""}
-          ${att && att.region ? `<span class="k" title="图集区域：该附件在图集纹理中引用的区域名称及所在图集页">图集区域</span><span class="v">${esc(att.region.name)} (${att.region.page.name})</span>` : ""}
-          ${att && att.vertices ? `<span class="k" title="顶点数：网格附件的顶点数量；“带权重”表示蒙皮网格（顶点受多根骨骼影响）">顶点数</span><span class="v">${att.worldVerticesLength / 2}${att.bones && att.bones.length ? " · 带权重" : ""}</span>` : ""}
-          ${att && att.sequence ? `<span class="k" title="序列帧：该附件的序列帧动画总帧数及当前显示帧的索引">序列帧</span><span class="v">${att.sequence.regions.length} 帧，当前 ${slot.sequenceIndex}</span>` : ""}
-          ${att && att.type === "clipping" ? `<span class="k" title="裁剪到：裁剪附件的结束部件，决定从本部件到该部件之间的裁剪生效范围">裁剪到</span><span class="v">${esc(att.endSlot ? att.endSlot.name : "（末尾）")}</span>` : ""}
-          ${att && att.type === "path" ? `<span class="k" title="路径：路径附件的形态（闭合/开放，以及是否匀速运动）">路径</span><span class="v">${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}</span>` : ""}
+          <span class="k rDark" title="暗色（双色）：双色着色时用于暗部的颜色，仅部分资源启用"${slot.darkColor ? "" : ' style="display:none"'}>暗色（双色）</span><span class="v rDark" id="inspDarkVal"${slot.darkColor ? "" : ' style="display:none"'}>${slot.darkColor ? M.rgbToHex(slot.darkColor, true) : "-"}</span>
+          <span class="k rRegion" title="图集区域：该附件在图集纹理中引用的区域名称及所在图集页"${att && att.region ? "" : ' style="display:none"'}>图集区域</span><span class="v rRegion" id="inspRegionVal"${att && att.region ? "" : ' style="display:none"'}>${att && att.region ? `${esc(att.region.name)} (${esc(att.region.page.name)})` : "-"}</span>
+          <span class="k rVerts" title="顶点数：网格附件的顶点数量；“带权重”表示蒙皮网格（顶点受多根骨骼影响）"${att && att.vertices ? "" : ' style="display:none"'}>顶点数</span><span class="v rVerts" id="inspVertsVal"${att && att.vertices ? "" : ' style="display:none"'}>${att && att.vertices ? `${att.worldVerticesLength / 2}${att.bones && att.bones.length ? " · 带权重" : ""}` : "-"}</span>
+          <span class="k rSeq" title="序列帧：该附件的序列帧动画总帧数及当前显示帧的索引"${att && att.sequence ? "" : ' style="display:none"'}>序列帧</span><span class="v rSeq" id="inspSeqVal"${att && att.sequence ? "" : ' style="display:none"'}>${att && att.sequence ? `${att.sequence.regions.length} 帧，当前 ${slot.sequenceIndex}` : "-"}</span>
+          <span class="k rClip" title="裁剪到：裁剪附件的结束部件，决定从本部件到该部件之间的裁剪生效范围"${att && att.type === "clipping" ? "" : ' style="display:none"'}>裁剪到</span><span class="v rClip" id="inspClipVal"${att && att.type === "clipping" ? "" : ' style="display:none"'}>${att && att.type === "clipping" ? esc(att.endSlot ? att.endSlot.name : "（末尾）") : "-"}</span>
+          <span class="k rPath" title="路径：路径附件的形态（闭合/开放，以及是否匀速运动）"${att && att.type === "path" ? "" : ' style="display:none"'}>路径</span><span class="v rPath" id="inspPathVal"${att && att.type === "path" ? "" : ' style="display:none"'}>${att && att.type === "path" ? `${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}` : "-"}</span>
         </div>
         <div class="row" style="margin-top:6px;">
           <label style="width:38px;" title="混合：为选中部件临时指定混合模式（覆盖资源原始值），立即生效">混合</label>
@@ -10115,6 +10121,131 @@ SP.app = (() => {
       });
       drawInspectorAtlas(slot);
     }
+    // 登记逐帧同步上下文：refreshInspectorValues() 靠它把「当前值」写回上面这些 DOM 节点
+    const rowsOf = (cls) => Array.from(box.querySelectorAll("." + cls));
+    inspCtx = {
+      skeleton: cur.skeleton, box, bone, slot,
+      els: {
+        bonePos: $("inspBonePos"), boneRot: $("inspBoneRot"), boneScale: $("inspBoneScale"),
+        boneShear: $("inspBoneShear"), boneWorld: $("inspBoneWorld"),
+        boneWorldRot: $("inspBoneWorldRot"), boneDelta: $("inspBoneDelta"),
+        slotBonePos: $("inspSlotBonePos"), slotBoneRot: $("inspSlotBoneRot"), slotBoneScale: $("inspSlotBoneScale"),
+        attName: $("inspSlotAttName"), attType: $("inspSlotAttType"),
+        blend: $("inspBlendVal"), color: $("inspColorVal"), dark: $("inspDarkVal"),
+        region: $("inspRegionVal"), verts: $("inspVertsVal"), seq: $("inspSeqVal"),
+        clip: $("inspClipVal"), path: $("inspPathVal"),
+        visible: $("inspVisible"),
+        blendReset: $("inspBlendReset"), colorReset: $("inspColorReset"), tReset: $("inspTReset"),
+      },
+      rows: {
+        dark: rowsOf("rDark"), region: rowsOf("rRegion"), verts: rowsOf("rVerts"),
+        seq: rowsOf("rSeq"), clip: rowsOf("rClip"), path: rowsOf("rPath"),
+      },
+    };
+  }
+
+  /**
+   * 逐帧把检查器里各属性的「当前值」刷新到面板上（骨骼位置 / 旋转 / 缩放 / 剪切 / 世界坐标、
+   * 部件的附件 / 类型 / 混合 / 颜色 / 序列帧索引 / 顶点数…，以及调试偏移的显示与输入框）。
+   *
+   * 动画播放时骨骼、部件与附件每帧都在变，而面板 DOM 不能每帧重建（会打断颜色选择器、
+   * 滑杆拖动与滚动位置），所以这里只改文本 / 勾选状态：
+   *   · 值没变就不写 DOM，避免无谓的重排；
+   *   · 正在编辑（获得焦点）的输入框一律不覆盖，避免和用户输入打架；
+   *   · 面板被重建 / 换骨架 / 选中对象消失时上下文自动失效。
+   */
+  function refreshInspectorValues() {
+    const ctx = inspCtx;
+    if (!ctx) return;
+    const cur = state.current;
+    if (!cur || cur.skeleton !== ctx.skeleton || !ctx.box.isConnected
+      || (ctx.bone && cur.skeleton.bones.indexOf(ctx.bone) < 0)
+      || (ctx.slot && cur.skeleton.slots.indexOf(ctx.slot) < 0)) {
+      inspCtx = null;
+      return;
+    }
+    const E = ctx.els;
+    const setText = (el, text) => { if (el && el.textContent !== text) el.textContent = text; };
+    const setNum = (el, v, digits) => {
+      if (!el || el === document.activeElement) return;
+      const s = Number(v).toFixed(digits);
+      if (el.value !== s) el.value = s;
+    };
+    const setRow = (list, on) => {
+      const d = on ? "" : "none";
+      for (const el of list) if (el.style.display !== d) el.style.display = d;
+    };
+
+    const bone = ctx.bone;
+    if (bone) {
+      setText(E.bonePos, `${bone.x.toFixed(2)}, ${bone.y.toFixed(2)}`);
+      setText(E.boneRot, `${bone.rotation.toFixed(2)}°`);
+      setText(E.boneScale, `${bone.scaleX.toFixed(3)}, ${bone.scaleY.toFixed(3)}`);
+      setText(E.boneShear, `${bone.shearX.toFixed(2)}°, ${bone.shearY.toFixed(2)}°`);
+      setText(E.boneWorld, `${bone.worldX.toFixed(2)}, ${bone.worldY.toFixed(2)}`);
+      setText(E.boneWorldRot, `${bone.getWorldRotationX().toFixed(2)}°`);
+      const ov = state.pose.readBoneDelta(bone);
+      const hasOv = !!state.pose.getOverride(bone);
+      setText(E.boneDelta, hasOv
+        ? `${ov.dRotation.toFixed(2)}° / ${ov.dX.toFixed(2)}, ${ov.dY.toFixed(2)} / ×${ov.dScaleX.toFixed(3)}, ${ov.dScaleY.toFixed(3)}`
+        : "无");
+      if (E.boneDelta) E.boneDelta.style.color = hasOv ? "var(--accent)" : "inherit";
+      setNum($("inspRot"), ov.dRotation, 2);
+      setNum($("inspX"), ov.dX, 2);
+      setNum($("inspY"), ov.dY, 2);
+      setNum($("inspSX"), ov.dScaleX, 3);
+      setNum($("inspSY"), ov.dScaleY, 3);
+    }
+
+    const slot = ctx.slot;
+    if (slot) {
+      const tBone = slot.bone;
+      setText(E.slotBonePos, `${tBone.x.toFixed(2)}, ${tBone.y.toFixed(2)}`);
+      setText(E.slotBoneRot, `${tBone.rotation.toFixed(2)}°`);
+      setText(E.slotBoneScale, `${tBone.scaleX.toFixed(3)}, ${tBone.scaleY.toFixed(3)}`);
+      // 附件会随动画时间轴切换，附件类型也随之变化 —— 整行按需显示 / 隐藏
+      const att = slot.attachment;
+      setText(E.attName, att ? att.name : "（无）");
+      setText(E.attType, att ? att.type : "-");
+      const so = state.pose.getSlotOverride(slot);
+      const blendOv = !!(so && so.blendMode !== undefined);
+      const colorOv = !!(so && so.color);
+      const blendNow = blendOv ? so.blendMode : slot.data.blendMode;
+      const colorNow = colorOv ? so.color : slot.color;
+      setText(E.blend, D.BlendName[blendNow] + (blendOv ? "（已改）" : ""));
+      if (E.blend) E.blend.style.color = blendOv ? "var(--accent)" : "";
+      setText(E.color, `${M.rgbToHex(colorNow, true)} × ${att ? M.rgbToHex(att.color, true) : "-"}${colorOv ? "（已改）" : ""}`);
+      if (E.color) E.color.style.color = colorOv ? "var(--accent)" : "";
+      if (E.blendReset) E.blendReset.disabled = !blendOv;
+      if (E.colorReset) E.colorReset.disabled = !colorOv;
+      if (E.visible && E.visible !== document.activeElement) E.visible.checked = !!slot.data.visible;
+
+      setRow(ctx.rows.dark, !!slot.darkColor);
+      setText(E.dark, slot.darkColor ? M.rgbToHex(slot.darkColor, true) : "-");
+      const region = att && att.region ? att.region : null;
+      setRow(ctx.rows.region, !!region);
+      setText(E.region, region ? `${region.name} (${region.page.name})` : "-");
+      setRow(ctx.rows.verts, !!(att && att.vertices));
+      setText(E.verts, att && att.vertices
+        ? `${att.worldVerticesLength / 2}${att.bones && att.bones.length ? " · 带权重" : ""}` : "-");
+      setRow(ctx.rows.seq, !!(att && att.sequence));
+      setText(E.seq, att && att.sequence ? `${att.sequence.regions.length} 帧，当前 ${slot.sequenceIndex}` : "-");
+      const clipping = !!(att && att.type === "clipping");
+      setRow(ctx.rows.clip, clipping);
+      setText(E.clip, clipping ? (att.endSlot ? att.endSlot.name : "（末尾）") : "-");
+      const isPath = !!(att && att.type === "path");
+      setRow(ctx.rows.path, isPath);
+      setText(E.path, isPath ? `${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}` : "-");
+
+      // 调试变换输入框：Gizmo 拖动 / 重置后会改写覆盖值，这里同步显示（有焦点时不覆盖）
+      const tov = state.pose.readBoneDelta(tBone);
+      setNum($("inspTRot"), tov.dRotation, 2);
+      setNum($("inspTX"), tov.dX, 2);
+      setNum($("inspTY"), tov.dY, 2);
+      setNum($("inspTSX"), tov.dScaleX, 3);
+      setNum($("inspTSY"), tov.dScaleY, 3);
+      if (E.tReset) E.tReset.disabled = !state.pose.getOverride(tBone);
+    }
   }
 
   function renderAllPanels() {
@@ -10165,6 +10296,7 @@ SP.app = (() => {
     });
     refreshInspectorAtlas();
     refreshInspectorIk();
+    refreshInspectorValues();
     state.frameCount++;
     updateHud();
   }
