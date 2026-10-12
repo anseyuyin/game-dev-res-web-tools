@@ -636,7 +636,7 @@
         <li>资源识别规则：骨架文件（<code class="inl">.json</code> / <code class="inl">.skel</code> / <code class="inl">.skel.bytes</code> / <code class="inl">.skel.json</code> / <code class="inl">.bytes</code> / <code class="inl">.bin</code>）＋ 图集（<code class="inl">.atlas</code>，及图集里的贴图）＝ 一个资源。<code class="inl">.skel.bytes</code> / <code class="inl">.bytes</code> / <code class="inl">.bin</code> 会读文件头判断内容：二进制按二进制解析，被改名的 JSON 文本按 JSON 解析（Unity 的 TextAsset 常见做法）。</li>
         <li>骨架与图集<b>不同名也能配对</b>：先找同目录同名图集，再按名称打分（如 <code class="inl">hero-ess.json</code> ↔ <code class="inl">hero.atlas</code>、<code class="inl">1-weight-and-mass-balls-ess.json</code> ↔ <code class="inl">1-weight-and-mass.atlas</code>），必要时用「图集区域名是否出现在骨架里」交叉核对；自动配对的资源会标「图集推断」。缺图集 / 缺贴图的资源仍会列出并标红，取消勾选「仅可用资源」即可看到。</li>
         <li>同目录有多个图集时，资源行右侧会出现<b>图集下拉框</b>，可手动指定用哪个图集（切换后立即重新配对并重载预览）。</li>
-        <li>二进制 <code class="inl">.skel</code> 的版本在扫描时就会读取：本工具不支持的版本（如 4.3）会直接打红标并提示改用同名 JSON，而不是点开才报错。</li>
+        <li>二进制 <code class="inl">.skel</code> 的版本在扫描时就会读取：本工具不支持的版本（如 3.7 或 4.4+）会直接打红标并提示改用同名 JSON，而不是点开才报错。</li>
         <li>也可以直接拖入文件：骨架 + 图集 + 贴图一起拖入时按名字自动配对。</li>
         <li>Chrome / Edge 之外的浏览器（或不支持文件夹选择器时）可用「📂 兼容选择」（<code class="inl">webkitdirectory</code>）。</li>
       </ul>
@@ -706,8 +706,10 @@
       </div>
       <div><b>7. 兼容性与限制</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
-        <li>JSON 导出支持 Spine <b>3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组与变换约束的 <code class="inl">properties</code> 属性映射，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>3.6 / 3.8 / 4.0 / 4.1 完整支持</b>（官方 3.8 样例 20/20、4.0 样例 20/20、4.1 样例 21/21 整文件字节对齐），4.2 部分支持（28 个官方样例中 20 个整文件对齐，snowglobe / sack / cloud-pot / spineboy 等常用资源正常），<b>4.3 的二进制字节布局有变，请改用同名 JSON 导出</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
+        <li>JSON 导出支持 Spine <b>3.6 / 3.7 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组与变换约束的 <code class="inl">properties</code> 属性映射；3.6 / 3.7 与 3.8 同构，按 3.8 规则解析并兼容 <code class="inl">deform</code> / <code class="inl">paths</code> 两个旧键名，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>3.6 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3 全部支持</b>：官方样例 <b>3.6 17/18、3.8 20/20、4.0 20/20、4.1 21/21、4.2 28/28、4.3 44/44 整文件字节对齐</b>，其中 4.3 的 44 个样例还与官方 <code class="inl">spine-core 4.3</code> 运行时<b>逐次读取序列完全一致</b>、骨骼 / 插槽 / 约束 / 动画的解析结果<b>逐字段数值一致</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
         <li>二进制 <code class="inl">.skel</code> 的版本在扫描时会读文件头判定：<b>3.6 没有共享字符串表、骨骼没有 skinRequired、IK 约束没有 softness、普通皮肤没有 bones/constraints 列表</b>，这些差异都按版本分支处理；<b>3.6 / 3.8 的曲线控制点是归一化比例且写在本帧数据之后</b>，与 4.0+ 的绝对控制点写法不同。</li>
+        <li><b>3.6 / 3.7 的 JSON 与 3.8 同构</b>，差别只有动画里的键名：附件（形变）时间轴叫 <code class="inl">deform</code>（3.8 起叫 <code class="inl">attachments</code>，而且 3.6 少一层 —— 附件名下面直接就是帧数组）、路径约束时间轴叫 <code class="inl">paths</code>（3.8 起叫 <code class="inl">path</code>）；其余 3.8 才出现的字段（IK 的 softness / compress / stretch、皮肤自带 bones / constraints、序列帧等）按缺省处理。已用官方 <code class="inl">spine-ts 3.6</code> 运行时对 9 个官方 3.6 / 3.7 样例做骨骼 / 插槽 / 皮肤 / 附件 / 动画逐项对照，全部一致。</li>
+        <li><b>4.3 的二进制与 4.2 的字节布局不同</b>，本工具按版本分别解析：骨骼的 <code class="inl">inherit</code> 挪到了 <code class="inl">length</code> 之前、nonessential 的骨骼多了 <code class="inl">iconSize</code>/<code class="inl">iconRotation</code>、有顶点权重时多一个条目数 varint、五类约束合并成带 type 字节的 <code class="inl">constraints</code> 数组（IK 的 uniform 换成 <code class="inl">scaleYMode</code>、path 的 <code class="inl">skinRequired</code> 并入 flags、transform 改成「源属性 → 目标属性」映射表、新增 slider）、mesh 附件多一段 <code class="inl">timelineSlots</code>、linked mesh 多一个 <code class="inl">sourceIndex</code>、clipping 多 <code class="inl">convex</code>/<code class="inl">inverse</code> 两位，动画里多了 slider 时间轴、draw order folder 时间轴与动画自带颜色。另外 <b>4.3 的约束时间轴用「统一 constraints 数组」的下标引用约束</b>（官方 <code class="inl">skeleton.constraints[i]</code>），而本运行时按分类型数组取值，解析时已按下标换算——换算错会让 IK / 路径约束驱动到别的骨骼上，表现为这些部件跑到别处或不显示。</li>
         <li>骨骼 <code class="inl">rotate</code> / <code class="inl">translate</code> / <code class="inl">shear</code> 关键帧是<b>相对 setup 的增量</b>、<code class="inl">scale</code> 是<b>相对 setup 的乘数</b>（与官方一致）；关键帧没写 <code class="inl">x</code> / <code class="inl">y</code> 时按增量 0 处理。</li>
         <li><b>旋转的「最短路径」按版本区分</b>：Spine <b>4.0 之前</b>（本工具的 3.6 / 3.8 二进制、3.8 JSON）关键帧之间<b>总是走最短路径</b>——官方把相邻帧的角度差折到 −180°~180°，所以 <code class="inl">0° → 350°</code> 实际只转 <b>−10°</b>（3.8 里要做整圈旋转必须补中间关键帧，例如 0 / 120 / 240 / 360）；<b>4.0 及以后</b>取消了这个行为，直接在两个关键帧数值之间插值（<code class="inl">0° → 350°</code> 就转 +350°）。工具按文件版本自动选择，≤3.8 时连贝塞尔控制点也按折过的差值换算，求值结果与官方 3.8 运行时逐点一致。</li>
         <li>物理约束（<code class="inl">physics</code>）暂不模拟，相关骨骼会保持动画本身的结果。</li>
@@ -3012,14 +3014,24 @@ SP.json = (() => {
       warn("骨架缺少 skeleton.spine 版本号，按 4.1 解析");
       version = { major: 4, minor: 1, patch: 0, key: "4.1" };
     } else if (SUPPORTED.indexOf(version.key) < 0) {
-      if (version.major === 4 && version.minor >= 3 && version.minor <= 9) {
+      if (version.major === 3 && (version.minor === 6 || version.minor === 7)) {
+        // 3.6 / 3.7 的 JSON 与 3.8 **同构**：曲线同样是「归一化控制点」（4.0 才改成绝对控制点），
+        // 骨骼 / 插槽 / 皮肤 / 附件 / 事件的结构一致，差别只有：
+        //   · 动画里的附件时间轴键名是 `deform`（3.8 起叫 `attachments`）
+        //   · 路径约束时间轴键名是 `paths`（3.8 起叫 `path`）
+        //   · 若干 3.8 才出现的可选字段（IK 的 softness / compress / stretch、皮肤自带的
+        //     bones / constraints 列表、序列帧、链接网格的 source 等）都按缺省处理
+        // 下面这几处都按「别名 / 缺省」兼容，所以直接按 3.8 规则解析。
+        warn(`Spine ${rawVersion} 的 JSON 按 3.8 规则解析（3.6 / 3.7 的 deform / paths 键名已兼容）`);
+        version = { major: 3, minor: 8, patch: 0, key: "3.8" };
+      } else if (version.major === 4 && version.minor >= 3 && version.minor <= 9) {
         // 4.3+ 的 JSON 结构仍是 4.2 的超集（实测官方 4.3 示例逐字段解析通过），
         // 统一 constraints 数组、source/slot 字段名、transform 的 properties 映射
         // 与 IK 的 scaleYMode 都已单独支持，其余按 4.2 规则解析，遇到新字段只警告不报错。
         warn(`Spine ${rawVersion} 的 JSON 按 4.3 兼容规则解析（统一 constraints / 属性映射 / scaleYMode 已支持）；若发现异常请反馈该资源`);
         version = { major: 4, minor: 2, patch: 0, key: "4.2" };
       } else {
-        throw new Error(`不支持的 Spine 版本 "${rawVersion}"，本工具支持 3.8 / 4.0 / 4.1 / 4.2 / 4.3`);
+        throw new Error(`不支持的 Spine 版本 "${rawVersion}"，本工具支持 3.6 / 3.7 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3`);
       }
     }
 
@@ -3679,7 +3691,8 @@ SP.json = (() => {
         for (let k = 0; k < pathCols.length; k++) if (driven.indexOf(k) < 0) tl.frames[base + 1 + k] = fixed[k];
       }
     };
-    const pathMaps = getv(map, "path", null);
+    // 3.6 / 3.7 的键名是 paths（3.8 起叫 path）
+    const pathMaps = getv(map, "path", getv(map, "paths", null));
     if (pathMaps && typeof pathMaps === "object") {
       for (const cName in pathMaps) {
         const c = pathMap.get(cName);
@@ -3806,7 +3819,13 @@ SP.json = (() => {
     // ---- 附件时间轴（deform / sequence，按皮肤分组） ----
     // 去重：一个 animation 里同一个 (slot, 附件) 只建一条 deform / sequence 时间轴
     // （4.1+ 的 JSON 会把同名附件按皮肤重复列出，逐条建会导致同一附件被多次求值）
-    const attRoot = getv(map, "attachments", null);
+    //
+    // 3.8 起用 `attachments.<皮肤>.<插槽>.<附件>.deform = [帧…]`；
+    // 3.6 / 3.7 用 `deform.<皮肤>.<插槽>.<附件> = [帧…]` —— 键名不同，而且**少一层**
+    // （附件名下面直接就是帧数组，没有中间的 "deform" 那一级）。
+    const attRootNew = getv(map, "attachments", null);
+    const attRootLegacy = attRootNew === null ? getv(map, "deform", null) : null;
+    const attRoot = attRootNew || attRootLegacy;
     const seenDeform = new Set(), seenSequence = new Set();
     if (attRoot && typeof attRoot === "object") {
       for (const skinName in attRoot) {
@@ -3821,6 +3840,15 @@ SP.json = (() => {
           for (const attName in slotMap) {
             const attMap = slotMap[attName] || {};
             const attachment = skin.getAttachment(slot.index, attName);
+            if (attRootLegacy) {
+              if (!Array.isArray(attMap) || !attMap.length) continue;
+              const dupKey = slot.index + "|" + attName;
+              if (seenDeform.has(dupKey)) continue;
+              seenDeform.add(dupKey);
+              const tl = readDeformTimeline(attMap, slot, attName, attachment, name, norm);
+              if (tl) timelines.push(tl);
+              continue;
+            }
             for (const kind in attMap) {
               const frames = attMap[kind];
               if (!Array.isArray(frames) || !frames.length) continue;
@@ -3984,21 +4012,30 @@ SP.json = (() => {
       return tl;
     }
     if (k === "translatex" || k === "translatey" || k === "scalex" || k === "scaley" || k === "shearx" || k === "sheary") {
-      // 4.2 的「单轴」时间轴：SP.data 没有对应类，只存数据（不参与求值）
-      const tl = new TimelineStore(frames.length);
-      tl.property = k;
+      // 4.0+ 的「单轴」时间轴：官方是**独立的类**（TranslateXTimeline / ScaleYTimeline …），
+      // 每帧只有 1 个数值。这里用双通道类 + singleAxis 表示，把数值写进**对应**的通道、
+      // 另一个通道补 0 —— 与二进制解析器同一套处理。
+      // 早期实现固定把数值写进第 1 列，于是 y 轴时间轴的值落进 x 列、y 列因为写入 undefined
+      // 在 Float32Array 里变成 NaN（部件位置显示 NaN、整个部件不显示）；也不能像以前那样
+      // 只当成「只存数据、不参与求值」的 TimelineStore，否则 4.x 的 translateX/Y 完全不生效。
+      const axis = k.endsWith("x") ? "x" : "y";
+      const base = k.slice(0, -1);          // translate / scale / shear
+      const channel = axis === "x" ? 0 : 1; // 0 = 第 1 列，1 = 第 2 列
+      const isScaleAxis = base === "scale";
+      const make = base === "translate" ? (n) => new D.TranslateTimeline(n, 0)
+        : isScaleAxis ? (n) => new D.ScaleTimeline(n, 0)
+          : (n) => new D.ShearTimeline(n, 0);
+      const tl = readCurveTimeline(frames, make, [{ key: "value", dflt: isScaleAxis ? 1 : 0 }],
+        { normalizedCurves: norm, curveProps: [channel] });
       tl.boneIndex = bone.index;
-      const parsed = [];
-      for (let i = 0; i < frames.length; i++) {
-        const f = readFrame(frames[i], 1, 4);
-        const v = f.map ? getNum(f.map, "value", 0) : f.values[0];
-        tl.setFrame(i, f.time, v);
-        parsed.push({ time: f.time, value: v, curve: f.curve });
-      }
-      for (let i = 0; i < parsed.length - 1; i++) {
-        if (parsed[i].curve !== undefined) {
-          applyCurve(tl, i, parsed[i].curve, 0, parsed[i].time, parsed[i].value, parsed[i + 1].time, parsed[i + 1].value, norm);
-        }
+      tl.singleAxis = axis;
+      const fs = tl.frameSize;
+      for (let i = 0; i < tl.frameCount; i++) {
+        const b = i * fs;
+        const v = tl.frames[b + 1];
+        tl.frames[b + 1] = 0;
+        tl.frames[b + 2] = 0;
+        tl.frames[b + 1 + channel] = v;
       }
       return tl;
     }
@@ -4147,7 +4184,7 @@ SP.json = (() => {
  *   SP.binary.lastReadOffset           -> 上次 parse 实际消费的字节数（== 文件大小即完全对齐）
  *   SP.binary.lastByteLength           -> 上次 parse 输入的字节数
  *
- * 支持：3.6 / 3.8 / 4.0 / 4.1 / 4.2。布局按文件头部版本字符串判定。
+ * 支持：3.6 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3。布局按文件头部版本字符串判定。
  *   3.6 与 3.8 的差别（依据官方 spine-c 3.6 与 spine-libgdx 3.6 的 SkeletonBinary）：
  *     · 头部没有 x / y（version 之后直接是 width / height）
  *     · nonessential 块只有 fps + imagesPath（没有 audioPath）
@@ -4176,6 +4213,33 @@ SP.json = (() => {
  *   · 4.2 约束/附件大量用 flags 字节代替独立字段。
  *   · 曲线字节位置：3.8 在“本帧数据之后”；4.0+ 在“下一帧数值之后”。
  *   · 4.2 的 IK timeline 没有独立曲线字节，改由下一帧 flags 的 0x40/0x80 表示。
+ *
+ * ── 4.3 相对 4.2 的字节级差异（依据官方 spine-ts 4.3 SkeletonBinary 逐行核对，
+ *    并已用官方 4.3 分支的 examples/*.skel 做整文件字节对齐验证）──────────────
+ *   · bone：`inherit` 字节挪到了 `length` 之前（4.2 是 length → inherit）；
+ *     nonessential 的骨骼多了 iconSize / iconRotation 两个 float（在 icon 与 visible 之间）。
+ *   · 有权重顶点的读法变了：weighted 分支**多一个 varint**（骨骼条目总长度 n），
+ *     循环条件从「遍历 vertexCount 个顶点」换成「读到第 n 项为止」（官方 readVertices）。
+ *   · 约束：不再分 5 个平铺数组，改成**统一的 constraints 数组**，每项 = 名字 + type 字节，
+ *     type：0 = IK / 1 = path / 2 = transform / 3 = physics / 4 = slider（新增类型）。
+ *     统一数组里没有 `order` 字段（顺序即下标）。各类型的 flags 也变了：
+ *       IK      bit0 skinRequired / bit1 有 scaleYMode(ubyte，4.2 这里是 uniform) /
+ *               bit2 bendDirection / bit3 compress / bit4 stretch / bit5 有 mix /
+ *               bit6 mix == 1 / bit7 有 softness（bendDirection 的极性也与 4.2 相反）
+ *       path    bit0 skinRequired（4.2 是独立 bool）/ bit1 positionMode /
+ *               bit2-3 spacingMode / bit4-5 rotateMode / bit7 有 offsetRotation
+ *       transform 改成「源属性 → 目标属性」映射表：bit0 skinRequired / bit1 localSource /
+ *               bit2 localTarget / bit3 additive / bit4 clamp / bit5-7 = 映射条数；
+ *               每条 = fromType 字节 + fromOffset float + toCount 字节 + 每条 to =
+ *               toType 字节 + offset/max/scale 三个 float；随后两个 flags 字节分别控制
+ *               六个经典 offset 与六个 mix（4.3 的 mix 缺省是 0，不是 1）。
+ *       physics 布局与 4.2 相同（只是少了 order）。
+ *   · 皮肤：非默认皮肤的约束索引只有**一个**列表（索引进统一 constraints）。
+ *   · 附件：mesh 在 triangles 之后多一段 timelineSlots（个数 + 索引）；
+ *     linked mesh 多一个 sourceIndex（顺序是 sourceIndex → skinIndex → source）；
+ *     clipping 的 convex / inverse 并进 flags 的 bit5 / bit6。
+ *   · 动画：末尾多了 slider 时间轴段、draw order folder 时间轴段，nonessential 时还多一个
+ *     动画 color(int32)；整个动画列表读完后再按 slider 约束逐个读一个动画索引（varint+）。
  * ========================================================================== */
 SP.binary = (() => {
   const D = SP.data;
@@ -4210,6 +4274,8 @@ SP.binary = (() => {
     PH_GRAVITY = 6, PH_MIX = 7, PH_RESET = 8;
 
   const DEFORM = 0, SEQUENCE = 1;
+  // 4.3 的 slider 时间轴类型
+  const SLIDER_TIME = 0, SLIDER_MIX = 1;
 
   const warnings = [];
   let lastReadOffset = 0;
@@ -4221,13 +4287,27 @@ SP.binary = (() => {
     if (warnings.indexOf(msg) < 0) warnings.push(msg);
   }
 
+  /** 从版本字符串里取 major / minor（宽松：允许 "4.2"、也允许 "4.3.75-beta"）。 */
   function versionParts(version) {
     if (typeof version !== "string") return null;
     const m = /^(\d+)\.(\d+)/.exec(version.trim());
     return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : null;
   }
 
-  /** 版本键："3.6" / "3.8" / "4.0" / "4.1" / "4.2"；不支持返回 null。 */
+  /**
+   * 版本号是否「看起来就是一条完整的 Spine 版本串」（如 3.8.75 / 4.2.22 / 4.3.75-beta）。
+   * 只用在**文件头探测**上：解析 4.x 头部时要先按 3.8 的布局试探读一次
+   * （hash 字符串 + 版本字符串），试探读到的字节完全可能是任意垃圾字符串。
+   * 官方 4.3 样例 speedy-ess.skel 的试探结果正好以 "3.75" 开头，用宽松匹配会把 4.3
+   * 文件误判成 3.8 从而整体错位；这里要求三段式 + 长度受限即可挡住这类误判，
+   * 同时仍然接受以残缺版本串写头的自制导出（那种情况由 layoutOf 的宽松匹配兜底）。
+   */
+  function looksLikeVersion(version) {
+    return typeof version === "string" && version.length <= 32
+      && /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.\-]+)?$/.test(version.trim());
+  }
+
+  /** 版本键："3.6" / "3.8" / "4.0" / "4.1" / "4.2" / "4.3"；不支持返回 null。 */
   function layoutOf(version) {
     const p = versionParts(version);
     if (!p) return null;
@@ -4237,17 +4317,20 @@ SP.binary = (() => {
       if (min === 6) return "3.6";
       return null;   // 3.7 的布局未做验证，宁可明确报不支持
     }
-    if (maj === 4 && min <= 2) return "4." + min;
+    if (maj === 4 && min <= 3) return "4." + min;
     return null;
   }
 
   const is36 = (v) => v === "3.6";
   const is38 = (v) => v === "3.8";
   const is42 = (v) => v === "4.2";
+  const is43 = (v) => v === "4.3";
+  /** 4.2 / 4.3 共用的 flags 化布局（附件前缀、皮肤名 / 事件名内联、插槽 visible、头 referenceScale） */
+  const hasFlags = (v) => v === "4.2" || v === "4.3";
   /** 3.6 / 3.8 共用的“老式”字节布局：无 bezierCount、曲线控制点归一化、颜色是 int32 */
   const isLegacy38 = (v) => v === "3.8" || v === "3.6";
-  const atLeast40 = (v) => v === "4.0" || v === "4.1" || v === "4.2";
-  const atLeast41 = (v) => v === "4.1" || v === "4.2";
+  const atLeast40 = (v) => v === "4.0" || v === "4.1" || v === "4.2" || v === "4.3";
+  const atLeast41 = (v) => v === "4.1" || v === "4.2" || v === "4.3";
 
   /* ------------------------------------------------------------ 字节读取 */
 
@@ -4427,32 +4510,30 @@ SP.binary = (() => {
   /**
    * 把 readLegacyCurve 记下的曲线写进时间轴：按通道把归一化控制点换算成绝对控制点。
    * @param values0/values1 该段两端各通道的数值（长度 = 通道数）
+   * @param propOffset     通道号 → 时间轴列号的偏移（单轴时间轴的 y 在第 2 列，曲线也要跟着走）
    */
-  function applyLegacyCurve(tl, frame, curve, t0, values0, t1, values1) {
+  function applyLegacyCurve(tl, frame, curve, t0, values0, t1, values1, propOffset) {
     if (!curve) return;
     if (curve.type === CURVE_STEPPED) { tl.setStepped(frame); return; }
     if (curve.type !== CURVE_BEZIER) { tl.setLinear(frame); return; }
+    const off = propOffset || 0;
     for (let k = 0; k < values0.length; k++) {
       const abs = M.normalizeToAbsoluteCurve(
         t0, values0[k], t1, values1[k], curve.cx1, curve.cy1, curve.cx2, curve.cy2);
-      tl.setBezierAt(frame, k, abs[0], abs[1], abs[2], abs[3]);
+      tl.setBezierAt(frame, off + k, abs[0], abs[1], abs[2], abs[3]);
     }
-  }
-
-  function readCurve(r, tl, frame, channels) {
-    const type = r.byte();
-    if (type === CURVE_STEPPED) { tl.setStepped(frame); return type; }
-    if (type !== CURVE_BEZIER) { tl.setLinear(frame); return type; }
-    const cx1 = r.float(), cy1 = r.float(), cx2 = r.float(), cy2 = r.float();
-    tl.setBezier(frame, cx1, cy1, cx2, cy2);
-    for (let k = 1; k < channels; k++) { r.float(); r.float(); r.float(); r.float(); }
-    return type;
   }
 
   /**
    * 4.0+ 的曲线：位置在「下一帧数值之后」。BEZIER 时按**通道**顺序读 4×(通道数) 个
-   * **绝对** float，第 k 个通道的 4 个数直接用绝对控制点写进该属性。
+   * **绝对** float，第 k 个通道的 4 个数用绝对控制点写进**该通道自己**的列。
    * 缩放在调用方处理（这里 scale = 1）。
+   *
+   * ⚠ 曾经有一版只把通道 0 的 4 个数用 `setBezier` 写成「整段共用曲线」，再把通道 1..n
+   * 的 4 个数丢掉。这样双通道时间轴（translate / scale / shear）的第 2 通道会套用第 1 通道
+   * 的贝塞尔手柄：两端关键帧都是 0 时，段中间仍会被手柄拉出非 0 值（windmill 的
+   * `bush1.shearY` 就是这么冒出 -3.09 的）。必须逐通道 `setBezierAt`。
+   *
    * @param propOffset 通道号 → 时间轴列号的偏移（路径约束把 position/spacing/mix 合并进
    *                   固定 5 列布局，spacing 的曲线通道 0 要写到第 1 列、mix 的要从第 2 列起）。
    */
@@ -4488,7 +4569,7 @@ SP.binary = (() => {
       try { first = r.string(); } catch (e) { first = null; }
       let second = null;
       if (first !== null) { try { second = r.string(); } catch (e) { second = null; } }
-      if (second && layoutOf(second)) {
+      if (looksLikeVersion(second) && layoutOf(second)) {
         // 3.6 / 3.8：hash 是字符串
         sd.hash = first === "" ? null : first;
         version = second;
@@ -4504,13 +4585,13 @@ SP.binary = (() => {
     const layout = layoutOf(version);
     if (!layout) {
       const p = versionParts(version);
-      if (p && p[0] === 4 && p[1] >= 3) {
-        throw new Error(`不支持的 Spine 二进制版本 ${version}：4.3+ 的二进制字节布局有变（本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2）。请改用同名 JSON 导出预览`);
+      if (p && p[0] === 4 && p[1] >= 4) {
+        throw new Error(`不支持的 Spine 二进制版本 ${version}：4.4+ 的二进制字节布局本工具尚未支持（本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3）。请改用同名 JSON 导出预览`);
       }
       if (p && p[0] === 3 && p[1] === 7) {
-        throw new Error(`不支持的 Spine 二进制版本 ${version}：3.7 的二进制布局未做字节级验证（本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2）。请改用同名 JSON 导出预览`);
+        throw new Error(`不支持的 Spine 二进制版本 ${version}：3.7 的二进制布局未做字节级验证（本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3）。请改用同名 JSON 导出预览`);
       }
-      throw new Error(`不支持的 Spine 二进制版本 ${JSON.stringify(version)}：本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2`);
+      throw new Error(`不支持的 Spine 二进制版本 ${JSON.stringify(version)}：本工具支持 3.6 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3`);
     }
     sd.version = version;
     // 3.6 没有共享字符串表：所有 ref string 位置都是内联 string
@@ -4526,8 +4607,8 @@ SP.binary = (() => {
     }
     sd.width = r.float();
     sd.height = r.float();
-    if (is42(layout)) {
-      // 4.2 独有：referenceScale（官方默认 100）；纯解析器只读掉，不做缩放
+    if (hasFlags(layout)) {
+      // 4.2 / 4.3 独有：referenceScale（官方默认 100）；纯解析器只读掉，不做缩放
       const referenceScale = r.float();
       sd.referenceScale = referenceScale;
     }
@@ -4564,15 +4645,25 @@ SP.binary = (() => {
       bone.scaleY = r.float();
       bone.shearX = r.float();
       bone.shearY = r.float();
-      bone.length = r.float();
-      // ≤4.1：transformMode 是 varint+；4.2：inherit 是 byte（值域相同）
-      bone.transformMode = is42(layout) ? r.byte() : r.int(true);
+      if (is43(layout)) {
+        // 4.3 把 inherit 字节挪到了 length 之前（4.2 及更早是 length → inherit）
+        bone.transformMode = r.byte();
+        bone.length = r.float();
+      } else {
+        bone.length = r.float();
+        // ≤4.1：transformMode 是 varint+；4.2：inherit 是 byte（值域相同）
+        bone.transformMode = is42(layout) ? r.byte() : r.int(true);
+      }
       // 3.6 的 bone 没有 skinRequired 布尔
       if (!is36(layout)) bone.skinRequired = r.boolean();
       if (nonessential) {
         bone.color = r.color({});
-        if (is42(layout)) {
+        if (hasFlags(layout)) {
           bone.icon = r.string();      // 4.2 新增（可 null）
+          if (is43(layout)) {
+            bone.iconSize = r.float();     // 4.3 新增
+            bone.iconRotation = r.float(); // 4.3 新增
+          }
           bone.visible = r.boolean();  // 4.2 新增
         }
       } else {
@@ -4594,12 +4685,18 @@ SP.binary = (() => {
       slot.darkColor = r.darkColor();
       slot.attachmentName = r.stringRef();
       slot.blendMode = r.int(true);
-      if (is42(layout) && nonessential) slot.visible = r.boolean();
+      if (hasFlags(layout) && nonessential) slot.visible = r.boolean();
       sd.addSlot(slot);
     }
 
+    /* ---------- 约束（4.3 起是统一的 constraints 数组） ----------
+     * ≤4.2：ik / transform / path / physics 四个平铺数组（physics 仅 4.2）。
+     * 4.3 ：一个数组，每项自带 type 字节（见 readConstraints43）。
+     * 这里用计数把旧分支整体跳过，4.3 单独走下面的读取器。 */
+    const legacyConstraints = !is43(layout);
+
     /* ---------- IK 约束 ---------- */
-    const ikCount = r.int(true);
+    const ikCount = legacyConstraints ? r.int(true) : 0;
     for (let i = 0; i < ikCount; i++) {
       const name = r.string();
       if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个 IK 约束没有名字`);
@@ -4642,7 +4739,7 @@ SP.binary = (() => {
     }
 
     /* ---------- Transform 约束 ---------- */
-    const tfCount = r.int(true);
+    const tfCount = legacyConstraints ? r.int(true) : 0;
     for (let i = 0; i < tfCount; i++) {
       const name = r.string();
       if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个变换约束没有名字`);
@@ -4715,7 +4812,7 @@ SP.binary = (() => {
     }
 
     /* ---------- Path 约束 ---------- */
-    const pathCount = r.int(true);
+    const pathCount = legacyConstraints ? r.int(true) : 0;
     for (let i = 0; i < pathCount; i++) {
       const name = r.string();
       if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个路径约束没有名字`);
@@ -4804,6 +4901,17 @@ SP.binary = (() => {
       }
     }
 
+    /* ---------- 4.3：统一的 constraints 数组 ---------- */
+    let sliderConstraints = [];
+    if (is43(layout)) {
+      const c43 = readConstraints43(r, sd);
+      sliderConstraints = c43.sliders;
+      sd.constraints43 = c43.all;
+      if (sliderConstraints.length) {
+        warn(`检测到 ${sliderConstraints.length} 条 slider 约束（4.3 新增）：本工具只解析不模拟，相关骨骼保持动画本身的结果`);
+      }
+    }
+
     /* ---------- 默认皮肤 + 普通皮肤 ---------- */
     const defaultSkin = readSkin(r, sd, true, nonessential, layout, linkedMeshes);
     if (defaultSkin) { sd.defaultSkin = defaultSkin; sd.skins.push(defaultSkin); }
@@ -4820,7 +4928,9 @@ SP.binary = (() => {
         ? sd.skins[lm.skinIndex]
         : (lm.skinName ? sd.findSkin(lm.skinName) : sd.defaultSkin);
       if (!skin) { warn(`链接网格 "${lm.mesh.name}" 找不到皮肤`); continue; }
-      const parent = skin.getAttachment(lm.slotIndex, lm.parentMeshName);
+      const parent = skin.getAttachment(
+        lm.parentSlotIndex === undefined || lm.parentSlotIndex === null ? lm.slotIndex : lm.parentSlotIndex,
+        lm.parentMeshName);
       if (!parent) { warn(`链接网格 "${lm.mesh.name}" 找不到父网格 "${lm.parentMeshName}"`); continue; }
       let guard = 0, node = parent, cyclic = false;
       while (node && node.type === D.ATT.LINKED_MESH && guard++ < 4096) {
@@ -4843,8 +4953,8 @@ SP.binary = (() => {
     /* ---------- events ---------- */
     const eventCount = r.int(true);
     for (let i = 0; i < eventCount; i++) {
-      // ≤4.1：ref string；4.2：内联 string
-      const name = is42(layout) ? r.string() : r.stringRef();
+      // ≤4.1：ref string；4.2 / 4.3：内联 string
+      const name = hasFlags(layout) ? r.string() : r.stringRef();
       if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个事件没有名字`);
       const data = new D.EventData(name);
       data.intValue = r.int(false);
@@ -4866,7 +4976,18 @@ SP.binary = (() => {
     for (let i = 0; i < animationCount; i++) {
       const name = r.string();
       if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个动画没有名字`);
-      sd.animations.push(readAnimation(r, name, sd, layout, deformTimelines, sequenceTimelines));
+      sd.animations.push(readAnimation(r, name, sd, layout, deformTimelines, sequenceTimelines, nonessential));
+    }
+
+    /* ---------- 4.3：slider 约束各读一个默认动画索引 ----------
+     * 官方在读完所有动画后再遍历一遍 constraints，对每个 slider 约束读一个 varint+
+     *（指向它默认播放的动画）。本运行时没有 slider，只把字节读干净并记下来。 */
+    if (is43(layout)) {
+      for (const s of sliderConstraints) {
+        const index = r.int(true);
+        s.animationIndex = index;
+        s.animation = sd.animations[index] || null;
+      }
     }
 
     /* ---------- deform / sequence timeline 与附件关联 ---------- */
@@ -4900,6 +5021,271 @@ SP.binary = (() => {
     return null;
   }
 
+  /* ------------------------------------------------ 4.3 统一约束数组 */
+
+  /** 4.3 的属性序号（官方 FromXxx / ToXxx 的 readByte 取值）→ SP.data 使用的属性名 */
+  const PROP43_NAMES = ["rotate", "x", "y", "scaleX", "scaleY", "shearY"];
+
+  /** 4.3 的单个「源属性 → 目标属性」映射条：fromType 字节 + fromOffset float + toCount 字节 + 每条 to */
+  function readTransformProperty43(r) {
+    const fromType = r.byte();
+    const fromName = PROP43_NAMES[fromType];
+    // 官方遇到未知类型只吞掉这个类型字节，然后 continue（编辑器不会写出这种值）
+    if (!fromName) return null;
+    const from = { property: fromName, offset: r.float(), to: [] };
+    const toCount = r.byte();
+    for (let t = 0; t < toCount; t++) {
+      const toType = r.byte();
+      const toName = PROP43_NAMES[toType];
+      if (!toName) continue;
+      from.to.push({
+        property: toName,
+        offset: r.float(),
+        max: r.float(),
+        scale: r.float(),
+      });
+    }
+    return from;
+  }
+
+  /**
+   * Spine 4.3 起，IK / path / transform / physics / slider 五类约束写在**同一个数组**里，
+   * 每项的顺序是：名字（内联 string）→ type 字节 → 该类型的字段。
+   * 与 ≤4.2 相比：没有 `order` 字段；IK 的 uniform 换成 scaleYMode；path 的 skinRequired
+   * 并进 flags（后续位整体左移一位）；transform 改成映射表；新增 slider 类型。
+   *
+   * slider 约束本运行时没有对应实现（也不参与求值），这里只把字节读干净并返回列表，
+   * 供上层在动画读完后继续读它们的动画索引。
+   * 返回 { all, sliders }：all 是文件顺序的完整列表（皮肤约束索引按它取）。
+   */
+  function readConstraints43(r, sd) {
+    const count = r.int(true);
+    const sliders = [];
+    const all = [];
+    for (let i = 0; i < count; i++) {
+      const name = r.string();
+      if (!name) throw new Error(`二进制骨架解析失败：第 ${i} 个约束没有名字`);
+      const type = r.byte();
+      switch (type) {
+        case 0: { // IK
+          const data = new D.IkConstraintData(name);
+          data.order = i;
+          const nn = r.int(true);
+          for (let ii = 0; ii < nn; ii++) {
+            const b = sd.bones[r.int(true)];
+            if (!b) throw new Error(`二进制骨架解析失败：IK 约束 "${name}" 引用了越界的骨骼`);
+            data.bones.push(b); data.boneNames.push(b.name);
+          }
+          const target = sd.bones[r.int(true)];
+          if (!target) throw new Error(`二进制骨架解析失败：IK 约束 "${name}" 的目标骨骼索引越界`);
+          data.target = target; data.targetName = target.name;
+          const flags = r.ubyte();
+          data.skinRequired = (flags & 0x01) !== 0;
+          // 4.3 用 scaleYMode(ubyte) 取代了 4.2 的 uniform 位
+          if (flags & 0x02) {
+            data.scaleYMode = r.ubyte();
+            data.uniform = data.scaleYMode === 1;   // ScaleYMode.Uniform
+          }
+          // 注意极性：4.3 是「置位 = -1」，与 4.2 的「置位 = 1」相反
+          data.bendDirection = (flags & 0x04) !== 0 ? -1 : 1;
+          data.compress = (flags & 0x08) !== 0;
+          data.stretch = (flags & 0x10) !== 0;
+          if (flags & 0x20) data.mix = (flags & 0x40) ? r.float() : 1;
+          else data.mix = 0;
+          data.softness = (flags & 0x80) ? r.float() : 0;
+          sd.ikConstraints.push(data);
+          all.push(data);
+          break;
+        }
+        case 1: { // path
+          const data = new D.PathConstraintData(name);
+          data.order = i;
+          const nn = r.int(true);
+          for (let ii = 0; ii < nn; ii++) {
+            const b = sd.bones[r.int(true)];
+            if (!b) throw new Error(`二进制骨架解析失败：路径约束 "${name}" 引用了越界的骨骼`);
+            data.bones.push(b); data.boneNames.push(b.name);
+          }
+          const target = sd.slots[r.int(true)];
+          if (!target) throw new Error(`二进制骨架解析失败：路径约束 "${name}" 的目标插槽索引越界`);
+          data.target = target; data.targetName = target.name;
+          // 4.3：skinRequired 并进了 flags，后面各模式位整体左移一位
+          const flags = r.ubyte();
+          data.skinRequired = (flags & 0x01) !== 0;
+          data.positionMode = (flags >> 1) & 1;
+          data.spacingMode = (flags >> 2) & 3;
+          data.rotateMode = (flags >> 4) & 3;
+          data.offsetRotation = (flags & 0x80) ? r.float() : 0;
+          data.position = r.float();
+          data.spacing = r.float();
+          data.mixRotate = r.float();
+          data.mixX = r.float();
+          data.mixY = r.float();
+          sd.pathConstraints.push(data);
+          all.push(data);
+          break;
+        }
+        case 2: { // transform（4.3 的「源属性 → 目标属性」映射表）
+          const data = new D.TransformConstraintData(name);
+          data.order = i;
+          const nn = r.int(true);
+          for (let ii = 0; ii < nn; ii++) {
+            const b = sd.bones[r.int(true)];
+            if (!b) throw new Error(`二进制骨架解析失败：变换约束 "${name}" 引用了越界的骨骼`);
+            data.bones.push(b); data.boneNames.push(b.name);
+          }
+          const source = sd.bones[r.int(true)];
+          if (!source) throw new Error(`二进制骨架解析失败：变换约束 "${name}" 的源骨骼索引越界`);
+          data.target = source; data.targetName = source.name;
+          const f1 = r.ubyte();
+          data.skinRequired = (f1 & 0x01) !== 0;
+          data.localSource = (f1 & 0x02) !== 0;
+          data.localTarget = (f1 & 0x04) !== 0;
+          data.additive = (f1 & 0x08) !== 0;
+          data.clamp = (f1 & 0x10) !== 0;
+          // 高 3 位是映射条数（官方 flags >> 5）
+          const propCount = f1 >> 5;
+          data.properties = [];
+          for (let ii = 0; ii < propCount; ii++) {
+            const from = readTransformProperty43(r);
+            if (from) data.properties.push(from);
+          }
+          // 六个经典 offset（与映射表正交，官方 4.3 仍然保留它们）
+          let f2 = r.ubyte();
+          data.offsetRotation = (f2 & 0x01) ? r.float() : 0;
+          data.offsetX = (f2 & 0x02) ? r.float() : 0;
+          data.offsetY = (f2 & 0x04) ? r.float() : 0;
+          data.offsetScaleX = (f2 & 0x08) ? r.float() : 0;
+          data.offsetScaleY = (f2 & 0x10) ? r.float() : 0;
+          data.offsetShearY = (f2 & 0x20) ? r.float() : 0;
+          // 六个 mix：4.3 的缺省是 0（TransformConstraintPose 的初值），只有置位才读
+          f2 = r.ubyte();
+          data.mixRotate = (f2 & 0x01) ? r.float() : 0;
+          data.mixX = (f2 & 0x02) ? r.float() : 0;
+          data.mixY = (f2 & 0x04) ? r.float() : 0;
+          data.mixScaleX = (f2 & 0x08) ? r.float() : 0;
+          data.mixScaleY = (f2 & 0x10) ? r.float() : 0;
+          data.mixShearY = (f2 & 0x20) ? r.float() : 0;
+          data.classicProperties = false;
+          sd.transformConstraints.push(data);
+          all.push(data);
+          break;
+        }
+        case 3: { // physics
+          const data = new D.PhysicsConstraintData(name);
+          data.order = i;
+          const bone = sd.bones[r.int(true)];
+          if (!bone) throw new Error(`二进制骨架解析失败：物理约束 "${name}" 引用了越界的骨骼`);
+          data.bone = bone; data.boneName = bone.name;
+          const f1 = r.ubyte();
+          data.skinRequired = (f1 & 0x01) !== 0;
+          data.x = (f1 & 0x02) ? r.float() : 0;
+          data.y = (f1 & 0x04) ? r.float() : 0;
+          data.rotate = (f1 & 0x08) ? r.float() : 0;
+          if (f1 & 0x10) {
+            // 4.3.13 起 scaleYMode 被编码进 scaleX：< -2 → Volume、< 0 → Uniform
+            let scaleX = r.float();
+            if (scaleX < -2) { data.scaleYMode = 2; scaleX = -2 - scaleX; }
+            else if (scaleX < 0) { data.scaleYMode = 1; scaleX = -1 - scaleX; }
+            else data.scaleYMode = 0;
+            data.scaleX = scaleX;
+          } else {
+            data.scaleX = 0;
+          }
+          data.shearX = (f1 & 0x20) ? r.float() : 0;
+          data.limit = (f1 & 0x40) ? r.float() : 5000;
+          const stepByte = r.ubyte();
+          data.step = stepByte === 0 ? 0 : 1 / stepByte;
+          data.inertia = r.float();
+          data.strength = r.float();
+          data.damping = r.float();
+          data.massInverse = (f1 & 0x80) ? r.float() : 1;
+          data.wind = r.float();
+          data.gravity = r.float();
+          const f2 = r.ubyte();
+          data.inertiaGlobal = (f2 & 0x01) !== 0;
+          data.strengthGlobal = (f2 & 0x02) !== 0;
+          data.dampingGlobal = (f2 & 0x04) !== 0;
+          data.massGlobal = (f2 & 0x08) !== 0;
+          data.windGlobal = (f2 & 0x10) !== 0;
+          data.gravityGlobal = (f2 & 0x20) !== 0;
+          data.mixGlobal = (f2 & 0x40) !== 0;
+          data.mix = (f2 & 0x80) ? r.float() : 1;
+          sd.physicsConstraints.push(data);
+          all.push(data);
+          break;
+        }
+        case 4: { // slider（4.3 新增；本运行时只保留数据，不参与求值）
+          const data = {
+            name, type: "slider", order: i, skinRequired: false, loop: false, additive: false,
+            local: false, max: 0, time: 0, mix: 1, boneIndex: -1, boneName: null,
+            property: null, propertyOffset: 0, offset: 0, scale: 1, animation: null, isSlider43: true,
+          };
+          const flags = r.ubyte();
+          data.skinRequired = (flags & 0x01) !== 0;
+          data.loop = (flags & 0x02) !== 0;
+          data.additive = (flags & 0x04) !== 0;
+          if (flags & 0x08) {
+            // 官方：nonessential 且带 0x40 时这个数是 max，否则是 setup 时间值。
+            // 两者都不参与本工具的求值，这里都记下来即可。
+            const value = r.float();
+            data.time = value;
+            data.max = value;
+          }
+          if (flags & 0x10) data.mix = (flags & 0x20) ? r.float() : 1;
+          if (flags & 0x40) {
+            data.local = (flags & 0x80) !== 0;
+            const boneIndex = r.int(true);
+            const bone = sd.bones[boneIndex] || null;
+            data.boneIndex = boneIndex;
+            data.boneName = bone ? bone.name : null;
+            const offset = r.float();
+            const propType = r.byte();
+            const propName = PROP43_NAMES[propType];
+            if (!propName) {
+              // 官方在这里把整条约束丢掉（continue）；本工具同样丢弃并给出提示
+              warn(`slider 约束 "${name}" 的属性类型 ${propType} 未知，已跳过该约束`);
+              break;
+            }
+            // 本解析器不带缩放（scale 恒为 1），所以官方的 propertyScale 一律为 1
+            data.property = propName;
+            data.propertyOffset = offset;
+            data.offset = r.float();
+            data.scale = r.float();
+          }
+          sliders.push(data);
+          all.push(data);
+          break;
+        }
+        default:
+          throw new Error(`二进制骨架解析失败：约束 "${name}" 的类型 ${type} 未知（版本 ${sd.version}）`);
+      }
+    }
+    return { all, sliders };
+  }
+
+  /** 4.3 的文件顺序约束列表（sd.constraints43）；旧版本没有 */
+  function allConstraints43(sd) { return sd.constraints43 || []; }
+
+  /**
+   * 4.3 的**约束时间轴**用统一 `constraints` 数组的下标引用约束
+   * （官方 4.3 的 `skeleton.constraints[this.constraintIndex]`），而本运行时的 IK / 变换 /
+   * 路径时间轴是按**分类型数组**取值（`skeleton.ikConstraints[...]`，与 JSON 解析器解析
+   * `constraints` 数组时用的 `indexOf` 一致）。
+   * 这里把统一下标翻译成分类型下标，否则时间轴会驱动错误的约束（或越界后整条不生效），
+   * 表现就是「被 IK / 路径约束摆位的部件跑到别处或不显示」。
+   */
+  function constraintIndex43(sd, raw, typedList, kind) {
+    const c = allConstraints43(sd)[raw];
+    if (!c) {
+      warn(`4.3 时间轴引用了越界的约束下标 ${raw}（${kind}）`);
+      return -1;
+    }
+    const i = typedList.indexOf(c);
+    if (i < 0) warn(`4.3 时间轴引用的约束 "${c.name}" 不是${kind}类型`);
+    return i;
+  }
+
   /* ------------------------------------------------------------ 皮肤读取 */
 
   function readSkin(r, sd, isDefault, nonessential, layout, linkedMeshes) {
@@ -4909,14 +5295,14 @@ SP.binary = (() => {
       if (slotCount === 0) return null;
       skin = new D.Skin("default");
     } else {
-      // ≤4.1：ref string；4.2：内联 string
-      const name = is42(layout) ? r.string() : r.stringRef();
+      // ≤4.1：ref string；4.2 / 4.3：内联 string
+      const name = hasFlags(layout) ? r.string() : r.stringRef();
       if (!name) throw new Error("二进制骨架解析失败：皮肤没有名字");
       skin = new D.Skin(name);
-      // 普通皮肤的 color(nonessential) 是 **4.2 独有** 字段。
+      // 普通皮肤的 color(nonessential) 是 **4.2 起** 才有的字段。
       // 4.1 官方源码里没有这一行（4.1 SkeletonBinary.readSkin 只读 name/索引/slotCount），
       // 已用 4.1 分支源码逐行核对；多读一个 int32 会让之后所有皮肤错位。
-      if (is42(layout) && nonessential) skin.color = r.color({});
+      if (hasFlags(layout) && nonessential) skin.color = r.color({});
       // 3.6 的普通皮肤只有 slotCount + 附件（bones / 各约束索引列表是 3.8 才加的）
       if (!is36(layout)) {
         const boneCount = r.int(true);
@@ -4924,26 +5310,36 @@ SP.binary = (() => {
           const b = sd.bones[r.int(true)];
           if (b) skin.bones.push(b);
         }
-        const ikCount = r.int(true);
-        for (let i = 0; i < ikCount; i++) {
-          const c = sd.ikConstraints[r.int(true)];
-          if (c) skin.constraints.push(c);
-        }
-        const tfCount = r.int(true);
-        for (let i = 0; i < tfCount; i++) {
-          const c = sd.transformConstraints[r.int(true)];
-          if (c) skin.constraints.push(c);
-        }
-        const pCount = r.int(true);
-        for (let i = 0; i < pCount; i++) {
-          const c = sd.pathConstraints[r.int(true)];
-          if (c) skin.constraints.push(c);
-        }
-        if (is42(layout)) {
-          const phCount = r.int(true);
-          for (let i = 0; i < phCount; i++) {
-            const c = sd.physicsConstraints[r.int(true)];
+        if (is43(layout)) {
+          // 4.3：只有一个约束索引列表（索引进统一的 constraints 数组）
+          const cCount = r.int(true);
+          const all = allConstraints43(sd);
+          for (let i = 0; i < cCount; i++) {
+            const c = all[r.int(true)];
             if (c) skin.constraints.push(c);
+          }
+        } else {
+          const ikCount = r.int(true);
+          for (let i = 0; i < ikCount; i++) {
+            const c = sd.ikConstraints[r.int(true)];
+            if (c) skin.constraints.push(c);
+          }
+          const tfCount = r.int(true);
+          for (let i = 0; i < tfCount; i++) {
+            const c = sd.transformConstraints[r.int(true)];
+            if (c) skin.constraints.push(c);
+          }
+          const pCount = r.int(true);
+          for (let i = 0; i < pCount; i++) {
+            const c = sd.pathConstraints[r.int(true)];
+            if (c) skin.constraints.push(c);
+          }
+          if (is42(layout)) {
+            const phCount = r.int(true);
+            for (let i = 0; i < phCount; i++) {
+              const c = sd.physicsConstraints[r.int(true)];
+              if (c) skin.constraints.push(c);
+            }
           }
         }
       }
@@ -4967,8 +5363,8 @@ SP.binary = (() => {
 
   function readAttachment(r, sd, slotIndex, placeholder, nonessential, layout, linkedMeshes) {
     let type, name, flags = 0;
-    if (is42(layout)) {
-      // 4.2：flags 字节。type = flags & 7；name 由 flags & 8 决定
+    if (hasFlags(layout)) {
+      // 4.2 / 4.3：flags 字节。type = flags & 7；name 由 flags & 8 决定
       flags = r.ubyte();
       type = flags & 0x07;
       name = (flags & 0x08) ? r.stringRef() : null;
@@ -4982,7 +5378,7 @@ SP.binary = (() => {
     switch (type) {
       case ATT_REGION: {
         let path = null, color = WHITE(), sequence = null, rotation = 0;
-        if (is42(layout)) {
+        if (hasFlags(layout)) {
           if (flags & 0x10) path = r.stringRef();
           color = (flags & 0x20) ? r.color({}) : { r: 1, g: 1, b: 1, a: 1 };
           sequence = (flags & 0x40) ? readSequence42(r) : null;
@@ -4997,7 +5393,7 @@ SP.binary = (() => {
         const scaleY = r.float();
         const width = r.float();
         const height = r.float();
-        if (!is42(layout)) {
+        if (!hasFlags(layout)) {
           color = r.color({});
           // 4.1 的 sequence 在末尾（boolean 存在标志）；3.8/4.0 没有
           if (atLeast41(layout)) sequence = readSequence41(r);
@@ -5015,7 +5411,7 @@ SP.binary = (() => {
       }
       case ATT_BOUNDINGBOX: {
         let weighted = false;
-        if (is42(layout)) {
+        if (hasFlags(layout)) {
           weighted = (flags & 0x10) !== 0;
         } else {
           // ≤4.1：vertexCount + weighted 都在流里
@@ -5029,7 +5425,7 @@ SP.binary = (() => {
           box.color = color;
           return box;
         }
-        const v = readVertices42(r, weighted);
+        const v = readVertices42(r, weighted, layout);
         const color = nonessential ? r.color({}) : WHITE();
         const box = new D.BoundingBoxAttachment(name);
         box.worldVerticesLength = v.vertexCount << 1;
@@ -5039,18 +5435,25 @@ SP.binary = (() => {
         return box;
       }
       case ATT_MESH: {
-        if (is42(layout)) return readMesh42(r, name, flags, nonessential);
+        if (hasFlags(layout)) return readMesh42(r, name, flags, nonessential, layout);
         return readMeshLegacy(r, name, nonessential, layout);
       }
       case ATT_LINKEDMESH: {
         let path = null, color = WHITE(), sequence = null, inheritTimelines = true;
         let skinName = null, skinIndex = null, parentMeshName = null;
-        if (is42(layout)) {
+        let parentSlotIndex = slotIndex;   // 4.3 的父网格可以挂在别的插槽上（sourceIndex）
+        if (hasFlags(layout)) {
           if (flags & 0x10) path = r.stringRef();
           color = (flags & 0x20) ? r.color({}) : { r: 1, g: 1, b: 1, a: 1 };
           sequence = (flags & 0x40) ? readSequence42(r) : null;
           inheritTimelines = (flags & 0x80) !== 0;
-          skinIndex = r.int(true); // 4.2：varint+ 索引
+          if (is43(layout)) {
+            // 4.3：多一个 sourceIndex（父网格所在插槽），顺序是 sourceIndex → skinIndex → source
+            parentSlotIndex = r.int(true);
+            skinIndex = r.int(true);
+          } else {
+            skinIndex = r.int(true); // 4.2：varint+ 索引
+          }
           parentMeshName = r.stringRef();
         } else {
           path = r.stringRef();
@@ -5072,17 +5475,21 @@ SP.binary = (() => {
         mesh.skinIndex = skinIndex;
         mesh.parentMeshName = parentMeshName;
         mesh.inheritTimelines = inheritTimelines;
-        linkedMeshes.push({ mesh, skinName, skinIndex, slotIndex, parentMeshName, inheritTimelines });
+        linkedMeshes.push({
+          mesh, skinName, skinIndex, slotIndex, parentMeshName, inheritTimelines, parentSlotIndex,
+        });
         return mesh;
       }
       case ATT_PATH: {
         let closed = false, constantSpeed = false, weighted = false;
-        if (is42(layout)) {
+        if (hasFlags(layout)) {
           closed = (flags & 0x10) !== 0;
           constantSpeed = (flags & 0x20) !== 0;
           weighted = (flags & 0x40) !== 0;
-          const v = readVertices42(r, weighted);
-          const lengthCount = Math.floor((v.vertices ? v.vertices.length : 0) / 6);
+          const v = readVertices42(r, weighted, layout);
+          // 长度条数按官方的 vertices.length / 6（length = vertexCount * 2）算，
+          // **不能**用 v.vertices.length —— 有顶点权重时那是「权重浮点数个数」，会多读。
+          const lengthCount = Math.floor((v.vertexCount << 1) / 6);
           const lengths = new Float32Array(lengthCount);
           for (let i = 0; i < lengthCount; i++) lengths[i] = r.float();
           const color = nonessential ? r.color({}) : WHITE();
@@ -5126,9 +5533,9 @@ SP.binary = (() => {
       case ATT_CLIPPING: {
         const endSlotIndex = r.int(true);
         const endSlot = sd.slots[endSlotIndex] || null;
-        if (is42(layout)) {
+        if (hasFlags(layout)) {
           const weighted = (flags & 0x10) !== 0;
-          const v = readVertices42(r, weighted);
+          const v = readVertices42(r, weighted, layout);
           const color = nonessential ? r.color({}) : WHITE();
           const clip = new D.ClippingAttachment(name);
           clip.endSlot = endSlot;
@@ -5137,6 +5544,11 @@ SP.binary = (() => {
           clip.vertices = v.vertices;
           clip.bones = v.bones;
           clip.color = color;
+          // convex / inverse 是 4.3 才并进 flags 的（只影响运行时裁剪，这里一并记下）
+          if (is43(layout)) {
+            clip.convex = (flags & 0x20) !== 0;
+            clip.inverse = (flags & 0x40) !== 0;
+          }
           return clip;
         }
         const vertexCount = r.int(true);
@@ -5201,8 +5613,15 @@ SP.binary = (() => {
     return { vertices: new Float32Array(weights), bones: new Int32Array(bones) };
   }
 
-  /** 顶点数据（4.2）：weighted 来自附件 flags；vertexCount 仍在流里且是第一项。 */
-  function readVertices42(r, weighted) {
+  /**
+   * 顶点数据（4.2 / 4.3）：weighted 来自附件 flags；vertexCount 仍在流里且是第一项。
+   *
+   * ⚠ 4.3 的有权重分支**多一个 varint**：`n` = 骨骼条目总长度（每个顶点贡献
+   * 「骨骼数 + 骨骼索引」共 1 + boneCount 项），循环条件也从「遍历 vertexCount 个顶点」
+   * 换成「读到第 n 项为止」。官方 4.3 SkeletonBinary.readVertices 即如此，漏读会让
+   * 之后所有附件整体错位。
+   */
+  function readVertices42(r, weighted, layout) {
     const vertexCount = r.int(true);
     const verticesLength = vertexCount << 1;
     if (!weighted) {
@@ -5212,6 +5631,21 @@ SP.binary = (() => {
     }
     const bones = [];
     const weights = [];
+    if (is43(layout)) {
+      // 4.3：先读「条目总数」，再按条目数循环
+      const n = r.int(true);
+      for (let b = 0; b < n;) {
+        const boneCount = r.int(true);
+        bones[b++] = boneCount;
+        for (let ii = 0; ii < boneCount; ii++) {
+          bones[b++] = r.int(true);
+          weights.push(r.float());
+          weights.push(r.float());
+          weights.push(r.float());
+        }
+      }
+      return { vertices: new Float32Array(weights), bones: new Int32Array(bones), vertexCount };
+    }
     for (let i = 0; i < vertexCount; i++) {
       const boneCount = r.int(true);
       bones.push(boneCount);
@@ -5263,22 +5697,31 @@ SP.binary = (() => {
     return mesh;
   }
 
-  /** 4.2 的 Mesh：path?/color?/sequence?/hull/vertices/uvs/triangles(推算)/[edges,width,height] */
-  function readMesh42(r, name, flags, nonessential) {
+  /** 4.2 / 4.3 的 Mesh：path?/color?/sequence?/hull/vertices/uvs/triangles(推算)/[4.3 timelineSlots]/[edges,width,height] */
+  function readMesh42(r, name, flags, nonessential, layout) {
     let path = null, color = WHITE(), sequence = null;
     if (flags & 0x10) path = r.stringRef();
     if (flags & 0x20) color = r.color({});
     if (flags & 0x40) sequence = readSequence42(r);
     const weighted = (flags & 0x80) !== 0;
     const hullRaw = r.int(true);          // 文件里的原始值（hull 顶点数）
-    const v = readVertices42(r, weighted);
+    const v = readVertices42(r, weighted, layout);
     const vertexCount = v.vertexCount;
     const uvs = new Float32Array(vertexCount << 1);
     for (let i = 0; i < uvs.length; i++) uvs[i] = r.float();
-    // 4.2 不写三角面数量：由顶点数与 hull 推算（元素是 varint+）
+    // 4.2+ 不写三角面数量：由顶点数与 hull 推算（元素是 varint+）
     const triangleIndexCount = (vertexCount * 2 - hullRaw - 2) * 3;
     const triangles = new Int32Array(Math.max(0, triangleIndexCount));
     for (let i = 0; i < triangles.length; i++) triangles[i] = r.int(true);
+    // 4.3 新增：驱动这条网格的插槽列表（官方 MeshAttachment.timelineSlots），本运行时只存不用
+    let timelineSlots = null;
+    if (is43(layout)) {
+      const timelineSlotCount = r.int(true);
+      if (timelineSlotCount > 0) {
+        timelineSlots = new Int32Array(timelineSlotCount);
+        for (let i = 0; i < timelineSlotCount; i++) timelineSlots[i] = r.int(true);
+      }
+    }
     let edges = null, width = 0, height = 0;
     if (nonessential) {
       const edgeCount = r.int(true);
@@ -5301,12 +5744,13 @@ SP.binary = (() => {
     mesh.width = width;
     mesh.height = height;
     mesh.sequence = sequence;
+    mesh.timelineSlots = timelineSlots;
     return mesh;
   }
 
   /* ------------------------------------------------------------ 动画读取 */
 
-  function readAnimation(r, name, sd, layout, deformTimelines, sequenceTimelines) {
+  function readAnimation(r, name, sd, layout, deformTimelines, sequenceTimelines, nonessential) {
     // 3.6 与 3.8 共用同一套“老式”时间轴布局（无 bezierCount、曲线控制点归一化、颜色 int32）；
     // 只有 IK 时间轴的每帧字段数不同（见下面的 is36 分支），这里先用 legacy 走通其余部分。
     const is36L = is36(layout);
@@ -5416,8 +5860,8 @@ SP.binary = (() => {
       for (let ii = 0; ii < n; ii++) {
         const type = r.byte();
         const frameCount = r.int(true);
-        if (is42(layout) && type === B_INHERIT) {
-          // 4.2：每帧 time + inherit(byte)，无曲线、无 bezierCount。
+        if ((is42(layout) || is43(layout)) && type === B_INHERIT) {
+          // 4.2 / 4.3：每帧 time + inherit(byte)，无曲线、无 bezierCount。
           // SP.data 没有 bone inherit 时间轴类，这里用只存数据的轻量对象（不影响字节流）。
           const inheritTl = {
             type: "inheritTimeline", frameCount, boneIndex, singleAxis: null,
@@ -5458,17 +5902,25 @@ SP.binary = (() => {
         tl.boneIndex = boneIndex;
         // ≤3.6 / 3.8（Spine 4.0 之前）的旋转关键帧之间走最短路径，4.0+ 取消
         if (tl instanceof D.RotateTimeline) tl.legacyShortestRotation = is38;
+        if (singleAxis) tl.singleAxis = singleAxis;
+        if (is38) readTimeline38(r, tl, frameCount, channels, tl.legacyShortestRotation ? 0 : -1,
+          singleAxis === "y" ? 1 : 0);
+        else if (channels === 1) readTimeline1(r, tl, frameCount, singleAxis === "y" ? 1 : 0);
+        else readTimeline2(r, tl, frameCount);
         if (singleAxis) {
-          tl.singleAxis = singleAxis;
+          // 单轴时间轴（官方 4.0+ 的 TranslateX/Y、ScaleX/Y、ShearX/Y）在官方是**独立的类**，
+          // 每帧只有 1 个数值；本工具统一用双通道类表示，所以要把这个数值放进**对应**的通道，
+          // 另一个通道补 0。
+          // readTimeline1 / readTimeline38 固定把单通道数值写进第 1 列，因此 y 轴时间轴的值会落进
+          // x 列、而 y 列始终没被写过（Float32Array 里就是 NaN）——表现是「部件位置 y 为 NaN、
+          // 整个部件不显示」。曾经把补 0 放在读取**之前**，同样会被随后的读取覆盖掉。
           const fs = tl.frameSize;
           for (let f = 0; f < tl.frameCount; f++) {
-            if (singleAxis === "x") tl.frames[f * fs + 2] = 0;
-            else tl.frames[f * fs + 1] = 0;
+            const b = f * fs;
+            if (singleAxis === "y") { tl.frames[b + 2] = tl.frames[b + 1]; tl.frames[b + 1] = 0; }
+            else tl.frames[b + 2] = 0;
           }
         }
-        if (is38) readTimeline38(r, tl, frameCount, channels, tl.legacyShortestRotation ? 0 : -1);
-        else if (channels === 1) readTimeline1(r, tl, frameCount);
-        else readTimeline2(r, tl, frameCount);
         timelines.push(tl);
       }
     }
@@ -5476,7 +5928,8 @@ SP.binary = (() => {
     /* ---- IK 时间轴 ---- */
     const ikEntries = r.int(true);
     for (let i = 0; i < ikEntries; i++) {
-      const index = r.int(true);
+      const rawIk = r.int(true);
+      const index = is43(layout) ? constraintIndex43(sd, rawIk, sd.ikConstraints, "IK") : rawIk;
       const frameCount = r.int(true);
       const tl = new D.IkConstraintTimeline(frameCount, 0);
       tl.ikConstraintIndex = index;
@@ -5515,24 +5968,33 @@ SP.binary = (() => {
           applyLegacyCurve(tl, f, curve, fr.time, valuesOf(fr), next.time, valuesOf(next));
           fr = next;
         }
-      } else if (layout === "4.2") {
-        // 4.2：bezierCount + 每帧 flags/time/mix/softness；曲线由 flags 0x40/0x80 表示
+      } else if (is42(layout) || is43(layout)) {
+        // 4.2 / 4.3：bezierCount + 每帧 flags/time/mix/softness；曲线由 flags 0x40/0x80 表示
+        //（flags 的 0x08/0x10/0x20 是 bendDirection / compress / stretch，与 4.2 一致）
+        //
+        // ⚠ 官方顺序是「flags → time/mix/softness → 该段的曲线控制点」，曲线字节在**下一帧
+        // 的数值之后**。曾经写成「flags → 曲线 → 下一帧数值」，只要时间轴里出现贝塞尔曲线
+        // 就会整体错位 4 字节（chibi-stickers 就是在这里炸的）。
         r.int(true);
         const last = frameCount - 1;
+        let flags = r.ubyte();
+        let time = r.float();
+        let mix = (flags & 0x01) ? ((flags & 0x02) ? r.float() : 1) : 0;
+        let softness = (flags & 0x04) ? r.float() : 0;
         for (let f = 0; ; f++) {
-          const flags = r.ubyte();
-          const time = r.float();
-          const mix = (flags & 0x01) ? ((flags & 0x02) ? r.float() : 1) : 0;
-          const softness = (flags & 0x04) ? r.float() : 0;
-          const bend = (flags & 0x08) ? 1 : -1;
-          tl.setFrame(f, time, mix, softness, bend);
+          tl.setFrame(f, time, mix, softness, (flags & 0x08) ? 1 : -1);
           if (f === last) break;
-          const nextFlags = r.ubyte();
-          if (nextFlags & 0x40) tl.setStepped(f);
-          else if (nextFlags & 0x80) {
+          flags = r.ubyte();
+          const time2 = r.float();
+          const mix2 = (flags & 0x01) ? ((flags & 0x02) ? r.float() : 1) : 0;
+          const softness2 = (flags & 0x04) ? r.float() : 0;
+          if (flags & 0x40) tl.setStepped(f);
+          else if (flags & 0x80) {
+            // IK 的 2 条曲线：mix 与 softness，各 4 个绝对控制点
             tl.setBezier(f, r.float(), r.float(), r.float(), r.float());
             r.float(); r.float(); r.float(); r.float();
           } else tl.setLinear(f);
+          time = time2; mix = mix2; softness = softness2;
         }
       } else {
         // 4.0/4.1：bezierCount，然后 [t0][mix0][soft0] 循环
@@ -5556,7 +6018,8 @@ SP.binary = (() => {
     /* ---- Transform 时间轴 ---- */
     const tfEntries = r.int(true);
     for (let i = 0; i < tfEntries; i++) {
-      const index = r.int(true);
+      const rawTc = r.int(true);
+      const index = is43(layout) ? constraintIndex43(sd, rawTc, sd.transformConstraints, "变换") : rawTc;
       const frameCount = r.int(true);
       if (atLeast40(layout)) r.int(true); // bezierCount
       const tl = new D.TransformConstraintTimeline(frameCount, 0);
@@ -5599,7 +6062,8 @@ SP.binary = (() => {
     /* ---- 路径约束时间轴 ---- */
     const pathEntries = r.int(true);
     for (let i = 0; i < pathEntries; i++) {
-      const index = r.int(true);
+      const rawPc = r.int(true);
+      const index = is43(layout) ? constraintIndex43(sd, rawPc, sd.pathConstraints, "路径") : rawPc;
       const n = r.int(true);
       for (let ii = 0; ii < n; ii++) {
         const type = r.byte();
@@ -5676,11 +6140,14 @@ SP.binary = (() => {
       }
     }
 
-    /* ---- Physics 时间轴（4.2 only） ---- */
-    if (is42(layout)) {
+    /* ---- Physics 时间轴（4.2 / 4.3） ---- */
+    if (is42(layout) || is43(layout)) {
       const phEntries = r.int(true);
       for (let i = 0; i < phEntries; i++) {
-        const index = r.int(true) - 1; // 0 表示 -1（作用于全部）
+        // 0 表示 -1（作用于全部）；4.3 的下标进的是统一 constraints 数组
+        const rawPh = r.int(true);
+        const index = rawPh === 0 ? -1
+          : (is43(layout) ? constraintIndex43(sd, rawPh - 1, sd.physicsConstraints, "物理") : rawPh - 1);
         const n = r.int(true);
         for (let ii = 0; ii < n; ii++) {
           const type = r.byte();
@@ -5694,6 +6161,26 @@ SP.binary = (() => {
           if (type !== PH_INERTIA && type !== PH_STRENGTH && type !== PH_DAMPING &&
             type !== PH_MASS && type !== PH_WIND && type !== PH_GRAVITY && type !== PH_MIX) {
             throw new Error(`不支持的 timeline 类型 ${type}（物理约束时间轴，版本 ${sd.version}）`);
+          }
+          r.int(true); // bezierCount
+          const tl = new PhysicsTimeline(frameCount, index, type);
+          readTimeline1(r, tl, frameCount);
+          timelines.push(tl);
+        }
+      }
+    }
+
+    /* ---- Slider 时间轴（4.3 only；SP.data 没有对应实现，只存数据） ---- */
+    if (is43(layout)) {
+      const sliderEntries = r.int(true);
+      for (let i = 0; i < sliderEntries; i++) {
+        const index = r.int(true);   // 索引进统一的 constraints 数组
+        const n = r.int(true);
+        for (let ii = 0; ii < n; ii++) {
+          const type = r.byte();
+          const frameCount = r.int(true);
+          if (type !== SLIDER_TIME && type !== SLIDER_MIX) {
+            throw new Error(`不支持的 timeline 类型 ${type}（slider 时间轴，版本 ${sd.version}）`);
           }
           r.int(true); // bezierCount
           const tl = new PhysicsTimeline(frameCount, index, type);
@@ -5791,26 +6278,31 @@ SP.binary = (() => {
     const drawOrderCount = r.int(true);
     if (drawOrderCount > 0) {
       const tl = new D.DrawOrderTimeline(drawOrderCount);
-      const slotCount = sd.slots.length;
       for (let i = 0; i < drawOrderCount; i++) {
         const time = r.float();
-        const offsetCount = r.int(true);
-        const drawOrder = new Int32Array(slotCount).fill(-1);
-        const unchanged = new Int32Array(Math.max(0, slotCount - offsetCount));
-        let originalIndex = 0, unchangedIndex = 0;
-        for (let ii = 0; ii < offsetCount; ii++) {
-          const slotIndex = r.int(true);
-          const amount = r.int(true);
-          while (originalIndex !== slotIndex) unchanged[unchangedIndex++] = originalIndex++;
-          drawOrder[originalIndex + amount] = originalIndex++;
-        }
-        while (originalIndex < slotCount) unchanged[unchangedIndex++] = originalIndex++;
-        for (let ii = slotCount - 1; ii >= 0; ii--) {
-          if (drawOrder[ii] === -1) drawOrder[ii] = unchanged[--unchangedIndex];
-        }
-        tl.setFrame(i, time, drawOrder);
+        tl.setFrame(i, time, readDrawOrder(r, sd.slots.length));
       }
       timelines.push(tl);
+    }
+
+    /* ---- 绘制顺序（4.3 的 folder 变体）----
+     * 4.3 新增：对「文件夹插槽」子集单独排序。本运行时没有文件夹插槽，只把字节读完。 */
+    if (is43(layout)) {
+      const folderCount = r.int(true);
+      for (let i = 0; i < folderCount; i++) {
+        const folderSlotCount = r.int(true);
+        const folderSlots = new Int32Array(folderSlotCount);
+        for (let ii = 0; ii < folderSlotCount; ii++) folderSlots[ii] = r.int(true);
+        const keyCount = r.int(true);
+        const tl = {
+          type: "drawOrderFolderTimeline", frameCount: keyCount, folderSlots,
+          times: new Float32Array(keyCount), orders: [],
+          setFrame(f, t, order) { this.times[f] = t; this.orders[f] = order; return this; },
+          get duration() { return this.frameCount ? this.times[this.frameCount - 1] : 0; },
+        };
+        for (let ii = 0; ii < keyCount; ii++) tl.setFrame(ii, r.float(), readDrawOrder(r, folderSlotCount));
+        timelines.push(tl);
+      }
     }
 
     /* ---- 事件时间轴 ---- */
@@ -5824,8 +6316,8 @@ SP.binary = (() => {
         const event = new D.Event(time, eventData);
         event.intValue = r.int(false);
         event.floatValue = r.float();
-        if (is42(layout)) {
-          // 4.2：直接读 string，null 回退默认值
+        if (is42(layout) || is43(layout)) {
+          // 4.2 / 4.3：直接读 string，null 回退默认值
           const s = r.string();
           event.stringValue = s === null ? eventData.stringValue : s;
         } else {
@@ -5848,7 +6340,10 @@ SP.binary = (() => {
 
     let duration = 0;
     for (const tl of timelines) duration = Math.max(duration, tl.duration || 0);
-    return new D.Animation(name, timelines, duration);
+    const animation = new D.Animation(name, timelines, duration);
+    // 4.3：动画自己带一个 nonessential 的颜色
+    if (is43(layout) && nonessential) animation.color = r.color({});
+    return animation;
   }
 
   /** 3.8 的曲线在“本帧数据之后”，4.x 在“下一帧数值之后”。
@@ -5861,7 +6356,7 @@ SP.binary = (() => {
    * 每帧 [time][v1(,v2)]，**曲线字节紧跟本帧数据**（下一帧数据之前），
    * BEZIER 的 4 个控制点是归一化比例、被该段所有通道共用。
    */
-  function readTimeline38(r, tl, frameCount, channels, wrapChannel) {
+  function readTimeline38(r, tl, frameCount, channels, wrapChannel, propOffset) {
     const last = frameCount - 1;
     const readFrame = () => {
       const time = r.float();
@@ -5883,7 +6378,7 @@ SP.binary = (() => {
         curveVals1 = next.vals.slice();
         curveVals1[wrapChannel] = fr.vals[wrapChannel] + D.wrapDeg180(next.vals[wrapChannel] - fr.vals[wrapChannel]);
       }
-      applyLegacyCurve(tl, f, curve, fr.time, fr.vals, next.time, curveVals1);
+      applyLegacyCurve(tl, f, curve, fr.time, fr.vals, next.time, curveVals1, propOffset);
       fr = next;
     }
     return tl;
@@ -5891,8 +6386,9 @@ SP.binary = (() => {
 
   /**
    * 4.x 单值时间轴：曲线在「下一帧数值之后」。
+   * @param propOffset 该数值所在的时间轴列号（单轴时间轴把 y 放在第 2 列，曲线也要跟着走同一列）
    */
-  function readTimeline1(r, tl, frameCount) {
+  function readTimeline1(r, tl, frameCount, propOffset) {
     const last = frameCount - 1;
     let time = r.float();
     let value = r.float();
@@ -5901,7 +6397,7 @@ SP.binary = (() => {
       if (f === last) break;
       time = r.float();
       value = r.float();
-      readCurve(r, tl, f, 1);
+      readCurve4(r, tl, f, 1, propOffset);
     }
     return tl;
   }
@@ -5916,10 +6412,34 @@ SP.binary = (() => {
       if (f === last) break;
       time = r.float();
       const n1 = r.float(), n2 = r.float();
-      readCurve(r, tl, f, 2);
+      readCurve4(r, tl, f, 2);
       v1 = n1; v2 = n2;
     }
     return tl;
+  }
+
+  /**
+   * 绘制顺序关键帧（官方 readDrawOrder 的等价实现，4.2 / 4.3 通用）。
+   * 帧里存的是「相对重排量」：每项 = 原插槽下标 + 重排偏移，未出现的插槽按原顺序填入。
+   * changeCount = 0 时官方返回 null（表示「与 setup 相同」），这里照做。
+   * @param slotCount 该帧参与排序的插槽数（folder 变体传的是文件夹里的插槽数）
+   */
+  function readDrawOrder(r, slotCount) {
+    const changeCount = r.int(true);
+    if (changeCount === 0) return null;
+    const drawOrder = new Int32Array(slotCount).fill(-1);
+    const unchanged = new Int32Array(Math.max(0, slotCount - changeCount));
+    let originalIndex = 0, unchangedIndex = 0;
+    for (let i = 0; i < changeCount; i++) {
+      const slotIndex = r.int(true);
+      while (originalIndex !== slotIndex) unchanged[unchangedIndex++] = originalIndex++;
+      drawOrder[originalIndex + r.int(true)] = originalIndex++;
+    }
+    while (originalIndex < slotCount) unchanged[unchangedIndex++] = originalIndex++;
+    for (let i = slotCount - 1; i >= 0; i--) {
+      if (drawOrder[i] === -1) drawOrder[i] = unchanged[--unchangedIndex];
+    }
+    return drawOrder;
   }
 
   /* ------------------------------------------------------------ 版本探测 */
@@ -5937,7 +6457,7 @@ SP.binary = (() => {
       try { first = r.string(); } catch (e) { first = null; }
       let second = null;
       if (first !== null) { try { second = r.string(); } catch (e) { second = null; } }
-      if (second && layoutOf(second)) return second;   // 3.8：hash 字符串 + 版本字符串
+      if (looksLikeVersion(second) && layoutOf(second)) return second;   // 3.8：hash 字符串 + 版本字符串
       r.index = save;                                  // 4.0+：两个 int32 + 版本字符串
       r.int32(); r.int32();
       return r.string();
