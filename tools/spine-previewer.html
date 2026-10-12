@@ -690,6 +690,7 @@
         <li>JSON 导出支持 Spine <b>3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组与变换约束的 <code class="inl">properties</code> 属性映射，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>3.6 / 3.8 / 4.0 / 4.1 完整支持</b>（官方 3.8 样例 20/20、4.0 样例 20/20、4.1 样例 21/21 整文件字节对齐），4.2 部分支持（28 个官方样例中 20 个整文件对齐，snowglobe / sack / cloud-pot / spineboy 等常用资源正常），<b>4.3 的二进制字节布局有变，请改用同名 JSON 导出</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
         <li>二进制 <code class="inl">.skel</code> 的版本在扫描时会读文件头判定：<b>3.6 没有共享字符串表、骨骼没有 skinRequired、IK 约束没有 softness、普通皮肤没有 bones/constraints 列表</b>，这些差异都按版本分支处理；<b>3.6 / 3.8 的曲线控制点是归一化比例且写在本帧数据之后</b>，与 4.0+ 的绝对控制点写法不同。</li>
         <li>骨骼 <code class="inl">rotate</code> / <code class="inl">translate</code> / <code class="inl">shear</code> 关键帧是<b>相对 setup 的增量</b>、<code class="inl">scale</code> 是<b>相对 setup 的乘数</b>（与官方一致）；关键帧没写 <code class="inl">x</code> / <code class="inl">y</code> 时按增量 0 处理。</li>
+        <li><b>旋转的「最短路径」按版本区分</b>：Spine <b>4.0 之前</b>（本工具的 3.6 / 3.8 二进制、3.8 JSON）关键帧之间<b>总是走最短路径</b>——官方把相邻帧的角度差折到 −180°~180°，所以 <code class="inl">0° → 350°</code> 实际只转 <b>−10°</b>（3.8 里要做整圈旋转必须补中间关键帧，例如 0 / 120 / 240 / 360）；<b>4.0 及以后</b>取消了这个行为，直接在两个关键帧数值之间插值（<code class="inl">0° → 350°</code> 就转 +350°）。工具按文件版本自动选择，≤3.8 时连贝塞尔控制点也按折过的差值换算，求值结果与官方 3.8 运行时逐点一致。</li>
         <li>物理约束（<code class="inl">physics</code>）暂不模拟，相关骨骼会保持动画本身的结果。</li>
         <li>变换约束在源骨骼带剪切（shear）时、以及路径约束 / 长 IK 链上，可能与官方运行时存在可见差异（官方 <code class="inl">*-pro</code> 样例中的 eye-stalk、vine、celestial-circus 等）。</li>
         <li>检查器里的 IK 参数覆盖写在每帧动画之后，只影响预览；<b>柔和 softness 按资源原值直接作用</b>（官方 3.8–4.2 的 JSON / 二进制里都是 0–100 的百分比写法，与官方 4.1 运行时的取值方式一致），所以滑杆的 0–100 与资源里的数值一一对应，工具不做换算。</li>
@@ -1348,6 +1349,13 @@ SP.data = (() => {
       const t0 = this.frames[lo * this.frameSize], t1 = this.frames[hi * this.frameSize];
       return [lo, t1 > t0 ? (time - t0) / (t1 - t0) : 0];
     }
+    /**
+     * 该属性相邻两帧之间「往哪一侧插值」。
+     * 默认直接用下一帧的原值（4.0+ 的语义：不管跨多少度都直接线性插值）；
+     * RotateTimeline 在 ≤3.8 的版本上覆写它，把两帧差值折到最短路径后再插值。
+     * 返回的是「等效的下一帧数值」，因此线性与贝塞尔两条插值路径都能直接复用。
+     */
+    interpolateTo(v0, v1) { return v1; }
     // 取某属性在 time 时的值（帧间插值）
     getValue(time, propIndex) {
       const found = this.findFrame(time);
@@ -1359,7 +1367,7 @@ SP.data = (() => {
       const curve = this.getCurve(i, propIndex);
       const type = curve[0];
       if (type === M.CURVE_STEPPED) return v0;
-      const v1 = this.frames[(i + 1) * fs + 1 + propIndex];
+      const v1 = this.interpolateTo(v0, this.frames[(i + 1) * fs + 1 + propIndex]);
       if (type === M.CURVE_BEZIER) {
         const t0 = this.frames[i * fs], t1 = this.frames[(i + 1) * fs];
         return M.bezierValueAtTime(time, t0, v0, curve[1], curve[2], curve[3], curve[4], t1, v1);
@@ -1369,6 +1377,14 @@ SP.data = (() => {
   }
 
   /**
+   * Spine 4.0 之前的「最短路径」角度折叠：把角度差折进 [-180, 180]。
+   * 官方 3.x 各处都是这个位运算写法（spine-ts / spine-c / spine-java 完全一致）：
+   *   r -= (16384 - ((16384.499999999996 - r / 360) | 0)) * 360
+   * 例：wrapDeg180(350) = -10、wrapDeg180(-240) = 120、wrapDeg180(200) = -160。
+   */
+  function wrapDeg180(d) { return d - (16384 - ((16384.499999999996 - d / 360) | 0)) * 360; }
+
+  /**
    * 骨骼时间轴的取值语义（4.x 官方定义，见 spine-ts Animation.ts）：
    *   - rotate / translate / shear：关键帧里存的是「相对 setup 的增量」，实际值 = setup + 关键帧值；
    *   - scale：存的是「相对 setup 的乘数」，实际值 = 关键帧值 * setup；
@@ -1376,20 +1392,49 @@ SP.data = (() => {
    * 直接把关键帧值当成绝对值会让所有骨骼/缩放回落到 0 或 1，整只骨架向原点塌陷（“人物折叠”）。
    */
   class RotateTimeline extends CurveTimeline {
-    constructor(frameCount, bezierCount) { super(frameCount, bezierCount, 1); this.boneIndex = 0; }
+    constructor(frameCount, bezierCount) {
+      super(frameCount, bezierCount, 1);
+      this.boneIndex = 0;
+      /**
+       * 旋转的「最短路径」语义差异（由解析器按文件版本写入）：
+       *   ≤3.8（Spine 4.0 之前）：关键帧之间**总是走最短路径**，官方在插值前把相邻帧的角度差
+       *       折到 [-180,180]（见 wrapDeg180）。所以 0° → 350° 在 3.8 里实际转 -10°；
+       *       想做整圈旋转必须在 3.8 里补中间关键帧（0 / 120 / 240 / 360）。
+       *       关键帧本身仍按文件原值存（这样「末帧之后」的结果与官方一致），最短路径由
+       *       本类的 shortest / interpolateTo 在求值时处理；贝塞尔控制点是解析期换算的，
+       *       解析器会用同一个折过的差值（SP.json 的 wrapCurveProp / SP.binary 的 wrapChannel）。
+       *   4.0+：不再考虑最短路径，直接在两个关键帧数值之间线性插值（0° → 350° 就转 +350°）。
+       */
+      this.legacyShortestRotation = false;
+    }
+    /** ≤3.8：把角度差折到 [-180,180]；4.0+ 原样返回 */
+    shortest(d) {
+      return this.legacyShortestRotation ? wrapDeg180(d) : d;
+    }
+    /** ≤3.8：下一帧折到离上一帧最近的一侧；4.0+：下一帧原值 */
+    interpolateTo(v0, v1) { return v0 + this.shortest(v1 - v0); }
     apply(skeleton, lastTime, time, events, alpha, blend) {
       const bone = skeleton.bones[this.boneIndex];
       if (!bone) return;
       const frames = this.frames;
       if (time < frames[0]) {
-        if (blend) bone.rotation += (bone.data.rotation - bone.rotation) * alpha;
+        if (blend) bone.rotation += this.shortest(bone.data.rotation - bone.rotation) * alpha;
         else bone.rotation = bone.data.rotation;
         return;
       }
       // 官方 getRelativeValue：setup + 关键帧值
-      const r = bone.data.rotation + this.getValue(time, 0);
-      if (blend) bone.rotation += (r - bone.rotation) * alpha;
-      else bone.rotation = r;
+      const rel = this.getValue(time, 0);
+      if (blend) {
+        // 混合增量在 ≤3.8 同样折到最短路径（官方 MixBlend.first/replace 分支）
+        bone.rotation += this.shortest(bone.data.rotation + rel - bone.rotation) * alpha;
+      } else if (time >= frames[(this.frameCount - 1) * this.frameSize]) {
+        // 末帧之后：官方两个版本都直接用最后一个关键帧的值，不再折回
+        bone.rotation = bone.data.rotation + rel;
+      } else {
+        // ≤3.8 在插值段末尾还会把结果折回 [-180,180]（视觉等价，但骨骼本地角度与官方一致，
+        // 变换约束 / 检查器读数都依赖它）
+        bone.rotation = bone.data.rotation + this.shortest(rel);
+      }
     }
   }
 
@@ -1814,6 +1859,7 @@ SP.data = (() => {
     BlendMode, BLEND_BY_NAME, BlendName, TransformMode, TRANSFORM_MODE_BY_NAME, TransformModeName,
     PositionMode, SpacingMode, RotateMode, PositionModeName, SpacingModeName, RotateModeName,
     ATT, rgba,
+    wrapDeg180,
     BoneData, SlotData, Attachment, VertexAttachment, RegionAttachment, MeshAttachment, LinkedMeshAttachment,
     BoundingBoxAttachment, ClippingAttachment, PathAttachment, PointAttachment, Sequence,
     ConstraintData, IkConstraintData, TransformConstraintData, PathConstraintData, PhysicsConstraintData,
@@ -2511,11 +2557,15 @@ SP.json = (() => {
    * @param make      (frameCount) => 时间轴实例（第 2 个构造参数 bezierCount 当前实现忽略，传 0）
    * @param props     [{key, dflt, curve?}]：属性名、缺省值、该属性是否消费 curve（默认 true）
    * @param opts      { normalizedCurves } 3.8 的归一化曲线语义；默认按 sd 版本自动判断
+   *                  { wrapCurveProp } 属性下标：该属性在**换算曲线控制点**时，用「最短路径」
+   *                  折过的差值代替原始差值（只给 ≤3.8 的 rotate 用，见 SP.data.wrapDeg180）。
+   *                  关键帧本身仍按原值存，求值时的最短路径由 RotateTimeline 负责。
    */
   function readCurveTimeline(frames, make, props, opts) {
     const o = opts || {};
     const normalized = o.normalizedCurves === undefined ? o.version && o.version.key === "3.8" : o.normalizedCurves;
     const post = o.post || null;      // 把帧原始值转成时间轴数值（颜色需要解 hex）
+    const wrapCurveProp = o.wrapCurveProp === undefined ? -1 : o.wrapCurveProp;
     const frameCount = frames.length;
     const tl = make(frameCount);
     const legacyExtraMax = props.length <= 1 ? 4 : LEGACY_CURVE_FLAT_MAX;
@@ -2556,7 +2606,11 @@ SP.json = (() => {
       let slot = 0;
       for (let k = 0; k < props.length; k++) {
         if (props[k].curve === false) continue;
-        applyCurve(tl, seg, f.curve, slot, segTimes[seg], segVals[seg][k], segTimes[seg + 1], segVals[seg + 1][k], normalized);
+        // ≤3.8 的旋转：曲线要按「最短路径」折过的差值换算控制点（官方在求值时才折，
+        // 但控制点是解析期换算的，两边的差值必须是同一个，段中间才对得上）
+        const v0 = segVals[seg][k];
+        const v1 = k === wrapCurveProp ? v0 + D.wrapDeg180(segVals[seg + 1][k] - v0) : segVals[seg + 1][k];
+        applyCurve(tl, seg, f.curve, slot, segTimes[seg], v0, segTimes[seg + 1], v1, normalized);
         slot++;
       }
     }
@@ -3402,6 +3456,8 @@ SP.json = (() => {
     const timelines = [];
     // 3.8 的 curve 是「归一化 0..1 控制点」，4.x 是「绝对 (时间,数值) 控制点」
     const norm = version.key === "3.8";
+    // Spine 4.0 之前（本工具的 JSON 只支持 3.8）：旋转关键帧之间总是走最短路径；4.0+ 取消
+    const legacyRotation = version.major < 4;
 
     // ---- 插槽时间轴（rgba / rgb / alpha / rgba2 / rgb2 / attachment） ----
     const slotMaps = getv(map, "slots", null);
@@ -3429,7 +3485,7 @@ SP.json = (() => {
         for (const kind in boneMap) {
           const frames = boneMap[kind];
           if (!Array.isArray(frames) || !frames.length) continue;
-          const tl = readBoneTimeline(kind, frames, bone, name, norm);
+          const tl = readBoneTimeline(kind, frames, bone, name, norm, legacyRotation);
           if (tl) timelines.push(tl);
         }
       }
@@ -3760,7 +3816,7 @@ SP.json = (() => {
     return [light.r, light.g, light.b, light.a, dark.r, dark.g, dark.b];
   }
 
-  function readBoneTimeline(kind, frames, bone, animName, norm) {
+  function readBoneTimeline(kind, frames, bone, animName, norm, legacyRotation) {
     const k = String(kind).toLowerCase();
     if (k === "rotate") {
       // 关键帧字段名随版本变化：3.8 用 "angle"，4.0+ 用 "value"。
@@ -3774,8 +3830,11 @@ SP.json = (() => {
         }
         return fr;
       });
-      const tl = readCurveTimeline(normFrames, (n) => new D.RotateTimeline(n, 0), [{ key: "angle", dflt: 0 }], { normalizedCurves: norm });
+      const tl = readCurveTimeline(normFrames, (n) => new D.RotateTimeline(n, 0), [{ key: "angle", dflt: 0 }],
+        { normalizedCurves: norm, wrapCurveProp: legacyRotation ? 0 : -1 });
       tl.boneIndex = bone.index;
+      // 3.8（Spine 4.0 之前）关键帧之间走最短路径，4.0+ 直接线性插值
+      tl.legacyShortestRotation = !!legacyRotation;
       return tl;
     }
     if (k === "translate" || k === "scale" || k === "shear") {
@@ -5255,6 +5314,8 @@ SP.binary = (() => {
           }
         }
         tl.boneIndex = boneIndex;
+        // ≤3.6 / 3.8（Spine 4.0 之前）的旋转关键帧之间走最短路径，4.0+ 取消
+        if (tl instanceof D.RotateTimeline) tl.legacyShortestRotation = is38;
         if (singleAxis) {
           tl.singleAxis = singleAxis;
           const fs = tl.frameSize;
@@ -5263,7 +5324,7 @@ SP.binary = (() => {
             else tl.frames[f * fs + 1] = 0;
           }
         }
-        if (is38) readTimeline38(r, tl, frameCount, channels);
+        if (is38) readTimeline38(r, tl, frameCount, channels, tl.legacyShortestRotation ? 0 : -1);
         else if (channels === 1) readTimeline1(r, tl, frameCount);
         else readTimeline2(r, tl, frameCount);
         timelines.push(tl);
@@ -5649,7 +5710,7 @@ SP.binary = (() => {
    * 每帧 [time][v1(,v2)]，**曲线字节紧跟本帧数据**（下一帧数据之前），
    * BEZIER 的 4 个控制点是归一化比例、被该段所有通道共用。
    */
-  function readTimeline38(r, tl, frameCount, channels) {
+  function readTimeline38(r, tl, frameCount, channels, wrapChannel) {
     const last = frameCount - 1;
     const readFrame = () => {
       const time = r.float();
@@ -5664,7 +5725,14 @@ SP.binary = (() => {
       if (f === last) break;
       const curve = readLegacyCurve(r);
       const next = readFrame();
-      applyLegacyCurve(tl, f, curve, fr.time, fr.vals, next.time, next.vals);
+      // ≤3.8 的旋转：曲线控制点要按「最短路径」折过的差值换算（关键帧本身仍存原值，
+      // 求值时的最短路径由 RotateTimeline 负责）
+      let curveVals1 = next.vals;
+      if (wrapChannel >= 0) {
+        curveVals1 = next.vals.slice();
+        curveVals1[wrapChannel] = fr.vals[wrapChannel] + D.wrapDeg180(next.vals[wrapChannel] - fr.vals[wrapChannel]);
+      }
+      applyLegacyCurve(tl, f, curve, fr.time, fr.vals, next.time, curveVals1);
       fr = next;
     }
     return tl;
