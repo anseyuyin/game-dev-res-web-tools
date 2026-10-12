@@ -31,6 +31,7 @@
 | **拖拽调试** | 「骨骼」模式：左键拖关节＝旋转、**Shift** ＋拖＝平移、双击关节＝重置该骨骼；选中网格部件后出现顶点手柄，拖动即改当前帧形变（顶点手柄随「网格线框」开关，关掉网格线则手柄一并隐藏且不可拖）；姿态与形变都叠加在动画之上，可一键清空；检查器里还能直接输入角度 / 位移精确调试 |
 | **检查器** | 选中骨骼：局部角度 / 位移 / 缩放 / 剪切 / 世界坐标 / 世界角度 / 长度 / transformMode，及当前调试偏移；选中部件：骨骼、附件名与类型、混合模式、槽色 × 附件色、暗色（双色染色）、图集区域与分页、顶点数与是否带权重、序列帧进度、裁剪结束槽、路径闭合与匀速。每个属性行都带悬浮说明；**混合模式与颜色可直接在检查器里改**：下拉切换 normal / additive / multiply / screen，取色器 + alpha 滑杆改槽色，改动**即时生效并叠加在动画之上**（覆盖值只存在于运行时，不改资源数据），带 `（已改）` 标记与逐项 ↺ 还原，或随「清空姿态调试」一起还原 |
 | **IK 约束调试** | 选中的骨骼只要参与 IK（是链条里的骨骼，或 IK 的目标骨骼），检查器下半部分就会列出它参与的每条 IK 约束：标注当前骨骼的角色（**链条骨骼** / **目标骨骼**）、链条顺序、目标骨骼与求值顺序（骨骼树里这类骨骼标 `IK` / `IK 目标`）。卡片上可直接调 **混合 mix**（0–1）、**柔和 softness**（0–100）、**弯曲方向**（正向 / 反向＝`bendPositive`）、**压缩 `compress`**、**拉伸 `stretch`**、**统一缩放 `uniform`**，每项都有悬浮说明。覆盖值写在**每帧动画之后**，因此即使该动画带 IK 时间轴也不会被冲掉；未改动的参数会跟随动画逐帧刷新显示。改过的约束标「**已改**」并高亮边框，卡片上的 **↺** 单独还原这一条，「↺ 清空姿态调试」会连同骨骼偏移一起还原——覆盖只在运行时，**不修改资源数据** |
+| **变换约束调试** | 选中的骨骼只要参与变换约束（是被驱动骨骼，或是约束的源骨骼），检查器下半部分就会列出它参与的每条变换约束：标注角色（**被驱动骨骼** / **源骨骼**）、被驱动链条、源骨骼、求值顺序，并给出该约束的**映射表**（源属性 → 目标属性，含 `offset` / `scale`）与来源格式（`4.3 properties` 或 `≤4.2 local/relative`；旧格式的映射表由经典语义推导而来，卡片上会注明）。可调 **六个 mix**（`mixRotate` / `mixX` / `mixY` / `mixScaleX` / `mixScaleY` / `mixShearY`，滑杆 + 数字框双向同步）、四个行为开关 **`localSource` / `localTarget` / `additive` / `clamp`**，以及展开后的**六个偏移量**（`rotation` / `x` / `y` / `scaleX` / `scaleY` / `shearY`），每项都有悬浮说明。骨骼树里这类骨骼标 `变换` / `变换源`。覆盖同样写在**每帧动画之后**（压过变换约束时间轴），未改动的参数逐帧跟随；**↺** 单独还原一条，「↺ 清空姿态调试」全部还原，**不修改资源数据** |
 | **渲染** | WebGL2；纹理按预乘 alpha 上传，正常 / 叠加 / 正片叠底 / 屏幕 四种混合、贴图分页切换、裁剪附件（scissor 实现）、区域旋转（区域附件按官方语义处理 0 / 90；网格附件按图集 `rotate` 的 0 / 90 / 180 / 270 全角度映射 UV，与官方 `MeshAttachment.computeUVs` 逐分支一致）、序列帧换图、权重网格、形变、骨架自带尺寸适配 |
 | **格式兼容** | JSON 导出：3.8 / 4.0 / 4.1 / 4.2 全覆盖，**4.3 按 4.2 规则解析并额外支持 4.3 的统一 `constraints` 数组与变换约束 `properties` 属性映射**（含 3.8 的平铺曲线、4.x 的绝对曲线、序列帧、链接网格、4.2 的单轴时间轴与 `inherit`）；二进制 `.skel`：**3.6 / 3.8 / 4.0 / 4.1 完整支持**（官方样例 20/20、20/20、20/20、21/21 整文件字节对齐），**4.2 部分支持**（28 个官方样例中 20 个整文件对齐），**4.3 的二进制字节布局有变、暂不支持**（扫描阶段就会标出来并提示改用同名 JSON，不会静默读错） |
 
@@ -42,7 +43,8 @@
 4. **查部件** → 左侧「部件层级」按绘制顺序列出，点选高亮；怀疑被裁剪就在检查器里核对，怀疑混合模式 / 颜色问题可直接在检查器里改（混合模式下拉、取色器 + alpha）当场看效果；👁 逐个隐藏排查遮挡。
 5. **调试姿态** → 切「骨骼」模式拖关节（Shift 平移），或用检查器输入精确角度；「↺ 清空姿态调试」还原。
 6. **查 IK** → 点骨骼树里带 `IK` / `IK 目标` 标记的骨骼，检查器里会出现 `🎯 IK 约束` 卡片：把 **mix** 拉到 0 看「没有 IK 时动画原本的姿势」，或在目标超出骨骼链长度（够不到）时打开 **拉伸** / 调 **柔和**，观察关节如何取舍；确认完点卡片上的 ↺ 或「↺ 清空姿态调试」还原。
-7. **调形变** → 暂停后切「网格顶点」模式，选中网格部件拖顶点观察权重与形变；「↺ 清空网格形变」还原。
+7. **查变换约束** → 点骨骼树里带 `变换` / `变换源` 标记的骨骼，检查器里会出现 `🧭 变换约束` 卡片：核对**映射表**（源属性 → 目标属性、offset / scale）与来源格式；动画把某个方向压到 `mix = 0` 时把 mix 拉回 0–1 即可当场看到约束的作用，调 `offsetX / offsetY` 可以验证世界分支是按源骨骼的本地轴施加偏移；确认完点卡片上的 ↺ 或「↺ 清空姿态调试」还原。
+8. **调形变** → 暂停后切「网格顶点」模式，选中网格部件拖顶点观察权重与形变；「↺ 清空网格形变」还原。
 
 ## 4. 兼容性与降级
 
@@ -65,7 +67,7 @@
 - **颜色 / 染色（tint）已与官方对齐**：单色染色按 `skeletonColor × slotColor × attachmentColor` 求值；**双色染色（`slot.dark`，暗色）** 按官方 `slot.darkColor != null` 判定并走双色着色器，公式与 spine-webgl 的 `newTwoColoredTextured` 一致（`light.rgb` 含 alpha、`dark.rgb = slot.darkColor.rgb × alpha`）。
 - **`skeleton.color`（骨架级颜色）未参与渲染**：官方渲染链是 `skeletonColor × slotColor × attachmentColor`，本工具只用后两项。官方样例里没有资源用到骨架级颜色，因此实测无差异；若拿到用到它的资源需补上这一环。
 - **约束求值顺序**：按 `order` 升序、同序时 IK → 变换 → 路径，每个约束后重算世界变换；被约束改动过的骨骼会沿父链校正世界矩阵，避免子骨骼用到过期矩阵。多级链式约束的极端情况下仍可能与官方运行时存在差异（见下条）。
-- **变换约束的两套语义**：4.2 及更早用「偏移 + mix」的经典语义；4.3 的 `properties` 属性映射按官方公式 `to.offset + (源值 + from.offset) * to.scale` 求值（含 `clamp`）。但官方是「矩阵权威」模型（约束直接改写骨骼矩阵，本地 rotation 与矩阵可以解耦），本工具是「本地量权威」模型；当**源骨骼带剪切（shear）**时，旋转映射会有几度量级偏差，并可能沿骨骼链放大（官方 `alien-pro` 的 eye / eye-stalk 系列属于这一类，偏差约 3～25 单位）。无约束的官方样例（各 `*-ess`）实测偏差 ≤ 1 单位。
+- **变换约束按官方 4.3 的「源属性 → 目标属性」模型求值**：六个源 / 目标属性、`localSource` / `localTarget` / `additive` / `clamp`、`from.offset` / `to.offset` / `to.max` / `to.scale` 与 `offsetRotation…offsetShearY` 都与官方逐项对齐。≤4.2 的 `local` / `relative` + 六个偏移在解析期**归一化成等价的映射表**（`local` ⇔ `localSource` + `localTarget`，`relative` ⇔ `additive`），并保留旧格式在本地旋转 / 剪切上的 ±180° 最短路径折叠。官方是「矩阵权威」模型（约束直接改写骨骼矩阵），本工具是「本地量权威」模型，因此世界分支写完矩阵后会调用 `Bone.updateAppliedTransform()`（官方同名函数的移植）把矩阵精确折回本地量再重算——Normal 变换模式下两者互为逆运算，结果与官方一致。已用官方 spine-core **4.0 / 4.1 / 4.2 / 4.3** 运行时对合成用例逐项对照（4.0 / 4.1 / 4.2 各 56 例、4.3 的 properties 形态 26 例全部一致）；官方样例中 alien 的最大世界坐标偏差由 **386.8 → 4.3**、celestial-circus **402.4 → 24.5**、spineboy **52.2 → 9.6**、owl 保持 0。**修正后仍可能出现的可见差异来自路径约束与长 IK 链**（官方 `tank` / `sack` / `stretchyman` 的 tread、foot 等骨骼由路径约束驱动，源头偏差会被变换约束如实传递）。
 - **路径约束**为按弧长分布的近似实现（`tangent` / `chainScale` 旋转模式的尖端与缩放细节做了简化），官方 `*-pro` 样例中带路径约束的（`vine-pro`、`celestial-circus-pro`、`hero-pro` 等）会有明显偏差，属于实现完备度问题而非时间轴语义问题。
 - **IK** 双骨骼求解按官方公式实现（含非均匀缩放、softness、compress/stretch 分支）；偏差主要来自上游骨骼的微小差异被 IK 放大，官方 `raptor-pro` 这类长 IK 链样例实测偏差可达几十单位。
 - **IK 参数调试的单位**：检查器里的 **柔和 softness 按资源原值直接作用**（官方 3.8–4.2 的 JSON 与 4.1 的二进制里都写成 0–100 的百分比，例如官方 `spineboy-pro` 的 `run` 里是 10 / 14.8 / 48.2 / 61.4，与官方 4.1 运行时的取值方式一致），所以滑杆的 0–100 与资源数值一一对应，不做换算；覆盖值只作用于预览，与「清空姿态调试」一起还原。
@@ -93,7 +95,7 @@
 
 ## 7. 调试 API（`window.SPINE`）
 
-页面暴露了一个自动化友好的接口，方便做批量验证或二次集成：`status()`、`resources()`、`loadUrl()`、`loadEntries()`、`loadDemo()`、`selectResource()`、`play()/pause()/setTime()/setAnimation()/setSpeed()`、`view()/setView()/fit()`、`setToggles()`、`selectBone()/selectSlot()/selection()`、`poseBone()/overrides()/resetPose()/resetDeform()`、`ikError()`（IK 末端误差与指向误差自检）、`ikParams()`（每条 IK 的当前值与覆盖值）、`setIkParam(name, patch)` / `resetIk(name)`（写入 / 清除 IK 参数覆盖，`name` 省略时清空全部）、`attachmentInfo()`、`sampleScreen()`、`renderNow()`。`?asset=<url>` 参数还支持在 http 环境下直链加载某个骨架（按与目录扫描同一套打分逐个尝试 `.atlas` 候选名，可用 `&atlas=` 指定）。
+页面暴露了一个自动化友好的接口，方便做批量验证或二次集成：`status()`、`resources()`、`loadUrl()`、`loadEntries()`、`loadDemo()`、`selectResource()`、`play()/pause()/setTime()/setAnimation()/setSpeed()`、`view()/setView()/fit()`、`setToggles()`、`selectBone()/selectSlot()/selection()`、`poseBone()/overrides()/resetPose()/resetDeform()`、`ikError()`（IK 末端误差与指向误差自检）、`ikParams()`（每条 IK 的当前值与覆盖值）、`setIkParam(name, patch)` / `resetIk(name)`（写入 / 清除 IK 参数覆盖，`name` 省略时清空全部）、`tcParams()`（每条变换约束的当前值、覆盖值与映射表）、`setTcParam(name, patch)` / `resetTc(name)`（写入 / 清除变换约束参数覆盖，字段为 `mixRotate…mixShearY`、`localSource/localTarget/additive/clamp`、`offsetRotation…offsetShearY`）、`attachmentInfo()`、`sampleScreen()`、`renderNow()`。`?asset=<url>` 参数还支持在 http 环境下直链加载某个骨架（按与目录扫描同一套打分逐个尝试 `.atlas` 候选名，可用 `&atlas=` 指定）。
 
 ---
 
