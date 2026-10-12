@@ -676,7 +676,17 @@
         <li>改过的约束标「<b>已改</b>」并高亮边框，卡片右上角 <b>↺</b> 单独还原这一条，「↺ 清空姿态调试」会连同骨骼偏移与 IK 覆盖一起还原。覆盖只在运行时，<b>不会修改资源文件</b>。</li>
         <li>典型用法：动画里把某个方向压到 <b>mix = 0</b> 时（例如 alien 的 death 会把眼睛约束全部关掉），把 mix 拉回 1 就能立刻看到约束的作用；给 <b>offsetX / offsetY</b> 一个值可以直观看出「世界分支按源骨骼本地轴施加偏移」的效果。</li>
       </ul>
-      <div><b>6. 快捷键</b></div>
+      <div><b>6. 路径约束调试</b></div>
+      <ul class="helpList hint" style="color:var(--text-dim);">
+        <li>在视口或骨骼树里<b>选中一根骨骼</b>：只要它参与路径约束（是沿路径排布的骨骼，或是目标插槽所在的骨骼），检查器下半部分就会出现 <b>🪢 路径约束</b> 卡片，并标注当前骨骼的角色（<b>被驱动骨骼</b> / <b>目标骨骼</b>）。骨骼树里这类骨骼会标 <b>路径</b> / <b>路径目标</b>。</li>
+        <li>卡片显示<b>链条</b>、<b>目标插槽</b>（官方 JSON 的 <code class="inl">target</code> / 4.3 的 <code class="inl">slot</code>）、当前的<b>路径附件</b>（是否闭合 / 是否匀速）与求值顺序，并能在运行时切换 <b>位置模式</b>（fixed / percent）、<b>间距模式</b>（length / fixed / percent / proportional）、<b>旋转模式</b>（tangent / chain / chainScale）。</li>
+        <li>可直接调 <b>位置 position</b>、<b>间距 spacing</b>、三个 <b>mix</b>（mixRotate / mixX / mixY，滑杆 + 数字框双向同步）与 <b>旋转偏移 offsetRotation</b>，每项都有悬浮说明。</li>
+        <li><b>改动即时生效并压过动画</b>：覆盖值写在每帧动画之后，所以即使该动画带路径约束时间轴也不会被冲掉；未改动的参数会跟随动画逐帧刷新显示。</li>
+        <li>资源里标了 <code class="inl">skin</code>（skinRequired）而当前皮肤没有启用该约束时，卡片会给出提示——官方运行时对这种约束<b>不求值</b>，本工具同样跳过。</li>
+        <li>改过的约束标「<b>已改</b>」并高亮边框，卡片右上角 <b>↺</b> 单独还原这一条，「↺ 清空姿态调试」会连同其它覆盖一起还原。覆盖只在运行时，<b>不会修改资源文件</b>。</li>
+        <li>典型用法：把 <b>mixRotate 拉到 0</b> 看「只按路径摆位置、不改朝向」的效果；把 <b>间距模式</b>切到 percent / proportional 观察骨骼沿路径的疏密变化；调 <b>位置 / 间距</b> 让链条滑到路径的另一段。</li>
+      </ul>
+      <div><b>7. 快捷键</b></div>
       <div class="kbdList hint" style="color:var(--text-dim);">
         <kbd>空格</kbd><span>播放 / 暂停</span>
         <kbd>← →</kbd><span>上一帧 / 下一帧</span>
@@ -701,8 +711,9 @@
         <li>骨骼 <code class="inl">rotate</code> / <code class="inl">translate</code> / <code class="inl">shear</code> 关键帧是<b>相对 setup 的增量</b>、<code class="inl">scale</code> 是<b>相对 setup 的乘数</b>（与官方一致）；关键帧没写 <code class="inl">x</code> / <code class="inl">y</code> 时按增量 0 处理。</li>
         <li><b>旋转的「最短路径」按版本区分</b>：Spine <b>4.0 之前</b>（本工具的 3.6 / 3.8 二进制、3.8 JSON）关键帧之间<b>总是走最短路径</b>——官方把相邻帧的角度差折到 −180°~180°，所以 <code class="inl">0° → 350°</code> 实际只转 <b>−10°</b>（3.8 里要做整圈旋转必须补中间关键帧，例如 0 / 120 / 240 / 360）；<b>4.0 及以后</b>取消了这个行为，直接在两个关键帧数值之间插值（<code class="inl">0° → 350°</code> 就转 +350°）。工具按文件版本自动选择，≤3.8 时连贝塞尔控制点也按折过的差值换算，求值结果与官方 3.8 运行时逐点一致。</li>
         <li>物理约束（<code class="inl">physics</code>）暂不模拟，相关骨骼会保持动画本身的结果。</li>
-        <li>变换约束按官方 4.3 的「源属性 → 目标属性」模型求值（六个 from / to、localSource / localTarget / additive / clamp、offset 与 clamp 区间都与官方逐项对齐；≤4.2 的 local / relative / 六个偏移在解析期归一化成等价的映射表，并保留旧格式在本地旋转 / 剪切上的 ±180° 最短路径折叠）。已用官方 4.0 / 4.1 / 4.2 / 4.3 运行时逐用例对照通过。剩余可见差异来自路径约束与长 IK 链（官方 <code class="inl">*-pro</code> 样例中的 vine、tank、celestial-circus 等）。</li>
-        <li>检查器里的 IK / 变换约束参数覆盖写在每帧动画之后，只影响预览；<b>柔和 softness 按资源原值直接作用</b>（官方 3.8–4.2 的 JSON / 二进制里都是 0–100 的百分比写法，与官方 4.1 运行时的取值方式一致），所以滑杆的 0–100 与资源里的数值一一对应，工具不做换算。</li>
+        <li>变换约束按官方 4.3 的「源属性 → 目标属性」模型求值（六个 from / to、localSource / localTarget / additive / clamp、offset 与 clamp 区间都与官方逐项对齐；≤4.2 的 local / relative / 六个偏移在解析期归一化成等价的映射表，并保留旧格式在本地旋转 / 剪切上的 ±180° 最短路径折叠）。已用官方 4.0 / 4.1 / 4.2 / 4.3 运行时逐用例对照通过。</li>
+        <li>路径约束按官方 <code class="inl">PathConstraint</code> 逐条实现（目标按<b>插槽</b>解析、沿贝塞尔曲线求点与切线、三种间距模式 / 三种旋转模式 / 三个 mix 一致）；把官方运行时在「关闭路径约束」下算出的姿态整份喂给本工具再只跑路径约束，官方带路径约束的样例（hero / vine / tank / stretchyman / mix-and-match）世界坐标逐骨骼误差 ≤ 0.0001。剩余可见差异来自长 IK 链与形变时间轴的细微差别。</li>
+        <li>检查器里的 IK / 变换 / 路径约束参数覆盖写在每帧动画之后，只影响预览；<b>柔和 softness 按资源原值直接作用</b>（官方 3.8–4.2 的 JSON / 二进制里都是 0–100 的百分比写法，与官方 4.1 运行时的取值方式一致），所以滑杆的 0–100 与资源里的数值一一对应，工具不做换算。</li>
         <li>需要 <code class="inl">file://</code> 或 <code class="inl">http://</code> 打开；不支持文件夹选择器时用兼容选择。</li>
         <li>直接用 <code class="inl">?asset=</code> 参数可在 http 环境下直链加载某个骨架（自动按名称逐个尝试 .atlas 候选名，可用 <code class="inl">&amp;atlas=</code> 指定）。</li>
       </ul>
@@ -1263,10 +1274,14 @@ SP.data = (() => {
     constructor(name) {
       super(name);
       this.boneNames = []; this.bones = [];
+      // 官方语义：target 是「放着路径附件的**插槽**」（4.0/4.1 的 JSON 字段叫 target，4.3 叫 slot），
+      // 不是骨骼——解析期已经在 targetName 里存插槽名。
       this.targetName = null; this.target = null;
       this.positionMode = PositionMode.Percent; this.spacingMode = SpacingMode.Length; this.rotateMode = RotateMode.Tangent;
       this.offsetRotation = 0; this.position = 0; this.spacing = 0;
-      this.rotateMix = 1; this.translateMix = 1;
+      // 官方 4.0+ 的三个混合：mixRotate / mixX / mixY。
+      // 3.8 的 rotateMix / translateMix 在解析期归一化成 mixRotate 与 mixX = mixY。
+      this.mixRotate = 1; this.mixX = 1; this.mixY = 1;
     }
   }
   class PhysicsConstraintData extends ConstraintData {
@@ -1787,10 +1802,12 @@ SP.data = (() => {
     }
   }
 
-  // 路径约束时间轴：属性顺序固定为 position, spacing, mixRotate, mixTranslate
+  // 路径约束时间轴：属性顺序固定为 position, spacing, mixRotate, mixX, mixY
+  // （官方把这三条拆成 PathConstraintPosition / Spacing / Mix 三个时间轴，这里合并成一张
+  //   5 列的表：只表达一个属性的时间轴把其余列填成约束的当前值即可，见 SP.json 的注释。）
   class PathConstraintTimeline extends CurveTimeline {
     constructor(frameCount, bezierCount) {
-      super(frameCount, bezierCount, 4);
+      super(frameCount, bezierCount, 5);
       this.pathConstraintIndex = 0;
     }
     apply(skeleton, lastTime, time, events, alpha, blend) {
@@ -1799,24 +1816,27 @@ SP.data = (() => {
       if (time < this.frames[0]) {
         if (!blend) {
           const d = c.data;
-          c.position = d.position; c.spacing = d.spacing; c.rotateMix = d.rotateMix; c.translateMix = d.translateMix;
+          c.position = d.position; c.spacing = d.spacing;
+          c.mixRotate = d.mixRotate; c.mixX = d.mixX; c.mixY = d.mixY;
         } else {
           const d = c.data;
           c.position += (d.position - c.position) * alpha;
           c.spacing += (d.spacing - c.spacing) * alpha;
-          c.rotateMix += (d.rotateMix - c.rotateMix) * alpha;
-          c.translateMix += (d.translateMix - c.translateMix) * alpha;
+          c.mixRotate += (d.mixRotate - c.mixRotate) * alpha;
+          c.mixX += (d.mixX - c.mixX) * alpha;
+          c.mixY += (d.mixY - c.mixY) * alpha;
         }
         return;
       }
       const pos = this.getValue(time, 0), sp = this.getValue(time, 1);
-      const rm = this.getValue(time, 2), tm = this.getValue(time, 3);
+      const mr = this.getValue(time, 2), mx = this.getValue(time, 3), my = this.getValue(time, 4);
       if (blend) {
         c.position += (pos - c.position) * alpha;
         c.spacing += (sp - c.spacing) * alpha;
-        c.rotateMix += (rm - c.rotateMix) * alpha;
-        c.translateMix += (tm - c.translateMix) * alpha;
-      } else { c.position = pos; c.spacing = sp; c.rotateMix = rm; c.translateMix = tm; }
+        c.mixRotate += (mr - c.mixRotate) * alpha;
+        c.mixX += (mx - c.mixX) * alpha;
+        c.mixY += (my - c.mixY) * alpha;
+      } else { c.position = pos; c.spacing = sp; c.mixRotate = mr; c.mixX = mx; c.mixY = my; }
     }
   }
 
@@ -2565,10 +2585,13 @@ SP.json = (() => {
    *  官方根本不读 curve，本实现同样忽略。
    *
    * @param tIn    每种 JSON 形态下 curve 的下标缩放（4.x 有「每帧一条」和「按段切片」两种写法）
+   * @param propHint 写曲线时**落到哪一列**（默认 = propertyIndex，即 curve 通道号与列号一致）。
+   *                 路径约束时间轴的 5 列布局需要它：curve 通道号仍然用来从 curve 数组里取数，
+   *                 但目标列由调用方指定。
    */
-  function applyCurve(timeline, i, curve, propertyIndex, t0, v0, t1, v1, normalized, curveScale) {
+  function applyCurve(timeline, i, curve, propertyIndex, t0, v0, t1, v1, normalized, curveScale, propHint) {
     const singleProp = propertyIndex === undefined || timeline.propertyCount === 1;
-    const prop = singleProp ? 0 : propertyIndex;
+    const prop = propHint !== undefined ? propHint : (singleProp ? 0 : propertyIndex);
     if (curve === undefined || curve === null || curve === "") return;
     // 逐属性设置：段级 setStepped/setLinear 会清掉该段所有属性曲线（CurveTimeline 的实现如此），
     // 所以多属性时间轴一律按属性设置，避免后面的属性把前面的曲线清掉。
@@ -2607,12 +2630,17 @@ SP.json = (() => {
    *                  { wrapCurveProp } 属性下标：该属性在**换算曲线控制点**时，用「最短路径」
    *                  折过的差值代替原始差值（只给 ≤3.8 的 rotate 用，见 SP.data.wrapDeg180）。
    *                  关键帧本身仍按原值存，求值时的最短路径由 RotateTimeline 负责。
+   *                  { curveProps } 属性下标数组：curve 数据里的第 k 个通道要写到时间轴的
+   *                  第 curveProps[k] 列。默认按「消费 curve 的属性」顺序落在 0,1,2…，
+   *                  但路径约束时间轴把 position / spacing / mix 合并进了固定 5 列布局，
+   *                  单属性时间轴只驱动其中一列，所以需要显式指定目标列。
    */
   function readCurveTimeline(frames, make, props, opts) {
     const o = opts || {};
     const normalized = o.normalizedCurves === undefined ? o.version && o.version.key === "3.8" : o.normalizedCurves;
     const post = o.post || null;      // 把帧原始值转成时间轴数值（颜色需要解 hex）
     const wrapCurveProp = o.wrapCurveProp === undefined ? -1 : o.wrapCurveProp;
+    const curveProps = o.curveProps || null;
     const frameCount = frames.length;
     const tl = make(frameCount);
     const legacyExtraMax = props.length <= 1 ? 4 : LEGACY_CURVE_FLAT_MAX;
@@ -2657,7 +2685,8 @@ SP.json = (() => {
         // 但控制点是解析期换算的，两边的差值必须是同一个，段中间才对得上）
         const v0 = segVals[seg][k];
         const v1 = k === wrapCurveProp ? v0 + D.wrapDeg180(segVals[seg + 1][k] - v0) : segVals[seg + 1][k];
-        applyCurve(tl, seg, f.curve, slot, segTimes[seg], v0, segTimes[seg + 1], v1, normalized);
+        applyCurve(tl, seg, f.curve, slot, segTimes[seg], v0, segTimes[seg + 1], v1, normalized, undefined,
+          curveProps ? curveProps[slot] : undefined);
         slot++;
       }
     }
@@ -3314,14 +3343,15 @@ SP.json = (() => {
     c.offsetRotation = getNum(m, "rotation", 0);
     c.position = getNum(m, "position", 0);
     c.spacing = getNum(m, "spacing", 0);
-    if (hasOwn(m, "mixRotate") || hasOwn(m, "mixX")) {
-      // 4.0+
-      c.rotateMix = getNum(m, "mixRotate", 1);
-      c.translateMix = getNum(m, "mixX", 1);
-    } else {
-      // 3.8
-      c.rotateMix = getNum(m, "rotateMix", 1);
-      c.translateMix = getNum(m, "translateMix", 1);
+    if (hasOwn(m, "mixRotate") || hasOwn(m, "mixX") || hasOwn(m, "mixY")) {
+      // 4.0+：mixRotate / mixX / mixY（mixY 缺省跟随 mixX，与官方 getValue(map,"mixY",mixX) 一致）
+      c.mixRotate = getNum(m, "mixRotate", 1);
+      c.mixX = getNum(m, "mixX", 1);
+      c.mixY = getNum(m, "mixY", c.mixX);
+    } else if (hasOwn(m, "rotateMix") || hasOwn(m, "translateMix")) {
+      // 3.8：rotateMix / translateMix → mixRotate / mixX = mixY
+      c.mixRotate = getNum(m, "rotateMix", 1);
+      c.mixX = c.mixY = getNum(m, "translateMix", 1);
     }
     sd.pathConstraints.push(c);
     if (map) map.set(c.name, c);
@@ -3397,9 +3427,12 @@ SP.json = (() => {
   function buildSkin(skinMap, sd, skinByName, atlasView, version) {
     const skinName = typeof skinMap.name === "string" && skinMap.name ? skinMap.name : "default";
     const skin = new D.Skin(skinName);
+    // 皮肤自带的骨骼 / 约束列表（4.2 起）：官方用它决定 skinRequired 的骨骼与约束是否生效。
+    // 列表里存**对象**（BoneData / ConstraintData），与二进制解析器保持一致。
     if (Array.isArray(skinMap.bones)) {
       for (const b of skinMap.bones) {
-        if (sd.findBone(b)) skin.bones.push(b);
+        const bd = sd.bones.find((x) => x.name === b);
+        if (bd) skin.bones.push(bd);
         else warn(`皮肤 "${skinName}" 引用了不存在的骨骼 "${b}"`);
       }
     }
@@ -3414,7 +3447,8 @@ SP.json = (() => {
       if (!Array.isArray(arr)) continue;
       const known = g.list();
       for (const cn of arr) {
-        if (known.some((c) => c.name === cn)) skin.constraints.push(cn);
+        const found = known.find((c) => c.name === cn);
+        if (found) skin.constraints.push(found);
         else warn(`皮肤 "${skinName}" 引用了不存在的 ${g.key} 约束 "${cn}"`);
       }
     }
@@ -3628,6 +3662,23 @@ SP.json = (() => {
     }
 
     // ---- 路径约束时间轴 ----
+    // 官方把路径约束拆成三条时间轴（position / spacing / mix），本运行时统一成一张 5 列的表
+    // [position, spacing, mixRotate, mixX, mixY]。文件名里的每条时间轴只驱动其中一列，
+    // 其余列在下面填成约束的当前值——这样「某条时间轴只管 position」的语义就被保留了。
+    const PATH_COL = { position: 0, spacing: 1, mixRotate: 2, mixX: 3, mixY: 4 };
+    const pathCols = ["position", "spacing", "mixRotate", "mixX", "mixY"];
+    /** 5 列布局的属性描述；curveCols 里的列才会消费 curve 数据（其余列标 curve:false） */
+    const pathTlProps = (curveCols) => pathCols.map((key, k) => ({
+      key, dflt: k >= PATH_COL.mixRotate ? 1 : 0, curve: curveCols.indexOf(k) >= 0,
+    }));
+    /** 把「只驱动 driven 列」的时间轴的其余列填成约束当前值 */
+    const fillPathRest = (tl, c, driven) => {
+      const fixed = [c.position, c.spacing, c.mixRotate, c.mixX, c.mixY];
+      for (let i = 0; i < tl.frameCount; i++) {
+        const base = i * tl.frameSize;
+        for (let k = 0; k < pathCols.length; k++) if (driven.indexOf(k) < 0) tl.frames[base + 1 + k] = fixed[k];
+      }
+    };
     const pathMaps = getv(map, "path", null);
     if (pathMaps && typeof pathMaps === "object") {
       for (const cName in pathMaps) {
@@ -3637,11 +3688,18 @@ SP.json = (() => {
         const index = sd.pathConstraints.indexOf(c);
         if (Array.isArray(cm)) {
           // 旧式单条时间轴：[time, position, spacing, rotateMix, translateMix]
-          const tl = readCurveTimeline(cm, (n) => new D.PathConstraintTimeline(n, 0), [
-            { key: "position", dflt: 0 }, { key: "spacing", dflt: 0 },
-            { key: "rotateMix", dflt: 1 }, { key: "translateMix", dflt: 1 },
-          ], { normalizedCurves: norm });
+          const tl = readCurveTimeline(cm, (n) => new D.PathConstraintTimeline(n, 0), pathTlProps([0, 1, 2, 3, 4]), {
+            normalizedCurves: norm,
+            post: (vals) => {
+              // 5 个值按「position / spacing / rotateMix / translateMix(+1)」排布：
+              // 只有 4 个数据时，第 5 列（mixY）跟随 mixX
+              if (vals[4] === 0) vals[4] = vals[3];
+              return vals;
+            },
+          });
+          fillPathRest(tl, c, [0, 1, 2, 3, 4]);
           tl.pathConstraintIndex = index;
+          tl.pathProperties = ["position", "spacing", "mixRotate", "mixX=mixY"];
           timelines.push(tl);
           continue;
         }
@@ -3653,65 +3711,59 @@ SP.json = (() => {
         const firstMix = mixFrames && mixFrames[0] && !Array.isArray(mixFrames[0]) ? mixFrames[0] : {};
         const mixIsLegacy = hasOwn(firstMix, "rotateMix") || hasOwn(firstMix, "translateMix");
         if (posFrames && posFrames.length) {
-          const tl = readCurveTimeline(posFrames, (n) => new D.PathConstraintTimeline(n, 0), [
-            { key: "position", dflt: 0 }, { key: "spacing", dflt: 0 },
-            { key: "rotateMix", dflt: 1 }, { key: "translateMix", dflt: 1 },
-          ], {
+          const tl = readCurveTimeline(posFrames, (n) => new D.PathConstraintTimeline(n, 0), pathTlProps([0]), {
             normalizedCurves: norm,
+            curveProps: [0],
             // 4.1+ 的 position 时间轴帧用 "value" 存数值（不是 "position"）
-            post: (vals, f) => [f.map && hasOwn(f.map, "value") ? num(f.map.value, 0) : vals[0], vals[1], vals[2], vals[3]],
+            post: (vals, f) => { if (f.map && hasOwn(f.map, "value")) vals[0] = num(f.map.value, 0); return vals; },
           });
-          // 该时间轴只表达 position：其余属性固定为 setup 值
-          for (let i = 0; i < tl.frameCount; i++) {
-            const base = i * tl.frameSize;
-            tl.frames[base + 2] = c.spacing;
-            tl.frames[base + 3] = c.rotateMix;
-            tl.frames[base + 4] = c.translateMix;
-          }
+          fillPathRest(tl, c, [0]);
           tl.pathConstraintIndex = index;
           tl.pathProperties = ["position"];
           timelines.push(tl);
         }
         if (spFrames && spFrames.length) {
-          const tl = readCurveTimeline(spFrames, (n) => new D.PathConstraintTimeline(n, 0), [
-            { key: "position", dflt: 0 }, { key: "spacing", dflt: 0 },
-            { key: "rotateMix", dflt: 1 }, { key: "translateMix", dflt: 1 },
-          ], {
+          const tl = readCurveTimeline(spFrames, (n) => new D.PathConstraintTimeline(n, 0), pathTlProps([1]), {
             normalizedCurves: norm,
-            post: (vals, f) => [vals[0], f.map && hasOwn(f.map, "value") ? num(f.map.value, 0) : vals[1], vals[2], vals[3]],
+            curveProps: [1],
+            post: (vals, f) => { if (f.map && hasOwn(f.map, "value")) vals[1] = num(f.map.value, 0); return vals; },
           });
-          for (let i = 0; i < tl.frameCount; i++) {
-            const base = i * tl.frameSize;
-            tl.frames[base + 1] = c.position;
-            tl.frames[base + 3] = c.rotateMix;
-            tl.frames[base + 4] = c.translateMix;
-          }
+          fillPathRest(tl, c, [1]);
           tl.pathConstraintIndex = index;
           tl.pathProperties = ["spacing"];
           timelines.push(tl);
         }
         if (mixFrames && mixFrames.length) {
-          const tl = readCurveTimeline(mixFrames, (n) => new D.PathConstraintTimeline(n, 0), [
-            { key: "position", dflt: 0 }, { key: "spacing", dflt: 0 },
-            { key: "rotateMix", dflt: 1 }, { key: "translateMix", dflt: 1 },
-          ], { normalizedCurves: norm });
-          for (let i = 0; i < tl.frameCount; i++) {
-            const base = i * tl.frameSize;
-            const m = Array.isArray(mixFrames[i]) ? null : (mixFrames[i] || {});
-            tl.frames[base + 1] = c.position;
-            tl.frames[base + 2] = c.spacing;
-            if (m) {
-              if (mixIsLegacy) {
-                tl.frames[base + 3] = hasOwn(m, "rotateMix") ? num(m.rotateMix, 1) : c.rotateMix;
-                tl.frames[base + 4] = hasOwn(m, "translateMix") ? num(m.translateMix, 1) : c.translateMix;
-              } else {
-                tl.frames[base + 3] = hasOwn(m, "mixRotate") ? num(m.mixRotate, 1) : c.rotateMix;
-                tl.frames[base + 4] = hasOwn(m, "mixX") ? num(m.mixX, 1) : c.translateMix;
+          const driven = mixIsLegacy ? [PATH_COL.mixRotate, PATH_COL.mixX] : [PATH_COL.mixRotate, PATH_COL.mixX, PATH_COL.mixY];
+          const tl = readCurveTimeline(mixFrames, (n) => new D.PathConstraintTimeline(n, 0), pathTlProps(driven), {
+            normalizedCurves: norm,
+            curveProps: driven,
+            post: (vals, f) => {
+              const m = f.map;
+              if (!m) {
+                // 3.8 的数组形态：按位置读到的两个通道 = rotateMix / translateMix
+                vals[PATH_COL.mixRotate] = num(f.values[0], c.mixRotate);
+                vals[PATH_COL.mixX] = num(f.values[1], c.mixX);
+                vals[PATH_COL.mixY] = vals[PATH_COL.mixX];
+                return vals;
               }
-            }
-          }
+              if (mixIsLegacy) {
+                vals[PATH_COL.mixRotate] = hasOwn(m, "rotateMix") ? num(m.rotateMix, 1) : c.mixRotate;
+                vals[PATH_COL.mixX] = hasOwn(m, "translateMix") ? num(m.translateMix, 1) : c.mixX;
+                vals[PATH_COL.mixY] = vals[PATH_COL.mixX];
+              } else {
+                vals[PATH_COL.mixRotate] = hasOwn(m, "mixRotate") ? num(m.mixRotate, 1) : c.mixRotate;
+                vals[PATH_COL.mixX] = hasOwn(m, "mixX") ? num(m.mixX, 1) : c.mixX;
+                // 官方的 mixY 缺省跟随 mixX
+                vals[PATH_COL.mixY] = hasOwn(m, "mixY") ? num(m.mixY, 1)
+                  : hasOwn(m, "mixX") ? vals[PATH_COL.mixX] : c.mixY;
+              }
+              return vals;
+            },
+          });
+          fillPathRest(tl, c, driven);
           tl.pathConstraintIndex = index;
-          tl.pathProperties = ["rotateMix", "translateMix"];
+          tl.pathProperties = mixIsLegacy ? ["rotateMix", "translateMix(=mixX=mixY)"] : ["mixRotate", "mixX", "mixY"];
           timelines.push(tl);
         }
       }
@@ -4401,14 +4453,17 @@ SP.binary = (() => {
    * 4.0+ 的曲线：位置在「下一帧数值之后」。BEZIER 时按**通道**顺序读 4×(通道数) 个
    * **绝对** float，第 k 个通道的 4 个数直接用绝对控制点写进该属性。
    * 缩放在调用方处理（这里 scale = 1）。
+   * @param propOffset 通道号 → 时间轴列号的偏移（路径约束把 position/spacing/mix 合并进
+   *                   固定 5 列布局，spacing 的曲线通道 0 要写到第 1 列、mix 的要从第 2 列起）。
    */
-  function readCurve4(r, tl, frame, channels) {
+  function readCurve4(r, tl, frame, channels, propOffset) {
     const type = r.byte();
     if (type === CURVE_STEPPED) { tl.setStepped(frame); return type; }
     if (type !== CURVE_BEZIER) { tl.setLinear(frame); return type; }
+    const off = propOffset || 0;
     for (let k = 0; k < channels; k++) {
       const cx1 = r.float(), cy1 = r.float(), cx2 = r.float(), cy2 = r.float();
-      tl.setBezierAt(frame, k, cx1, cy1, cx2, cy2);
+      tl.setBezierAt(frame, off + k, cx1, cy1, cx2, cy2);
     }
     return type;
   }
@@ -4685,10 +4740,9 @@ SP.binary = (() => {
         data.offsetRotation = (flags & 0x80) ? r.float() : 0;
         data.position = r.float();
         data.spacing = r.float();
-        data.rotateMix = r.float();
+        data.mixRotate = r.float();
         data.mixX = r.float();
         data.mixY = r.float();
-        data.translateMix = data.mixY;
       } else {
         data.positionMode = r.int(true);
         data.spacingMode = r.int(true);
@@ -4697,13 +4751,14 @@ SP.binary = (() => {
         data.position = r.float();
         data.spacing = r.float();
         if (isLegacy38(layout)) {
-          data.rotateMix = r.float();
-          data.translateMix = r.float();
+          // 3.8：rotateMix / translateMix → mixRotate / mixX = mixY
+          data.mixRotate = r.float();
+          data.mixX = data.mixY = r.float();
         } else {
-          data.rotateMix = r.float();
+          // 4.0 / 4.1：mixRotate / mixX / mixY
+          data.mixRotate = r.float();
           data.mixX = r.float();
           data.mixY = r.float();
-          data.translateMix = data.mixY;
         }
       }
       sd.pathConstraints.push(data);
@@ -5552,15 +5607,20 @@ SP.binary = (() => {
         if (atLeast40(layout)) r.int(true); // bezierCount
         const tl = new D.PathConstraintTimeline(frameCount, 0);
         tl.pathConstraintIndex = index;
+        // 本运行时把官方的 position / spacing / mix 三条时间轴合并成一张 5 列的表，
+        // 所以每条时间轴都要把「自己不驱动的那几列」写成约束的 setup 值——等价于官方
+        // 每帧 setToSetupPose 之后再只改自己那一列。
+        const pcd = sd.pathConstraints[index] || null;
+        const setupCols = pcd ? [pcd.position, pcd.spacing, pcd.mixRotate, pcd.mixX, pcd.mixY] : [0, 0, 1, 1, 1];
         const last = frameCount - 1;
         if (type === P_POSITION || type === P_SPACING) {
           const propIndex = type === P_POSITION ? 0 : 1;
           let time = r.float();
           let value = r.float();
           const applyFrame = (f, t, v) => {
-            const vals = [0, 0, 1, 1];
+            const vals = setupCols.slice();
             vals[propIndex] = v;
-            tl.setFrame(f, t, vals[0], vals[1], vals[2], vals[3]);
+            tl.setFrame(f, t, vals[0], vals[1], vals[2], vals[3], vals[4]);
           };
           for (let f = 0; ; f++) {
             applyFrame(f, time, value);
@@ -5574,7 +5634,7 @@ SP.binary = (() => {
             } else {
               const nextTime = r.float();
               const nextValue = r.float();
-              readCurve4(r, tl, f, 1);
+              readCurve4(r, tl, f, 1, propIndex);
               time = nextTime; value = nextValue;
             }
           }
@@ -5584,8 +5644,12 @@ SP.binary = (() => {
           let vals = [];
           for (let k = 0; k < propCount; k++) vals.push(r.float());
           const applyFrame = (f, t, v) => {
-            if (is38) tl.setFrame(f, t, 0, 0, v[0], v[1]);           // 3.8: rotateMix, translateMix
-            else tl.setFrame(f, t, 0, 0, v[0], v[2]);                 // 4.x: mixRotate, mixX, mixY
+            // 3.8：rotateMix, translateMix → rotateMix, mixX = mixY
+            // 4.x：mixRotate, mixX, mixY
+            const vals = setupCols.slice();
+            if (is38) { vals[2] = v[0]; vals[3] = v[1]; vals[4] = v[1]; }
+            else { vals[2] = v[0]; vals[3] = v[1]; vals[4] = v[2]; }
+            tl.setFrame(f, t, vals[0], vals[1], vals[2], vals[3], vals[4]);
           };
           for (let f = 0; ; f++) {
             applyFrame(f, time, vals);
@@ -5601,7 +5665,7 @@ SP.binary = (() => {
               const nextTime = r.float();
               const next = [];
               for (let k = 0; k < propCount; k++) next.push(r.float());
-              readCurve4(r, tl, f, propCount);
+              readCurve4(r, tl, f, propCount, 2);
               time = nextTime; vals = next;
             }
           }
@@ -5946,6 +6010,14 @@ SP.runtime = (() => {
       // 约束改过这个骨骼（或它的祖先）之后，世界变换必须重算，且后代要能沿着父链把
       // 尚未重算的祖先先算出来——否则约束写回的只是父级矩阵，子骨骼会用到过期矩阵。
       this.constraintDirty = false;
+      /**
+       * 矩阵权威位：路径约束直接改写骨骼的世界矩阵，而本地量（x/y/rotation…）是从矩阵
+       * 反解出来的_近似_值；再按本地量重算一次会把约束的结果磨掉一点（父级矩阵退化时
+       * 甚至会整块丢掉）。官方运行时不做这次重算，所以这里在约束写完矩阵后打上标记，
+       * 让紧随其后的 updateBones() 跳过这根骨骼——矩阵以约束写下的为准，子骨骼照旧
+       * 从这个矩阵出发计算。下一次 updateWorldTransform() 会清空标记。
+       */
+      this.matrixLocked = false;
     }
     setToSetupPose() {
       const d = this.data;
@@ -5953,6 +6025,7 @@ SP.runtime = (() => {
       this.scaleX = d.scaleX; this.scaleY = d.scaleY; this.shearX = d.shearX; this.shearY = d.shearY;
       this.transformMode = d.transformMode;
       this.constraintDirty = false;
+      this.matrixLocked = false;
     }
     /** 先把「被约束改动过、但世界变换还没重算」的祖先补齐（从根往下的顺序） */
     updateDirtyAncestors() {
@@ -6630,99 +6703,413 @@ SP.runtime = (() => {
     }
   }
 
-  // 路径约束（近似实现：沿路径按弧长分布骨骼；极端参数下与官方可能有细微差异）
+  /**
+   * 官方 `Utils.setArraySize` 的等价物：长度相同就复用，否则重新分配（避免逐帧产生垃圾）。
+   * 这里用普通数组（float64）而不是 Float32Array：路径长度与采样位置是一路累加出来的，
+   * 与官方运行时的数值路径保持一致，避免 float32 舍入带来的可见偏差。
+   */
+  function setArraySize(owner, key, size) {
+    let a = owner[key];
+    if (!a || a.length !== size) { a = new Array(size).fill(0); owner[key] = a; }
+    return a;
+  }
+  function arrayFill(a, from, to, v) {
+    for (let i = from; i < to; i++) a[i] = v;
+  }
+
+  /**
+   * 路径约束（官方 spine-core `PathConstraint` 的逐条等价实现）。
+   *
+   * 关键语义（曾经实现错的地方）：
+   *   1. `target` 是**插槽**（放着 PathAttachment 的那个插槽），不是骨骼。官方 JSON 的
+   *      `target` / 4.3 的 `slot` 都写插槽名；用 findBone 找会直接找不到而整条约束静默失效。
+   *   2. 骨骼位置沿着**贝塞尔曲线**求值（官方 `computeWorldPositions`）：每个关键段取
+   *      P0/C1/C2/P1 四个控制点，按弧长参数化后在曲线上取点与切线；不是把控制点连成折线。
+   *      非匀速（`constantSpeed = false`）时直接用附件里存的 `lengths`（逐段累计弧长）。
+   *   3. 官方直接改写骨骼的**世界矩阵**（worldX/worldY + a/b/c/d），再调用
+   *      `Bone.updateAppliedTransform()` 折回本地量；本运行时随后重算世界变换即可复现同一矩阵。
+   */
   class PathConstraint {
     constructor(data, skeleton) {
       this.data = data;
-      this.position = data.position; this.spacing = data.spacing;
-      this.rotateMix = data.rotateMix; this.translateMix = data.translateMix;
       this.bones = data.boneNames.map((n) => skeleton.findBone(n)).filter(Boolean);
-      this.target = skeleton.findBone(data.targetName);
-      this.spaces = new Float32Array(this.bones.length);
-      this.positions = new Float32Array(this.bones.length * 3);
-      this.world = null; this.lengths = null; this.segments = null;
+      // target 是插槽：路径附件挂在它上面（findSlot 按 data.targetName / 4.3 的 slot 字段）
+      this.target = skeleton.findSlot(data.targetName);
+      this.position = data.position; this.spacing = data.spacing;
+      this.mixRotate = data.mixRotate; this.mixX = data.mixX; this.mixY = data.mixY;
+      // 模式与旋转偏移平时只来自资源；放到运行时字段上，检查器才能临时改来调试
+      this.positionMode = data.positionMode; this.spacingMode = data.spacingMode; this.rotateMode = data.rotateMode;
+      this.offsetRotation = data.offsetRotation;
+      this.spaces = [];       // 每根骨骼沿路径的间距（按 spacingMode 归一化后）
+      this.positions = [];    // 采样结果：每根骨骼 3 个数 [x, y, 切线角]
+      this.world = [];        // 路径控制点的世界坐标
+      this.curves = [];       // 匀速模式下每段曲线的累计长度
+      this.lengths = [];      // chainScale 模式下每根骨骼的初始长度
+      this.segments = [];     // 匀速模式下曲线内部 10 段的累计长度
     }
     setToSetupPose() {
       const d = this.data;
       this.position = d.position; this.spacing = d.spacing;
-      this.rotateMix = d.rotateMix; this.translateMix = d.translateMix;
+      this.mixRotate = d.mixRotate; this.mixX = d.mixX; this.mixY = d.mixY;
+      this.positionMode = d.positionMode; this.spacingMode = d.spacingMode; this.rotateMode = d.rotateMode;
+      this.offsetRotation = d.offsetRotation;
     }
     apply() {
       const target = this.target;
       if (!target || !this.bones.length) return;
-      const slot = target.skeleton.slots.find((s) => s.bone === target);
-      const slotIdx = slot ? slot.data.index : -1;
-      // 路径附件在目标骨骼的某个插槽上
-      let pathAtt = null, pathSlot = null;
-      for (const s of target.skeleton.slots) {
-        if (s.bone === target && s.attachment && s.attachment.type === D.ATT.PATH) { pathAtt = s.attachment; pathSlot = s; break; }
-      }
-      if (!pathAtt) {
-        for (const s of target.skeleton.slots) {
-          if (s.attachment && s.attachment.type === D.ATT.PATH) { pathAtt = s.attachment; pathSlot = s; break; }
-        }
-      }
-      if (!pathAtt) return;
-      const world = computePathWorldVertices(pathAtt, pathSlot);
-      const n = world.length / 2;
-      const lengths = new Float32Array(n);
-      let total = 0;
-      for (let i = 0; i < n - 1; i++) {
-        const dx = world[(i + 1) * 2] - world[i * 2], dy = world[(i + 1) * 2 + 1] - world[i * 2 + 1];
-        lengths[i] = Math.sqrt(dx * dx + dy * dy);
-        total += lengths[i];
-      }
-      if (n > 1) { // 闭合路径末段
-        const dx = world[0] - world[(n - 1) * 2], dy = world[1] - world[(n - 1) * 2 + 1];
-        lengths[n - 1] = pathAtt.closed ? Math.sqrt(dx * dx + dy * dy) : 0;
-        if (pathAtt.closed) total += lengths[n - 1];
-      }
-      // 骨骼间距
-      const d = this.data;
-      let spacing = this.spacing;
-      if (d.spacingMode === D.SpacingMode.Percent) spacing *= total / 100;
-      else if (d.spacingMode === D.SpacingMode.Proportional) spacing *= total / this.bones.length;
-      let pos = this.position;
-      if (d.positionMode === D.PositionMode.Percent) pos *= total / 100;
-      for (let i = 0; i < this.bones.length; i++) {
-        const bone = this.bones[i];
-        // 采样路径上的点
-        let dist = pos + i * spacing;
-        if (total > 0) dist = ((dist % total) + total) % total;
-        let seg = 0, acc = 0;
-        while (seg < n - 1 && acc + lengths[seg] < dist) { acc += lengths[seg]; seg++; }
-        const segLen = lengths[seg] || 1;
-        const t = M.clamp((dist - acc) / segLen, 0, 1);
-        const ax = world[seg * 2], ay = world[seg * 2 + 1];
-        const bx = world[(seg + 1) * 2] || ax, by = world[(seg + 1) * 2 + 1] || ay;
-        const wx = ax + (bx - ax) * t, wy = ay + (by - ay) * t;
-        const angle = M.atan2Deg(by - ay, bx - ax) + (d.rotateMode === D.RotateMode.ChainScale ? 0 : 0);
-        if (this.translateMix) {
-          const parent = bone.parent;
-          let lx, ly;
-          if (parent) { const l = parent.worldToLocal(wx, wy); lx = l.x; ly = l.y; }
-          else {
-            const sk = bone.skeleton;
-            lx = (wx - sk.x) / (sk.scaleX || 1); ly = (wy - sk.y) / (sk.scaleY || 1);
+      const attachment = target.attachment;
+      if (!attachment || attachment.type !== D.ATT.PATH) return;
+      const mixRotate = this.mixRotate, mixX = this.mixX, mixY = this.mixY;
+      if (mixRotate === 0 && mixX === 0 && mixY === 0) return;
+      const tangents = this.rotateMode === D.RotateMode.Tangent;
+      const scale = this.rotateMode === D.RotateMode.ChainScale;
+      const bones = this.bones, boneCount = bones.length;
+      const spacesCount = tangents ? boneCount : boneCount + 1;
+      const spaces = setArraySize(this, "spaces", spacesCount);
+      const lengths = scale ? setArraySize(this, "lengths", boneCount) : null;
+      const spacing = this.spacing;
+      switch (this.spacingMode) {
+        case D.SpacingMode.Percent:
+          if (scale) {
+            for (let i = 0, n = spacesCount - 1; i < n; i++) {
+              const bone = bones[i];
+              const setupLength = bone.data.length;
+              if (setupLength < PathConstraint.epsilon) lengths[i] = 0;
+              else {
+                const x = setupLength * bone.a, y = setupLength * bone.c;
+                lengths[i] = Math.sqrt(x * x + y * y);
+              }
+            }
           }
-          bone.x += (lx - bone.x) * this.translateMix;
-          bone.y += (ly - bone.y) * this.translateMix;
-          bone.updateWorldTransform();
+          arrayFill(spaces, 1, spacesCount, spacing);
+          break;
+        case D.SpacingMode.Proportional: {
+          let sum = 0;
+          for (let i = 0, n = spacesCount - 1; i < n;) {
+            const bone = bones[i];
+            const setupLength = bone.data.length;
+            if (setupLength < PathConstraint.epsilon) {
+              if (scale) lengths[i] = 0;
+              spaces[++i] = spacing;
+            } else {
+              const x = setupLength * bone.a, y = setupLength * bone.c;
+              const length = Math.sqrt(x * x + y * y);
+              if (scale) lengths[i] = length;
+              spaces[++i] = length;
+              sum += length;
+            }
+          }
+          if (sum > 0) {
+            sum = spacesCount / sum * spacing;
+            for (let i = 1; i < spacesCount; i++) spaces[i] *= sum;
+          }
+          break;
         }
-        if (this.rotateMix) {
-          let delta = angle - bone.getWorldRotationX();
-          if (d.rotateMode === D.RotateMode.Tangent) delta += d.offsetRotation;
-          else if (d.rotateMode === D.RotateMode.Chain) delta += d.offsetRotation;
-          while (delta > 180) delta -= 360;
-          while (delta < -180) delta += 360;
-          bone.rotation += delta * this.rotateMix;
-          bone.updateWorldTransform();
+        default: {
+          const lengthSpacing = this.spacingMode === D.SpacingMode.Length;
+          for (let i = 0, n = spacesCount - 1; i < n;) {
+            const bone = bones[i];
+            const setupLength = bone.data.length;
+            if (setupLength < PathConstraint.epsilon) {
+              if (scale) lengths[i] = 0;
+              spaces[++i] = spacing;
+            } else {
+              const x = setupLength * bone.a, y = setupLength * bone.c;
+              const length = Math.sqrt(x * x + y * y);
+              if (scale) lengths[i] = length;
+              spaces[++i] = (lengthSpacing ? setupLength + spacing : spacing) * length / setupLength;
+            }
+          }
         }
+      }
+      const positions = this.computeWorldPositions(attachment, target, spacesCount, tangents);
+      let boneX = positions[0], boneY = positions[1], offsetRotation = this.offsetRotation;
+      let tip = false;
+      if (offsetRotation === 0) tip = this.rotateMode === D.RotateMode.Chain;
+      else {
+        tip = false;
+        const p = target.bone;
+        // 目标骨骼的矩阵含镜像时，偏移角反向（官方 MathUtils.degRad 分支）
+        offsetRotation *= p.a * p.d - p.b * p.c > 0 ? M.DEG_RAD : -M.DEG_RAD;
+      }
+      for (let i = 0, p = 3; i < boneCount; i++, p += 3) {
+        const bone = bones[i];
+        bone.worldX += (boneX - bone.worldX) * mixX;
+        bone.worldY += (boneY - bone.worldY) * mixY;
+        const x = positions[p], y = positions[p + 1];
+        let dx = x - boneX, dy = y - boneY;
+        if (scale) {
+          const length = lengths[i];
+          if (length !== 0) {
+            const s = (Math.sqrt(dx * dx + dy * dy) / length - 1) * mixRotate + 1;
+            bone.a *= s;
+            bone.c *= s;
+          }
+        }
+        boneX = x;
+        boneY = y;
+        if (mixRotate > 0) {
+          const a = bone.a, b = bone.b, c = bone.c, d = bone.d;
+          let r = 0, cos = 0, sin = 0;
+          if (tangents) r = positions[p - 1];
+          else if (spaces[i + 1] === 0) r = positions[p + 2];
+          else r = Math.atan2(dy, dx);
+          r -= Math.atan2(c, a);
+          if (tip) {
+            cos = Math.cos(r); sin = Math.sin(r);
+            const length = bone.data.length;
+            boneX += (length * (cos * a - sin * c) - dx) * mixRotate;
+            boneY += (length * (sin * a + cos * c) - dy) * mixRotate;
+          } else r += offsetRotation;
+          if (r > Math.PI) r -= Math.PI * 2;
+          else if (r < -Math.PI) r += Math.PI * 2;
+          r *= mixRotate;
+          cos = Math.cos(r); sin = Math.sin(r);
+          bone.a = cos * a - sin * c;
+          bone.b = cos * b - sin * d;
+          bone.c = sin * a + cos * c;
+          bone.d = sin * b + cos * d;
+        }
+        // 矩阵已经被约束改写：折回本地量（检查器读数用），并打上「矩阵权威」标记，
+        // 让随后的一次世界变换重算跳过它，保证约束结果不被近似反解磨掉。
+        bone.updateAppliedTransform();
+        bone.matrixLocked = true;
+      }
+    }
+    /**
+     * 官方 `computeWorldPositions` 的逐字移植。
+     * 输出 out 的长度是 spacesCount * 3 + 2：第一根骨骼之前的位置放在 [0] / [1]，
+     * 之后每根骨骼 3 个数 [x, y, 切线角]（非切线模式下第 3 个数仅在 spacing 为 0 时使用）。
+     */
+    computeWorldPositions(path, target, spacesCount, tangents) {
+      let position = this.position;
+      const spaces = this.spaces;
+      const out = setArraySize(this, "positions", spacesCount * 3 + 2);
+      let world = null;
+      const closed = path.closed;
+      let verticesLength = path.worldVerticesLength;
+      let curveCount = verticesLength / 6;
+      let prevCurve = PathConstraint.NONE;
+      if (!path.constantSpeed) {
+        // 非匀速：附件里直接存了逐段累计弧长
+        const lengths = path.lengths;
+        curveCount -= closed ? 1 : 2;
+        const pathLength = lengths[curveCount];
+        if (this.positionMode === D.PositionMode.Percent) position *= pathLength;
+        let multiplier;
+        switch (this.spacingMode) {
+          case D.SpacingMode.Percent: multiplier = pathLength; break;
+          case D.SpacingMode.Proportional: multiplier = pathLength / spacesCount; break;
+          default: multiplier = 1;
+        }
+        world = setArraySize(this, "world", 8);
+        for (let i = 0, o = 0, curve = 0; i < spacesCount; i++, o += 3) {
+          const space = spaces[i] * multiplier;
+          position += space;
+          let p = position;
+          if (closed) {
+            p %= pathLength;
+            if (p < 0) p += pathLength;
+            curve = 0;
+          } else if (p < 0) {
+            if (prevCurve !== PathConstraint.BEFORE) {
+              prevCurve = PathConstraint.BEFORE;
+              computeAttachmentWorldVertices(path, target, 2, 4, world, 0, 2);
+            }
+            this.addBeforePosition(p, world, 0, out, o);
+            continue;
+          } else if (p > pathLength) {
+            if (prevCurve !== PathConstraint.AFTER) {
+              prevCurve = PathConstraint.AFTER;
+              computeAttachmentWorldVertices(path, target, verticesLength - 6, 4, world, 0, 2);
+            }
+            this.addAfterPosition(p - pathLength, world, 0, out, o);
+            continue;
+          }
+          // Determine curve containing position.
+          for (;; curve++) {
+            const length = lengths[curve];
+            if (p > length) continue;
+            if (curve === 0) p /= length;
+            else {
+              const prev = lengths[curve - 1];
+              p = (p - prev) / (length - prev);
+            }
+            break;
+          }
+          if (curve !== prevCurve) {
+            prevCurve = curve;
+            if (closed && curve === curveCount) {
+              computeAttachmentWorldVertices(path, target, verticesLength - 4, 4, world, 0, 2);
+              computeAttachmentWorldVertices(path, target, 0, 4, world, 4, 2);
+            } else computeAttachmentWorldVertices(path, target, curve * 6 + 2, 8, world, 0, 2);
+          }
+          this.addCurvePosition(p, world[0], world[1], world[2], world[3], world[4], world[5], world[6], world[7],
+            out, o, tangents || (i > 0 && space === 0));
+        }
+        return out;
+      }
+      // 匀速：按 10 段折线近似每段曲线的弧长，再按弧长均匀分布
+      if (closed) {
+        verticesLength += 2;
+        world = setArraySize(this, "world", verticesLength);
+        computeAttachmentWorldVertices(path, target, 2, verticesLength - 4, world, 0, 2);
+        computeAttachmentWorldVertices(path, target, 0, 2, world, verticesLength - 4, 2);
+        world[verticesLength - 2] = world[0];
+        world[verticesLength - 1] = world[1];
+      } else {
+        curveCount--;
+        verticesLength -= 4;
+        world = setArraySize(this, "world", verticesLength);
+        computeAttachmentWorldVertices(path, target, 2, verticesLength, world, 0, 2);
+      }
+      const curves = setArraySize(this, "curves", curveCount);
+      let pathLength = 0;
+      let x1 = world[0], y1 = world[1], cx1 = 0, cy1 = 0, cx2 = 0, cy2 = 0, x2 = 0, y2 = 0;
+      let tmpx = 0, tmpy = 0, dddfx = 0, dddfy = 0, ddfx = 0, ddfy = 0, dfx = 0, dfy = 0;
+      for (let i = 0, w = 2; i < curveCount; i++, w += 6) {
+        cx1 = world[w]; cy1 = world[w + 1];
+        cx2 = world[w + 2]; cy2 = world[w + 3];
+        x2 = world[w + 4]; y2 = world[w + 5];
+        tmpx = (x1 - cx1 * 2 + cx2) * 0.1875;
+        tmpy = (y1 - cy1 * 2 + cy2) * 0.1875;
+        dddfx = ((cx1 - cx2) * 3 - x1 + x2) * 0.09375;
+        dddfy = ((cy1 - cy2) * 3 - y1 + y2) * 0.09375;
+        ddfx = tmpx * 2 + dddfx;
+        ddfy = tmpy * 2 + dddfy;
+        dfx = (cx1 - x1) * 0.75 + tmpx + dddfx * 0.16666667;
+        dfy = (cy1 - y1) * 0.75 + tmpy + dddfy * 0.16666667;
+        pathLength += Math.sqrt(dfx * dfx + dfy * dfy);
+        dfx += ddfx; dfy += ddfy;
+        ddfx += dddfx; ddfy += dddfy;
+        pathLength += Math.sqrt(dfx * dfx + dfy * dfy);
+        dfx += ddfx; dfy += ddfy;
+        pathLength += Math.sqrt(dfx * dfx + dfy * dfy);
+        dfx += ddfx + dddfx; dfy += ddfy + dddfy;
+        pathLength += Math.sqrt(dfx * dfx + dfy * dfy);
+        curves[i] = pathLength;
+        x1 = x2; y1 = y2;
+      }
+      if (this.positionMode === D.PositionMode.Percent) position *= pathLength;
+      let multiplier;
+      switch (this.spacingMode) {
+        case D.SpacingMode.Percent: multiplier = pathLength; break;
+        case D.SpacingMode.Proportional: multiplier = pathLength / spacesCount; break;
+        default: multiplier = 1;
+      }
+      const segments = setArraySize(this, "segments", 10);
+      let curveLength = 0;
+      for (let i = 0, o = 0, curve = 0, segment = 0; i < spacesCount; i++, o += 3) {
+        const space = spaces[i] * multiplier;
+        position += space;
+        let p = position;
+        if (closed) {
+          p %= pathLength;
+          if (p < 0) p += pathLength;
+          curve = 0;
+        } else if (p < 0) {
+          this.addBeforePosition(p, world, 0, out, o);
+          continue;
+        } else if (p > pathLength) {
+          this.addAfterPosition(p - pathLength, world, verticesLength - 4, out, o);
+          continue;
+        }
+        // Determine curve containing position.
+        for (;; curve++) {
+          const length = curves[curve];
+          if (p > length) continue;
+          if (curve === 0) p /= length;
+          else {
+            const prev = curves[curve - 1];
+            p = (p - prev) / (length - prev);
+          }
+          break;
+        }
+        // Curve segment lengths.
+        if (curve !== prevCurve) {
+          prevCurve = curve;
+          let ii = curve * 6;
+          x1 = world[ii]; y1 = world[ii + 1];
+          cx1 = world[ii + 2]; cy1 = world[ii + 3];
+          cx2 = world[ii + 4]; cy2 = world[ii + 5];
+          x2 = world[ii + 6]; y2 = world[ii + 7];
+          tmpx = (x1 - cx1 * 2 + cx2) * 0.03;
+          tmpy = (y1 - cy1 * 2 + cy2) * 0.03;
+          dddfx = ((cx1 - cx2) * 3 - x1 + x2) * 0.006;
+          dddfy = ((cy1 - cy2) * 3 - y1 + y2) * 0.006;
+          ddfx = tmpx * 2 + dddfx;
+          ddfy = tmpy * 2 + dddfy;
+          dfx = (cx1 - x1) * 0.3 + tmpx + dddfx * 0.16666667;
+          dfy = (cy1 - y1) * 0.3 + tmpy + dddfy * 0.16666667;
+          curveLength = Math.sqrt(dfx * dfx + dfy * dfy);
+          segments[0] = curveLength;
+          for (ii = 1; ii < 8; ii++) {
+            dfx += ddfx; dfy += ddfy;
+            ddfx += dddfx; ddfy += dddfy;
+            curveLength += Math.sqrt(dfx * dfx + dfy * dfy);
+            segments[ii] = curveLength;
+          }
+          dfx += ddfx; dfy += ddfy;
+          curveLength += Math.sqrt(dfx * dfx + dfy * dfy);
+          segments[8] = curveLength;
+          dfx += ddfx + dddfx; dfy += ddfy + dddfy;
+          curveLength += Math.sqrt(dfx * dfx + dfy * dfy);
+          segments[9] = curveLength;
+          segment = 0;
+        }
+        // Weight by segment length.
+        p *= curveLength;
+        for (;; segment++) {
+          const length = segments[segment];
+          if (p > length) continue;
+          if (segment === 0) p /= length;
+          else {
+            const prev = segments[segment - 1];
+            p = segment + (p - prev) / (length - prev);
+          }
+          break;
+        }
+        this.addCurvePosition(p * 0.1, x1, y1, cx1, cy1, cx2, cy2, x2, y2, out, o, tangents || (i > 0 && space === 0));
+      }
+      return out;
+    }
+    addBeforePosition(p, temp, i, out, o) {
+      const x1 = temp[i], y1 = temp[i + 1], dx = temp[i + 2] - x1, dy = temp[i + 3] - y1, r = Math.atan2(dy, dx);
+      out[o] = x1 + p * Math.cos(r);
+      out[o + 1] = y1 + p * Math.sin(r);
+      out[o + 2] = r;
+    }
+    addAfterPosition(p, temp, i, out, o) {
+      const x1 = temp[i + 2], y1 = temp[i + 3], dx = x1 - temp[i], dy = y1 - temp[i + 1], r = Math.atan2(dy, dx);
+      out[o] = x1 + p * Math.cos(r);
+      out[o + 1] = y1 + p * Math.sin(r);
+      out[o + 2] = r;
+    }
+    addCurvePosition(p, x1, y1, cx1, cy1, cx2, cy2, x2, y2, out, o, tangents) {
+      if (p === 0 || isNaN(p)) {
+        out[o] = x1;
+        out[o + 1] = y1;
+        out[o + 2] = Math.atan2(cy1 - y1, cx1 - x1);
+        return;
+      }
+      const tt = p * p, ttt = tt * p, u = 1 - p, uu = u * u, uuu = uu * u;
+      const ut = u * p, ut3 = ut * 3, uut3 = u * ut3, utt3 = ut3 * p;
+      const x = x1 * uuu + cx1 * uut3 + cx2 * utt3 + x2 * ttt;
+      const y = y1 * uuu + cy1 * uut3 + cy2 * utt3 + y2 * ttt;
+      out[o] = x;
+      out[o + 1] = y;
+      if (tangents) {
+        if (p < 0.001) out[o + 2] = Math.atan2(cy1 - y1, cx1 - x1);
+        else out[o + 2] = Math.atan2(y - (y1 * uu + cy1 * ut * 2 + cy2 * tt), x - (x1 * uu + cx1 * ut * 2 + cx2 * tt));
       }
     }
   }
+  PathConstraint.NONE = -1;
+  PathConstraint.BEFORE = -2;
+  PathConstraint.AFTER = -3;
+  PathConstraint.epsilon = 0.00001;
 
-  // 路径附件世界顶点
+  // 路径附件的世界顶点（检查器 / 调试 API 也在用）
   function computePathWorldVertices(attachment, slot) {
     const out = new Float32Array(attachment.worldVerticesLength);
     computeAttachmentWorldVertices(attachment, slot, 0, attachment.worldVerticesLength, out, 0, 2);
@@ -6849,7 +7236,30 @@ SP.runtime = (() => {
         const att = this.getAttachment(slot.data.index, name);
         slot.setAttachment(att);
       }
+      this.updateConstraintActivity();
       return found;
+    }
+    /**
+     * 「皮肤要求的约束」（`skinRequired`，JSON 的 `"skin": true`）是否生效。
+     *
+     * 官方在 `updateCache()` 里给每条约束算 active：
+     *   active = 目标有效 && (!skinRequired || 当前皮肤的 constraints 列表里有这条约束)
+     * 也就是说，资源里标了 skin 的约束**只在包含它的皮肤下才求值**；
+     * 默认皮肤没把它列进 constraints 时，官方根本不会应用这条约束。
+     * 忘了这一步会让这些资源上多算一条约束，骨骼被拽到完全不同的位置。
+     */
+    updateConstraintActivity() {
+      const skin = this.skin;
+      const list = skin && Array.isArray(skin.constraints) ? skin.constraints : null;
+      const bones = skin && Array.isArray(skin.bones) ? skin.bones : null;
+      // 骨骼的 skinRequired：皮肤没列进 bones 时，官方把该骨骼标为 inactive，
+      // 于是「以它为目标的约束」也一并失效（hero 的 weapon-morningstar 就是这种情况）。
+      const boneActive = (b) => !b || !b.data.skinRequired || (!!bones && bones.indexOf(b.data) >= 0);
+      const allows = (c, targetBone) => boneActive(targetBone)
+        && (!c.data.skinRequired || (!!list && list.indexOf(c.data) >= 0));
+      for (const c of this.ikConstraints) c.skinActive = allows(c, c.target);
+      for (const c of this.transformConstraints) c.skinActive = allows(c, c.target);
+      for (const c of this.pathConstraints) c.skinActive = allows(c, c.target ? c.target.bone : null);
     }
     findBone(name) {
       const i = this.data.findBoneIndex(name);
@@ -6883,14 +7293,20 @@ SP.runtime = (() => {
         // 父骨骼被约束改过时必须先补算祖先的世界变换，否则本骨骼会用到过期矩阵
         if (b.constraintDirty && b.parent) b.updateDirtyAncestors();
         b.constraintDirty = false;
+        // 矩阵由约束直接写定的骨骼不再按本地量重算（见 Bone.matrixLocked）
+        if (b.matrixLocked) continue;
         b.updateWorldTransform();
       }
     }
     updateWorldTransform() {
+      // 新的一轮：先把上一轮的「矩阵权威」标记清掉，本地量重新成为权威
+      for (const b of this.bones) b.matrixLocked = false;
       this.updateBones();
       const q = this.constraintQueue || [];
       for (let i = 0; i < q.length; i++) {
         const c = q[i];
+        // 皮肤未启用的约束（skinRequired）官方不求值，这里同样跳过
+        if (c.skinActive === false) continue;
         c.apply();
         for (const b of c.bones) b.constraintDirty = true;
         this.updateBones();     // 每个约束后重算世界变换，保证链式依赖正确
@@ -7655,6 +8071,15 @@ SP.pose = (() => {
   };
   const TC_KEYS = TC_MIX_KEYS.concat(TC_FLAG_KEYS, TC_OFFSET_KEYS);
 
+  /**
+   * 路径约束上可在检查器里调试的运行时字段。
+   *   - position / spacing / mixRotate / mixX / mixY 会被动画的路径约束时间轴逐帧改写；
+   *   - positionMode / spacingMode / rotateMode / offsetRotation 平时只来自资源，
+   *     同样可以在预览里临时改（覆盖只写在运行时约束对象上，不碰资源数据）。
+   */
+  const PATH_KEYS = ["position", "spacing", "mixRotate", "mixX", "mixY", "offsetRotation",
+    "positionMode", "spacingMode", "rotateMode"];
+
   /** 可作为「顶点编辑」目标的附件：只要网格类（排除包围盒 / 裁剪 / 路径这些同为 VertexAttachment 的附件） */
   function isEditableMesh(att) {
     return !!att && att instanceof D.VertexAttachment &&
@@ -7667,6 +8092,7 @@ SP.pose = (() => {
       this.slotOverrides = new Map();  // slotIndex -> { blendMode?, color? }（混合模式 / 颜色覆盖）
       this.ikOverrides = new Map();    // ikConstraintName -> { mix?, softness?, bendDirection?, compress?, stretch?, uniform? }
       this.tcOverrides = new Map();    // transformConstraintName -> { mixX?, localTarget?, offsetX?, ... }
+      this.pathOverrides = new Map();  // pathConstraintName -> { position?, spacing?, mixRotate?, rotateMode?, ... }
       this.vertexEdits = new Map();    // slotIndex -> Float32Array（附加形变偏移）
       this.tool = "translate";         // translate | rotate | scale（顶点编辑常驻，不在工具列表里）
       this.selectedBone = null;
@@ -7755,7 +8181,7 @@ SP.pose = (() => {
       }
       return any;
     }
-    resetAll() { this.overrides.clear(); this.slotOverrides.clear(); this.ikOverrides.clear(); this.tcOverrides.clear(); }
+    resetAll() { this.overrides.clear(); this.slotOverrides.clear(); this.ikOverrides.clear(); this.tcOverrides.clear(); this.pathOverrides.clear(); }
     applyOverrides(skeleton) {
       if (!this.overrides.size) return false;
       let any = false;
@@ -7834,6 +8260,38 @@ SP.pose = (() => {
         for (const k of TC_MIX_KEYS) if (o[k] !== undefined) c[k] = o[k];
         for (const k of TC_FLAG_KEYS) if (o[k] !== undefined) c[k] = !!o[k];
         for (const k of TC_OFFSET_KEYS) if (o[k] !== undefined) c.setOffset(TC_OFFSET_PROP[k], o[k]);
+        any = true;
+      }
+      return any;
+    }
+    // ---------------- 路径约束覆盖：position / spacing / 三个 mix / 两个模式与旋转偏移 ----------------
+    getPathOverride(c) { return c ? (this.pathOverrides.get(c.data.name) || null) : null; }
+    /**
+     * 写入路径约束的参数覆盖；patch 里值为 null 表示「该字段恢复资源 / 动画的原始值」。
+     * 覆盖只写在运行时约束对象上，不改 data，也不修改资源文件。
+     */
+    setPathOverride(c, patch) {
+      if (!c || !patch) return;
+      const o = Object.assign({}, this.pathOverrides.get(c.data.name));
+      for (const k of PATH_KEYS) {
+        if (patch[k] === undefined) continue;
+        if (patch[k] === null) delete o[k]; else o[k] = patch[k];
+      }
+      if (Object.keys(o).length) this.pathOverrides.set(c.data.name, o);
+      else this.pathOverrides.delete(c.data.name);
+    }
+    resetPath(c) { if (c) this.pathOverrides.delete(c.data.name); }
+    /**
+     * 把路径约束覆盖写回运行时约束。必须在每帧的 setToSetupPose + 动画之后调用：
+     * position / spacing / 三个 mix 会被路径约束时间轴逐帧改写，只有写在其后才能真正压过动画。
+     */
+    applyPathOverrides(skeleton) {
+      if (!this.pathOverrides.size) return false;
+      let any = false;
+      for (const c of skeleton.pathConstraints) {
+        const o = this.pathOverrides.get(c.data.name);
+        if (!o) continue;
+        for (const k of PATH_KEYS) if (o[k] !== undefined) c[k] = o[k];
         any = true;
       }
       return any;
@@ -8484,7 +8942,7 @@ SP.pose = (() => {
     }
   }
 
-  return { PoseController, COL, GZ, IK_KEYS, TC_KEYS, TC_MIX_KEYS, TC_FLAG_KEYS, TC_OFFSET_KEYS, TC_OFFSET_PROP };
+  return { PoseController, COL, GZ, IK_KEYS, TC_KEYS, TC_MIX_KEYS, TC_FLAG_KEYS, TC_OFFSET_KEYS, TC_OFFSET_PROP, PATH_KEYS };
 })();
 /* =========================================================================
  * 模块 7 · 应用层：目录选择 / 扫描 / 加载 / 面板 / 交互 / 渲染循环
@@ -8498,6 +8956,19 @@ SP.app = (() => {
   const TC_FLAG_KEYS = SP.pose.TC_FLAG_KEYS; // 变换约束：localSource / localTarget / additive / clamp
   const TC_OFFSET_KEYS = SP.pose.TC_OFFSET_KEYS;  // 变换约束：六个偏移量
   const TC_KEYS = SP.pose.TC_KEYS;           // 上述三类字段的并集
+  const PATH_KEYS = SP.pose.PATH_KEYS;       // 路径约束可调字段（检查器与调试 API 共用）
+  /** 路径约束各参数的悬浮说明（检查器输入框复用同一份文案） */
+  const PATH_TIPS = {
+    position: "位置 position：骨骼链在路径上的起点（按位置模式解释：fixed = 世界单位，percent = 路径总长的百分比）",
+    spacing: "间距 spacing：相邻骨骼沿路径的间距（按间距模式解释：length 会叠加骨骼自身长度，percent / proportional 按路径总长归一化）",
+    mixRotate: "旋转混合 mixRotate：路径切线方向对骨骼旋转的作用比例，0 = 完全不生效，1 = 完全按路径决定",
+    mixX: "X 位移混合 mixX：骨骼沿路径 X 方向定位的作用比例，0 = 完全不生效",
+    mixY: "Y 位移混合 mixY：骨骼沿路径 Y 方向定位的作用比例，0 = 完全不生效",
+    positionMode: "位置模式 positionMode：fixed = position 是世界单位；percent = position 是路径总长的百分比",
+    spacingMode: "间距模式 spacingMode：length = 按骨骼长度 + spacing 排布；fixed = 固定世界单位间距；percent = 按路径总长百分比；proportional = 按各骨骼长度比例分配",
+    rotateMode: "旋转模式 rotateMode：tangent = 骨骼对齐路径切线；chain = 让末端骨骼尖端贴合路径；chainScale = 在 chain 的基础上按路径长度缩放骨骼",
+    offsetRotation: "旋转偏移 offsetRotation：在路径切线角度上附加的偏移（目标骨骼矩阵含镜像时符号相反）",
+  };
   /** 变换约束各参数的悬浮说明（检查器输入框复用同一份文案） */
   const TC_TIPS = {
     mixRotate: "旋转混合 mixRotate：约束对骨骼旋转的作用比例，0 = 完全不生效，1 = 完全按源骨骼决定",
@@ -9736,6 +10207,8 @@ SP.app = (() => {
       else if (cur.skeleton.ikConstraints.some((c) => c.target === bone)) meta = "IK 目标";
       else if (cur.skeleton.transformConstraints.some((c) => c.bones.indexOf(bone) >= 0)) meta = "变换";
       else if (cur.skeleton.transformConstraints.some((c) => c.target === bone)) meta = "变换源";
+      else if (cur.skeleton.pathConstraints.some((c) => c.bones.indexOf(bone) >= 0)) meta = "路径";
+      else if (cur.skeleton.pathConstraints.some((c) => c.target && c.target.bone === bone)) meta = "路径目标";
       else if (bone.data.length) meta = bone.data.length.toFixed(0);
       const hasChild = bone.children.length > 0;
       const indent = 6 + depth * 12;
@@ -10404,11 +10877,209 @@ SP.app = (() => {
     }
   }
 
+  /* ---------------------------------------------------------- 路径约束卡片 */
+
+  /**
+   * 路径约束调试：选中骨骼时，列出「这根骨骼参与的路径约束」（它是被驱动的骨骼，
+   * 或约束目标插槽所在骨骼），每条一张卡片。可调 position / spacing / 三个 mix /
+   * 旋转模式 / 间距模式 / 位置模式 / 旋转偏移，并展示约束当前是否被皮肤启用。
+   *
+   * 覆盖值存在 PoseController.pathOverrides 里，由 applyEditsAndUpdate() 在每帧的
+   * 「setup 姿态 + 动画」之后写回运行时约束，所以能压过路径约束时间轴；只影响预览，
+   * 不改资源数据。
+   */
+  let inspPathCtx = null;   // { skeleton, items:[{ c, els, root }] }，供 refreshInspectorPath 逐帧同步
+
+  /** 该骨骼参与的路径约束（被驱动骨骼，或目标插槽所在的骨骼） */
+  function pathConstraintsOfBone(skeleton, bone) {
+    return bone ? skeleton.pathConstraints.filter((c) => c.bones.indexOf(bone) >= 0 || (c.target && c.target.bone === bone)) : [];
+  }
+
+  /** 该约束目标插槽上挂的路径附件名（没有则返回「（无）」） */
+  function pathAttachmentText(c) {
+    const att = c.target ? c.target.attachment : null;
+    if (!att) return "（无）";
+    if (att.type !== D.ATT.PATH) return `${att.name}（不是路径附件）`;
+    return `${att.name} · ${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}`;
+  }
+
+  /** 路径模式三选一的下拉框 */
+  function pathModeSelect(id, names, value, tip) {
+    const opts = names.map((n, i) => `<option value="${i}"${i === value ? " selected" : ""}>${n}</option>`).join("");
+    return `<select class="grow" id="${id}" title="${tip}">${opts}</select>`;
+  }
+
+  /** 生成选中骨骼的路径约束卡片 HTML（没有参与任何路径约束时返回空串） */
+  function buildPathCards(bone, skeleton) {
+    const list = pathConstraintsOfBone(skeleton, bone);
+    if (!list.length) return "";
+    const cards = list.map((c, i) => {
+      const d = c.data;
+      const ov = state.pose.getPathOverride(c) || {};
+      const pick = (k) => (ov[k] !== undefined ? ov[k] : c[k]);
+      const ovStyle = (k) => (ov[k] !== undefined ? ` style="color:var(--accent)"` : "");
+      const changed = PATH_KEYS.some((k) => ov[k] !== undefined);
+      const role = c.bones.indexOf(bone) >= 0 ? "被驱动骨骼" : "目标骨骼";
+      const chain = d.boneNames.join(" → ") || "（无）";
+      const mixRows = [
+        { k: "mixRotate", label: "旋转" }, { k: "mixX", label: "位移 X" }, { k: "mixY", label: "位移 Y" },
+      ].map(({ k, label }) => {
+        const v = Number(pick(k)) || 0;
+        return `<div class="row">
+          <label style="width:56px;" title="${PATH_TIPS[k]}">${label}</label>
+          <input type="range" class="grow" id="inspPath${i}${k}R" min="0" max="1" step="0.01" value="${M.clamp(v, 0, 1)}" title="${PATH_TIPS[k]}">
+          <input type="number" id="inspPath${i}${k}" min="0" max="1" step="0.05" value="${fmtIkNum(v)}"${ovStyle(k)} title="${PATH_TIPS[k]}">
+        </div>`;
+      }).join("");
+      const numRow = (k, label, step) => {
+        const v = Number(pick(k)) || 0;
+        return `<div class="row">
+          <label style="width:56px;" title="${PATH_TIPS[k]}">${label}</label>
+          <input type="number" class="grow" id="inspPath${i}${k}" step="${step}" value="${fmtIkNum(v)}"${ovStyle(k)} title="${PATH_TIPS[k]}">
+        </div>`;
+      };
+      const modeRow = (k, label, names) =>
+        `<div class="row"><label style="width:56px;" title="${PATH_TIPS[k]}">${label}</label>${pathModeSelect("inspPath" + i + k, names, Number(pick(k)) || 0, PATH_TIPS[k])}</div>`;
+      const skinNote = c.skinActive === false
+        ? `<div class="hint" style="color:var(--warn);margin-top:4px;">该约束标了 <b>skinRequired</b>，当前皮肤没有启用它，官方运行时不会对它求值（此处同样跳过）。</div>`
+        : "";
+      return `<div class="ikCard${changed ? " hasOv" : ""}" id="inspPath${i}">
+        <div class="ikHead">
+          <span class="nm" title="路径约束名：${esc(d.name)}">🪢 ${esc(d.name)}</span>
+          <span class="ikBadge" title="当前骨骼在这条路径约束里的角色">${role}</span>
+          <span class="ikBadge ov" id="inspPath${i}Ov" title="该约束有检查器覆盖，参数已被临时改动（只影响预览）"${changed ? "" : ' style="display:none"'}>已改</span>
+          <button class="btn sm ghost" id="inspPath${i}Reset" title="清除该路径约束上的全部覆盖，恢复资源与动画原本的值">↺</button>
+        </div>
+        <div class="kv">
+          <span class="k" title="被约束驱动的骨骼：沿路径依次摆放的骨骼链">链条</span><span class="v" title="${esc(chain)}">${esc(chain)}</span>
+          <span class="k" title="目标插槽：放着路径附件的插槽（官方 JSON 的 target / 4.3 的 slot 字段）；约束沿这个附件的曲线摆放骨骼">目标插槽</span><span class="v" title="${esc(c.target ? c.target.data.name : "（无）")}">${esc(c.target ? c.target.data.name : "（无）")}</span>
+          <span class="k" title="路径附件：目标插槽上当前的路径附件，及其是否闭合 / 是否匀速">路径附件</span><span class="v" title="${esc(pathAttachmentText(c))}">${esc(pathAttachmentText(c))}</span>
+          <span class="k" title="求值顺序：数值越小越先求值；顺序相同时 IK → 变换 → 路径">顺序</span><span class="v">${d.order} · ${c.bones.length} 骨骼</span>
+          <span class="k" title="皮肤要求：资源里标了 skin 的约束只在包含它的皮肤下生效">皮肤要求</span><span class="v">${d.skinRequired ? "是" : "否"}${c.skinActive === false ? " · 当前皮肤未启用" : ""}</span>
+        </div>
+        ${skinNote}
+        ${modeRow("positionMode", "位置模式", D.PositionModeName)}
+        ${modeRow("spacingMode", "间距模式", D.SpacingModeName)}
+        ${modeRow("rotateMode", "旋转模式", D.RotateModeName)}
+        ${mixRows}
+        ${numRow("position", "位置", 1)}
+        ${numRow("spacing", "间距", 1)}
+        ${numRow("offsetRotation", "旋转偏移", 1)}
+      </div>`;
+    }).join("");
+    return `<div style="font-size:12px;font-weight:600;color:var(--text-dim);margin:10px 0 6px;">🪢 路径约束（${list.length}）
+      <span class="hint" style="font-weight:400;">· 改动即时生效并压过动画</span></div>${cards}`;
+  }
+
+  /** 挂上路径约束卡片的监听器；同时登记逐帧同步用的上下文 */
+  function bindPathCards(bone, skeleton) {
+    const list = pathConstraintsOfBone(skeleton, bone);
+    if (!list.length) return;
+    const items = [];
+    list.forEach((c, i) => {
+      const root = $("inspPath" + i);
+      const ovBadge = $("inspPath" + i + "Ov");
+      const els = {};
+      /** 覆盖状态变了只更新卡片自身的高亮与「已改」角标，不重建 DOM（否则会打断滑杆拖动） */
+      const mark = () => {
+        const o = state.pose.getPathOverride(c);
+        const changed = PATH_KEYS.some((k) => o && o[k] !== undefined);
+        root.classList.toggle("hasOv", changed);
+        ovBadge.style.display = changed ? "" : "none";
+      };
+      const set = (k, v) => {
+        state.pose.setPathOverride(c, { [k]: v });
+        mark();
+        applyEditsAndUpdate();   // 立即重算，暂停时也能马上看到结果
+      };
+      for (const k of ["mixRotate", "mixX", "mixY"]) {
+        const num = $("inspPath" + i + k);
+        const range = $("inspPath" + i + k + "R");
+        els[k] = num; els[k + "R"] = range;
+        range.addEventListener("input", () => {
+          const v = M.clamp(parseFloat(range.value) || 0, 0, 1);
+          num.value = fmtIkNum(v);
+          set(k, v);
+        });
+        num.addEventListener("input", () => {
+          const raw = parseFloat(num.value);
+          if (!isFinite(raw)) return;
+          const v = M.clamp(raw, 0, 1);
+          range.value = String(v);
+          set(k, v);
+        });
+        num.addEventListener("change", () => { num.value = fmtIkNum(M.clamp(parseFloat(num.value) || 0, 0, 1)); });
+      }
+      for (const k of ["position", "spacing", "offsetRotation"]) {
+        const el = $("inspPath" + i + k);
+        els[k] = el;
+        el.addEventListener("input", () => {
+          const raw = parseFloat(el.value);
+          if (!isFinite(raw)) return;
+          set(k, raw);
+        });
+        el.addEventListener("change", () => { el.value = fmtIkNum(parseFloat(el.value) || 0); });
+      }
+      for (const k of ["positionMode", "spacingMode", "rotateMode"]) {
+        const el = $("inspPath" + i + k);
+        els[k] = el;
+        el.addEventListener("change", () => {
+          const v = parseInt(el.value, 10) || 0;
+          state.pose.setPathOverride(c, { [k]: v });
+          mark();
+          applyEditsAndUpdate();
+          renderInspector();   // 模式换了，读数含义也变了，重建一次卡片
+        });
+      }
+      $("inspPath" + i + "Reset").addEventListener("click", () => {
+        state.pose.resetPath(c);
+        log("info", `已清除路径约束 ${c.data.name} 的调试覆盖`);
+        applyEditsAndUpdate();
+        renderInspector();
+      });
+      items.push({ c, els, root });
+    });
+    inspPathCtx = { skeleton, items };
+  }
+
+  /**
+   * 逐帧同步路径约束输入框的显示值（只在「没有覆盖、且当前没有焦点」时刷新）：
+   * position / spacing / 三个 mix 会被动画时间轴逐帧改写，面板不重建 DOM 也要跟得上。
+   */
+  function refreshInspectorPath() {
+    const ctx = inspPathCtx;
+    if (!ctx) return;
+    const cur = state.current;
+    if (!cur || cur.skeleton !== ctx.skeleton || !ctx.items[0] || !ctx.items[0].root.isConnected) { inspPathCtx = null; return; }
+    for (const it of ctx.items) {
+      const ov = state.pose.getPathOverride(it.c) || {};
+      for (const k of PATH_KEYS) {
+        if (ov[k] !== undefined) continue;         // 已覆盖：输入框是权威值
+        const el = it.els[k];
+        if (!el || el === document.activeElement) continue;
+        const v = it.c[k];
+        if (k === "positionMode" || k === "spacingMode" || k === "rotateMode") {
+          const s = String(Number(v) || 0);
+          if (el.value !== s) el.value = s;
+        } else {
+          const s = fmtIkNum(v);
+          if (el.value !== s) el.value = s;
+          const range = it.els[k + "R"];
+          if (range && range !== document.activeElement) {
+            const rs = String(M.clamp(v, parseFloat(range.min), parseFloat(range.max)));
+            if (range.value !== rs) range.value = rs;
+          }
+        }
+      }
+    }
+  }
+
   function renderInspector() {
     const cur = state.current;
     const box = $("inspector");
     inspIkCtx = null;   // 面板即将重建，先撤销上一轮的逐帧同步上下文
     inspTcCtx = null;
+    inspPathCtx = null;
     inspCtx = null;
     if (!cur) {
       box.innerHTML = '<div class="hint">未选中对象。在视口里点击骨骼 / 部件，或在左侧列表中选择。</div>';
@@ -10457,6 +11128,8 @@ SP.app = (() => {
       if (ikCards) parts.push(ikCards);
       const tcCards = buildTcCards(bone, cur.skeleton);
       if (tcCards) parts.push(tcCards);
+      const pathCards = buildPathCards(bone, cur.skeleton);
+      if (pathCards) parts.push(pathCards);
     }
     if (slot) {
       const att = slot.attachment;
@@ -10556,6 +11229,7 @@ SP.app = (() => {
       $("inspReset").addEventListener("click", () => { state.pose.resetBone(bone); log("info", `已重置骨骼 ${bone.data.name} 的调试姿态`); renderBones(); renderInspector(); });
       bindIkCards(bone, cur.skeleton);
       bindTcCards(bone, cur.skeleton);
+      bindPathCards(bone, cur.skeleton);
     }
     if (slot) {
       // 显示 / 隐藏：勾选框直接切换 slot.data.visible，并同步左侧部件树的 👁
@@ -10810,6 +11484,7 @@ SP.app = (() => {
     refreshInspectorAtlas();
     refreshInspectorIk();
     refreshInspectorTc();
+    refreshInspectorPath();
     refreshInspectorValues();
     state.frameCount++;
     updateHud();
@@ -10827,15 +11502,16 @@ SP.app = (() => {
     renderTimeUI();
   }
 
-  // 把「姿态调试 / IK 参数覆盖 / 变换约束覆盖 / 网格形变」叠加到当前骨架上（渲染前调用；frame 与 renderNow 共用）
+  // 把「姿态调试 / IK 参数覆盖 / 变换约束覆盖 / 路径约束覆盖 / 网格形变」叠加到当前骨架上（渲染前调用；frame 与 renderNow 共用）
   function applyEditsAndUpdate() {
     const cur = state.current;
     if (!cur) return;
-    // 骨骼调试偏移与 IK / 变换约束覆盖都要在 setup 姿态 / 动画之后写入，再统一重算一次世界变换
+    // 骨骼调试偏移与 IK / 变换 / 路径约束覆盖都要在 setup 姿态 / 动画之后写入，再统一重算一次世界变换
     const bones = state.pose.applyOverrides(cur.skeleton);
     const ik = state.pose.applyIkOverrides(cur.skeleton);
     const tc = state.pose.applyTcOverrides(cur.skeleton);
-    if (bones || ik || tc) cur.skeleton.updateWorldTransform();
+    const path = state.pose.applyPathOverrides(cur.skeleton);
+    if (bones || ik || tc || path) cur.skeleton.updateWorldTransform();
     state.pose.applySlotOverrides(cur.skeleton);
     state.pose.applyVertexEdits(cur.skeleton);
   }
@@ -11877,6 +12553,56 @@ SP.app = (() => {
         const c = cur.skeleton.transformConstraints.find((x) => x.data.name === name);
         if (!c) return false;
         state.pose.resetTc(c);
+      }
+      applyEditsAndUpdate();
+      renderInspector();
+      return true;
+    },
+    /** 当前骨架的所有路径约束：运行值与覆盖值 + 目标的路径附件信息（自动化 / 调试用） */
+    pathParams: () => {
+      const cur = state.current;
+      if (!cur) return [];
+      return cur.skeleton.pathConstraints.map((c) => {
+        const ov = state.pose.getPathOverride(c) || {};
+        const att = c.target ? c.target.attachment : null;
+        const now = {
+          bones: c.bones.map((b) => b.data.name),
+          target: c.target ? c.target.data.name : c.data.targetName,
+          targetBone: c.target && c.target.bone ? c.target.bone.data.name : null,
+          attachment: att ? att.name : null,
+          attachmentType: att ? att.type : null,
+          closed: !!(att && att.closed),
+          constantSpeed: !!(att && att.constantSpeed),
+          order: c.data.order,
+          skinRequired: !!c.data.skinRequired,
+          skinActive: c.skinActive !== false,
+        };
+        for (const k of PATH_KEYS) now[k] = c[k];
+        const overridden = {};
+        for (const k of PATH_KEYS) if (ov[k] !== undefined) overridden[k] = ov[k];
+        return { name: c.data.name, ...now, overridden };
+      });
+    },
+    /** 覆盖某条路径约束的参数：setPathParam("back-leg-path", { mixRotate: 0, spacingMode: 2 }) */
+    setPathParam: (name, patch) => {
+      const cur = state.current;
+      if (!cur) return false;
+      const c = cur.skeleton.pathConstraints.find((x) => x.data.name === name);
+      if (!c) return false;
+      state.pose.setPathOverride(c, patch || {});
+      applyEditsAndUpdate();
+      renderInspector();
+      return true;
+    },
+    /** 清除某条路径约束（缺省为全部）的覆盖值 */
+    resetPath: (name) => {
+      const cur = state.current;
+      if (!cur) return false;
+      if (name === undefined) { state.pose.pathOverrides.clear(); }
+      else {
+        const c = cur.skeleton.pathConstraints.find((x) => x.data.name === name);
+        if (!c) return false;
+        state.pose.resetPath(c);
       }
       applyEditsAndUpdate();
       renderInspector();
