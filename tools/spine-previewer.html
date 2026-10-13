@@ -231,8 +231,15 @@
   .treeRow{display:flex;align-items:center;gap:6px;padding:2px 6px;cursor:pointer;white-space:nowrap;}
   .treeRow:hover{background:#182029;}
   .treeRow.sel{background:#152436;}
-  .treeRow .tw{width:13px;color:var(--text-faint);flex:0 0 auto;text-align:center;cursor:pointer;}
+  .treeRow .tw{width:13px;color:var(--text-faint);flex:0 0 auto;text-align:center;cursor:pointer;user-select:none;border-radius:3px;}
+  .treeRow .tw:hover{color:#fff;background:rgba(255,255,255,.09);}
+  .treeRow.sel .tw{color:#9fc7f5;}
+  .treeRow .tw.leaf{cursor:default;}
+  .treeRow .tw.leaf:hover{color:var(--text-faint);background:none;}
   .treeRow .nm{overflow:hidden;text-overflow:ellipsis;font-size:12px;}
+  /* 从视口联动选中时闪一下，方便在长列表里定位（Unity 层级面板同款反馈） */
+  @keyframes treeReveal{0%{background:#2a4d78;}100%{background:rgba(0,0,0,0);}}
+  .treeRow.reveal{animation:treeReveal 1.2s ease-out;}
   .treeRow .meta{margin-left:auto;font-size:10.5px;color:var(--text-faint);flex:0 0 auto;}
   .treeRow.child::before{content:"";width:9px;flex:0 0 auto;}
   .swatch{width:10px;height:10px;border-radius:2px;border:1px solid rgba(255,255,255,.25);flex:0 0 auto;}
@@ -420,7 +427,7 @@
         <div class="groupBody">
           <input type="text" id="slotSearch" placeholder="过滤部件 / 附件名…" autocomplete="off">
           <div class="treeScroll" id="slotTree"><div class="hint" style="padding:9px;">未加载骨架</div></div>
-          <div class="hint">按绘制顺序排列（自上而下＝先绘制）。点击选中并高亮，👁 切换显示。</div>
+          <div class="hint">按绘制顺序排列（自上而下＝先绘制）。点击选中并高亮，👁 切换显示；双击把视图对准该部件。在视口里点选部件会在这里自动滚动到可见。</div>
         </div>
       </details>
 
@@ -429,10 +436,10 @@
         <div class="groupBody">
           <div class="row">
             <input type="text" id="boneSearch" class="grow" placeholder="过滤骨骼名…" autocomplete="off">
-            <button class="btn sm ghost" id="btnBoneExpand" title="展开 / 折叠全部">⇕</button>
+            <button class="btn sm ghost" id="btnBoneExpand" title="全部展开 / 全部折叠（点击切换）">⇕</button>
           </div>
           <div class="treeScroll" id="boneTree"><div class="hint" style="padding:9px;">未加载骨架</div></div>
-          <div class="hint">点击选中，双击把视图对准该骨骼。</div>
+          <div class="hint">点击 ▸ / ▾ 折叠展开父子层级（Alt+点击＝连整棵子树）；点击名称选中，双击把视图对准该骨骼。在视口里点选骨骼会在这里自动展开并滚动到可见。</div>
         </div>
       </details>
 
@@ -652,6 +659,7 @@
         <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽的<b>彩色骨骼</b>示意线，并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。顶点权重圆<b>跟随选中项局部显示</b>，避免顶点密集的网格糊成一片：<b>①</b> 选中某根骨骼时，只画「受该骨骼影响（权重 &gt; 0）」的顶点，可用来确认这根骨骼到底驱动了哪些顶点（圆内仍保留该顶点完整的权重构成）；<b>②</b> 选中某个 <b>网格类部件</b>时，只画该部件的顶点；<b>③</b> 既没选骨骼也没选网格部件（选中 region 等非网格部件同样算没选）时，才画全部部件。彩色骨骼示意线<b>同样跟随选中项</b>：选中网格部件时只画<b>与该网格顶点相关（权重 &gt; 0）</b>的骨骼，和顶点权重圆的显示范围一致（颜色 / 下标仍按骨骼在骨架里的原始位置取，所以与扇形颜色一一对应；选中非权重网格时该网格没有相关骨骼，示意线为空）；选中骨骼或什么都没选中时画<b>全部</b>骨骼，便于对照颜色。</li>
         <li><b>骨骼显示关闭时，视口里点不到骨骼</b>：看不见的骨骼不参与拾取，点视口任意位置都只会命中部件（或取消选中），也不会因双击而重置骨骼。要选中 / 拖拽骨骼，先用工具条的 🦴 或 <b>B</b> 打开骨骼显示。</li>
         <li>视口<b>左上角的竖排工具条</b>（Unity 风格）切换交互类型：<b>位移 / 旋转 / 缩放</b> 会显示不同的 Gizmo，鼠标悬停在按钮上会弹出该工具的操作说明。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
+        <li><b>同一位置连续点击＝逐层遍历</b>（Unity 同款）：光标下常常叠着好几根骨骼 / 好几个部件，单击选到的是<b>最上层</b>；在<b>原地继续点</b>就会依次往下选一层，遍历完一轮后回到最上层<b>循环</b>（骨骼之间、部件之间、骨骼与部件之间都算）。点选位置一变、缩放 / 平移了视图、或从两棵树里改了选中，都会重新从最上层开始；按在 Gizmo 上但<b>没拖动</b>也算一次点选，所以在关节点上照样能这样翻。</li>
         <li><b>位移</b>：拖动绿色（Y）/ 红色（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。</li>
         <li><b>旋转</b>：拖动 Gizmo 圆环绕关节旋转。</li>
         <li><b>缩放</b>：拖动轴端方点按轴缩放，拖中心方点整体缩放。缩放的 Gizmo <b>会随骨骼朝向一起旋转</b>（Unity 的 Local 轴模式）：红色轴＝骨骼自身 X 轴（沿骨骼长度方向），绿色轴＝骨骼自身 Y 轴，与骨骼 scaleX / scaleY 一一对应。位移与旋转仍按世界轴 / 整体圆环显示。</li>
@@ -8688,6 +8696,7 @@ SP.pose = (() => {
       this.drag = null;
       this.hover = null;
       this.gizmoHover = null;          // 当前悬停的 gizmo 手柄："x" | "y" | "xy" | "ring"
+      this.pickCycle = null;           // 上一轮视口点选（位置 + 视图 + 命中的目标），Unity 式「同位置连点循环」用
       this.meshVisible = true;         // 由 draw() 同步：网格线框关闭时，顶点手柄既不显示也不可拖
       this.fitPad = 0.12;
     }
@@ -8931,49 +8940,139 @@ SP.pose = (() => {
     boneJointScreen(bone, view) {
       return view.worldToScreen(bone.worldX, bone.worldY);
     }
-    // 返回最近骨骼（joint 优先，其次骨骼线段）
-    pickBone(skeleton, view, sx, sy, maxPx) {
+    /**
+     * 全部命中的骨骼，按「关节 → 骨段」排序，同类里按到光标的距离由近到远。
+     * 关节整体优先于骨段（关节是个小圆点、骨段是条线，先给精确目标），
+     * 与旧版 pickBone「先找最近关节、没有才找骨段」的优先级一致；[0] 就是以前的那个结果。
+     */
+    pickBones(skeleton, view, sx, sy, maxPx) {
       const max = maxPx === undefined ? 9 : maxPx;
-      let best = null, bestD = Infinity;
-      // 关节优先
+      const joints = [], bodies = [];
       for (const bone of skeleton.bones) {
+        // 与 _paintBones 一致：skinRequired 而当前皮肤没启用的骨骼不画，也就不该被点中
+        if (bone.data.skinRequired) continue;
         const p = this.boneJointScreen(bone, view);
         const d = Math.hypot(p.x - sx, p.y - sy);
-        if (d <= max && d < bestD) { bestD = d; best = { bone, part: "joint", dist: d }; }
+        if (d <= max) joints.push({ bone, part: "joint", dist: d });
       }
-      if (best) return best;
-      // 骨骼线段
       for (const bone of skeleton.bones) {
-        if (!bone.data.length) continue;
+        if (bone.data.skinRequired || !bone.data.length) continue;
         const a = this.boneJointScreen(bone, view);
         const tip = bone.localToWorld(bone.data.length, 0);
         const b = view.worldToScreen(tip.x, tip.y);
         const d = Math.sqrt(M.distToSegment2(sx, sy, a.x, a.y, b.x, b.y));
-        if (d <= max - 3 && d < bestD) { bestD = d; best = { bone, part: "body", dist: d }; }
+        if (d <= max - 3) bodies.push({ bone, part: "body", dist: d });
       }
-      return best;
+      joints.sort((x, y) => x.dist - y.dist);
+      bodies.sort((x, y) => x.dist - y.dist);
+      // 同一根骨骼的「关节」和「骨段」是同一个选中目标，只留排在前面（更精确）的那一条：
+      // 否则连点循环会在同一根骨骼上停两次，看起来像点不动。
+      const seen = new Set();
+      const out = [];
+      for (const h of joints.concat(bodies)) {
+        if (seen.has(h.bone)) continue;
+        seen.add(h.bone);
+        out.push(h);
+      }
+      return out;
     }
-    // 返回被点中的插槽（按绘制顺序自上而下）
-    pickSlot(skeleton, view, worldX, worldY) {
+    // 返回最近的骨骼（关节优先，其次骨骼线段；即 pickBones 的第一个）
+    pickBone(skeleton, view, sx, sy, maxPx) {
+      const hits = this.pickBones(skeleton, view, sx, sy, maxPx);
+      return hits.length ? hits[0] : null;
+    }
+    /**
+     * 被点中的插槽，按绘制顺序自上而下（后画的在上面，所以倒着遍历 drawOrder）。
+     * @param {boolean} [all] true＝收集全部命中（连点循环要用整条列表），
+     *        false / 省略＝命中第一个就返回（老行为，省掉后面那些顶点的计算）。
+     */
+    pickSlots(skeleton, view, worldX, worldY, all) {
       const order = skeleton.drawOrder;
       const scratch = new Float32Array(8192);
+      const out = [];
       for (let i = order.length - 1; i >= 0; i--) {
         const slot = order[i];
         const att = slot.attachment;
         if (!att || slot.data.visible === false) continue;
+        let hit = false;
         if (att.type === D.ATT.REGION) {
           R.computeAttachmentWorldVertices(att, slot, 0, 8, scratch, 0, 2);
-          if (M.pointInPolygon(worldX, worldY, scratch.subarray(0, 8))) return { slot, attachment: att };
+          hit = M.pointInPolygon(worldX, worldY, scratch.subarray(0, 8));
         } else if (att instanceof D.VertexAttachment && att.type !== D.ATT.CLIPPING && att.type !== D.ATT.PATH) {
           const n = att.worldVerticesLength;
           if (n > scratch.length) continue;
           R.computeAttachmentWorldVertices(att, slot, 0, n, scratch, 0, 2);
           const tris = att.triangles;
-          if (tris && tris.length && M.pointInTriangles(worldX, worldY, scratch, tris)) return { slot, attachment: att };
-          if (!tris && M.pointInPolygon(worldX, worldY, scratch.subarray(0, n))) return { slot, attachment: att };
+          // 有 triangles 就按三角形判定（空数组＝没有可点的面），没有才回落到多边形
+          hit = tris ? !!(tris.length && M.pointInTriangles(worldX, worldY, scratch, tris)) : M.pointInPolygon(worldX, worldY, scratch.subarray(0, n));
+        }
+        if (hit) {
+          out.push({ slot, attachment: att });
+          if (!all) return out;
         }
       }
-      return null;
+      return out;
+    }
+    // 只取最上层的那一个插槽（兼容旧调用点）
+    pickSlot(skeleton, view, worldX, worldY) {
+      const hits = this.pickSlots(skeleton, view, worldX, worldY, false);
+      return hits.length ? hits[0] : null;
+    }
+    /**
+     * 光标处的全部可选目标，顺序＝「同位置连点」的遍历顺序：
+     * 先骨骼（关节 → 骨段，各自按距离由近到远），再部件（按绘制顺序自上而下）。
+     * 骨骼叠在部件之上（叠加层里 _paintBones 在部件之后画），所以骨骼排在前面。
+     */
+    pickCandidates(skeleton, view, sx, sy, opts) {
+      opts = opts || {};
+      const out = [];
+      if (opts.bones !== false) {
+        const r = opts.boneRadius === undefined ? 10 : opts.boneRadius;
+        for (const h of this.pickBones(skeleton, view, sx, sy, r)) out.push({ kind: "bone", bone: h.bone, part: h.part });
+      }
+      const world = view.screenToWorld(sx, sy);
+      for (const h of this.pickSlots(skeleton, view, world.x, world.y, true)) {
+        out.push({ kind: "slot", slot: h.slot, attachment: h.attachment });
+      }
+      return out;
+    }
+    /** 两个拾取目标是不是同一个东西（骨骼比对象、部件比插槽） */
+    static sameTarget(a, b) {
+      if (!a || !b || a.kind !== b.kind) return false;
+      return a.kind === "bone" ? a.bone === b.bone : a.slot === b.slot;
+    }
+    /**
+     * 视口点选（Unity 风格的「同位置连点循环」）。
+     * 光标下常常叠着好几根骨骼 / 好几个部件，单击只选得到最上层；在**同一个位置**继续点，
+     * 就依次往下选一层，遍历完一轮回到最上层继续循环（骨骼之间、部件之间、骨骼与部件之间都算）。
+     * 「同一个位置」会连视图的缩放 / 平移一起比：缩放平移之后即使屏幕坐标没变，
+     * 底下的东西也已经换了，此时重新从最上层开始。
+     * @returns {object|null} 命中目标（pickCandidates 里的那一项），点空返回 null
+     */
+    pickAt(skeleton, view, sx, sy, opts) {
+      opts = opts || {};
+      const list = this.pickCandidates(skeleton, view, sx, sy, opts);
+      if (!list.length) { this.pickCycle = null; return null; }
+      const tol = opts.cycleTolerance === undefined ? 4 : opts.cycleTolerance;
+      const prev = this.pickCycle;
+      const repeat = !!prev && Math.abs(prev.x - sx) <= tol && Math.abs(prev.y - sy) <= tol
+        && prev.scale === view.scale && prev.cx === view.centerX && prev.cy === view.centerY;
+      let pick = null;
+      if (repeat) {
+        // 从「上一轮点到的那个」往后走一个（它就在用户眼前，下一个才是它下面那层）。
+        // 但如果期间从两棵树 / 检查器里改了选中，就以当前选中为基准——用户刚点的那一行才是他的当前位置。
+        // 对象身份比较：循环游标里的骨骼 / 插槽如果已经不在这次命中列表里（换骨架、动画把它挪走了），
+        // findIndex 会返回 -1，自然回落到最上层。
+        const cur = this.selectedBone ? { kind: "bone", bone: this.selectedBone }
+          : this.selectedSlot ? { kind: "slot", slot: this.selectedSlot } : null;
+        let from = prev.target || null;
+        if (cur && (!from || !PoseController.sameTarget(from, cur))) from = cur;
+        const i = from ? list.findIndex((c) => PoseController.sameTarget(c, from)) : -1;
+        if (i >= 0) pick = list[(i + 1) % list.length];
+      }
+      if (!pick) pick = list[0];          // 新位置（或游标已经不在列表里）＝从最上层开始
+      this.pickCycle = { x: sx, y: sy, scale: view.scale, cx: view.centerX, cy: view.centerY, target: pick };
+      return pick;
     }
     // 顶点手柄拾取（仅针对选中插槽的网格附件）
     attachmentVertexWorld(att, slot, i, out) {
@@ -9742,6 +9841,13 @@ SP.app = (() => {
   const IDB_NAME = "spine-previewer";
   const IDB_STORE = "handles";
 
+  /** 视口拾取目标 → 普通对象（自动化 / 调试 API 用：不把内部对象交给外部，免得被误改） */
+  function describePickTarget(t) {
+    if (!t) return null;
+    if (t.kind === "bone") return { kind: "bone", name: t.bone.data.name, part: t.part };
+    return { kind: "slot", name: t.slot.data.name, attachment: t.attachment ? t.attachment.name : null };
+  }
+
   const $ = (id) => document.getElementById(id);
 
   // 骨架扩展名：双扩展名（.skel.bytes / .skel.json）由 extOf() 整体识别，这里也按整体登记。
@@ -9782,7 +9888,9 @@ SP.app = (() => {
     resizePending: true,
     // 检查器图集预览的视图：key=当前图集页，scale/ox/oy 为缩放与平移（CSS 像素）
     inspAtlasView: { key: "", scale: 1, ox: 0, oy: 0, needFit: true },
-    expandBones: true,
+    // 骨骼树：被「折叠」的骨骼名集合（默认全部展开，对齐 Unity 层级面板的逐节点折叠）。
+    // 只存名字即可——每次加载新骨架都会清空，不存在跨骨架串状态的问题。
+    boneCollapsed: new Set(),
     readyResolve: null,
   };
 
@@ -10874,15 +10982,37 @@ SP.app = (() => {
     }
   }
 
-  function renderSlots() {
+  /**
+   * 重绘部件层级（绘制顺序）表。
+   * @param {{reveal?: object}} [opts] reveal 传入 slot 时，除了选中它，还会：
+   *        打开「部件层级」面板 → 清掉会挡住它的过滤词 → 滚动到可见 → 闪烁高亮。
+   *        （视口里点选部件时走这条路，与骨骼层级面板的联动一致）
+   *
+   * 注：部件之间没有父子关系（只有绘制顺序），所以这里不需要骨骼树那套折叠状态，
+   *     联动只做「选中 + 滚动到可见 + 闪一下」。
+   */
+  function renderSlots(opts) {
     const cur = state.current;
     const box = $("slotTree");
-    const kw = ($("slotSearch").value || "").trim().toLowerCase();
+    const reveal = opts && opts.reveal && opts.reveal.data ? opts.reveal : null;
+    let kw = ($("slotSearch").value || "").trim().toLowerCase();
     if (!cur) {
       box.innerHTML = '<div class="hint" style="padding:9px;">未加载骨架</div>';
       $("slotTag").textContent = "";
       return;
     }
+
+    // 联动选中：先把「看不见它」的前置条件都解掉，再渲染
+    let revealName = null;
+    if (reveal) {
+      revealName = reveal.data.name;
+      const attName = reveal.attachment ? reveal.attachment.name : "";
+      if (kw && !(revealName.toLowerCase().includes(kw) || attName.toLowerCase().includes(kw))) { $("slotSearch").value = ""; kw = ""; }
+      const grp = $("grpSlots");
+      if (grp && !grp.open) grp.open = true;       // 面板收着的话先展开，否则量不到行高
+    }
+
+    const prevScroll = box.scrollTop;
     const rows = [];
     const order = cur.skeleton.drawOrder;
     for (let i = 0; i < order.length; i++) {
@@ -10904,6 +11034,7 @@ SP.app = (() => {
       </div>`);
     }
     box.innerHTML = rows.length ? rows.join("") : '<div class="hint" style="padding:9px;">没有匹配的部件</div>';
+    box.scrollTop = prevScroll;                    // innerHTML 会重置滚动位置，这里恢复（选中 / 改颜色的刷新不再「跳回顶部」）
     $("slotTag").textContent = `${cur.data.slots.length} 个`;
     for (const el of box.querySelectorAll("[data-slot]")) {
       el.addEventListener("click", (e) => {
@@ -10925,17 +11056,120 @@ SP.app = (() => {
         if (slot) { slot.data.visible = !slot.data.visible; log("debug", `部件 ${slot.data.name} ${slot.data.visible ? "显示" : "隐藏"}`); renderSlots(); }
       });
     }
+
+    // 联动选中：滚动到可见 + 闪一下（放在最后，此时行已经真实布局完）
+    if (revealName) flashTreeRow(box, treeRowEl(box, revealName));
   }
 
-  function renderBones() {
+  /* ------------------------------------------------- 骨骼层级树（可折叠） */
+  /**
+   * 骨架里的骨骼是一个「森林」：每根骨骼有 0..n 个子骨骼，没有父骨骼的即根。
+   * 层级面板按这个父子关系递归展开，并且**每个节点单独记忆折叠状态**
+   * （state.boneCollapsed 存被折叠的名字，默认全展开），对齐 Unity 层级面板：
+   *
+   *  - 点 ▸ / ▾ 只折叠 / 展开这一个节点（叶子节点显示 `·` 且不可点）；
+   *  - Alt + 点击箭头＝连同整棵子树一起折叠 / 展开；
+   *  - 点名字＝选中；双击名字＝把视图对准该骨骼；
+   *  - 从视口点选骨骼时，这里会自动展开祖先、滚动到可见并闪一下（见 opts.reveal）。
+   */
+
+  /** 名字 → 骨骼对象（树里存的是名字，避免闭包持有旧骨架的对象）。 */
+  function findBoneByName(cur, name) {
+    if (!cur) return null;
+    return cur.skeleton.bones.find((b) => b.data.name === name) || null;
+  }
+
+  /** 按名字取出树里对应的一行（部件表 / 骨骼树共用；不用属性选择器，名字里的引号 / 反斜杠不会出问题）。 */
+  function treeRowEl(box, name) {
+    for (const el of box.querySelectorAll("[data-bone],[data-slot]")) {
+      if (el.dataset.bone === name || el.dataset.slot === name) return el;
+    }
+    return null;
+  }
+
+  /**
+   * 让某一行滚动到树的可见区域。只改树容器自己的 scrollTop——
+   * 用 scrollIntoView 会把外层页面 / 左栏一起滚动，Unity 的层级面板也只滚自己的列表。
+   * @param {HTMLElement} box 滚动容器（#boneTree / #slotTree）
+   * @param {HTMLElement} el  目标行
+   * @param {number} pad      上下留白（CSS 像素），避免行贴着边框看不到
+   */
+  function scrollRowIntoView(box, el, pad) {
+    if (!box || !el) return;
+    const p = pad === undefined ? 6 : pad;
+    const br = box.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    if (!br.height) return;                        // 容器不可见（面板关闭且未布局）时无法测量
+    if (er.top < br.top + p) box.scrollTop -= (br.top + p - er.top);
+    else if (er.bottom > br.bottom - p) box.scrollTop += (er.bottom - (br.bottom - p));
+  }
+
+  /**
+   * 联动选中的收尾动作：滚动到可见 + 闪烁高亮。
+   * 必须放在 innerHTML 之后调用，此时行才真正布局完（否则量到的是旧位置）。
+   */
+  function flashTreeRow(box, el) {
+    if (!el) return;
+    scrollRowIntoView(box, el);
+    el.classList.remove("reveal");
+    void el.offsetWidth;                           // 强制重排，连着点不同目标时动画能重放
+    el.classList.add("reveal");
+  }
+
+  /** 展开某根骨骼的所有祖先，选中它时才会「从根一路露出来」。 */
+  function expandBoneAncestors(bone) {
+    for (let p = bone && bone.parent; p; p = p.parent) state.boneCollapsed.delete(p.data.name);
+  }
+
+  /** 递归设置（或清除）一根骨骼及其整棵子树的折叠状态。 */
+  function setBoneSubtreeCollapsed(bone, collapsed) {
+    if (!bone || !bone.children.length) return;
+    if (collapsed) state.boneCollapsed.add(bone.data.name);
+    else state.boneCollapsed.delete(bone.data.name);
+    for (const c of bone.children) setBoneSubtreeCollapsed(c, collapsed);
+  }
+
+  /** 同步「全部展开 / 折叠」按钮的提示文案（有节点是展开的 → 点击即折叠全部）。 */
+  function syncBoneExpandButton(cur) {
+    const btn = $("btnBoneExpand");
+    if (!btn) return;
+    const parents = cur ? cur.skeleton.bones.filter((b) => b.children.length) : [];
+    const anyExpanded = parents.some((b) => !state.boneCollapsed.has(b.data.name));
+    btn.textContent = anyExpanded ? "⊟" : "⊞";
+    btn.title = anyExpanded ? "折叠全部骨骼（含子树）" : "展开全部骨骼";
+  }
+
+  /**
+   * 重绘骨骼层级树。
+   * @param {{reveal?: object}} [opts] reveal 传入骨骼对象时，除了选中它，还会：
+   *        打开「骨骼层级」面板 → 清掉会挡住它的过滤词 → 展开所有祖先 → 滚动到可见 → 闪烁高亮。
+   *        （视口里点选骨骼时走这条路，参考 Unity 层级面板的联动）
+   */
+  function renderBones(opts) {
     const cur = state.current;
     const box = $("boneTree");
-    const kw = ($("boneSearch").value || "").trim().toLowerCase();
+    const reveal = opts && opts.reveal && opts.reveal.data ? opts.reveal : null;
+    let kw = ($("boneSearch").value || "").trim().toLowerCase();
     if (!cur) {
       box.innerHTML = '<div class="hint" style="padding:9px;">未加载骨架</div>';
       $("boneTag").textContent = "";
+      state.boneCollapsed.clear();                 // 换骨架时重置折叠状态
+      syncBoneExpandButton(null);
       return;
     }
+
+    // 联动选中：先把「看不见它」的前置条件都解掉，再渲染
+    let revealName = null;
+    if (reveal) {
+      revealName = reveal.data.name;
+      if (kw && !revealName.toLowerCase().includes(kw)) { $("boneSearch").value = ""; kw = ""; }
+      expandBoneAncestors(reveal);
+      const grp = $("grpBones");
+      if (grp && !grp.open) grp.open = true;       // 面板收着的话先展开，否则量不到行高
+    }
+
+    const prevScroll = box.scrollTop;
+    const isCollapsed = (b) => state.boneCollapsed.has(b.data.name);
     const rows = [];
     const walk = (bone, depth) => {
       const hide = kw && !bone.data.name.toLowerCase().includes(kw);
@@ -10950,32 +11184,53 @@ SP.app = (() => {
       else if (cur.skeleton.pathConstraints.some((c) => c.target && c.target.bone === bone)) meta = "路径目标";
       else if (bone.data.length) meta = bone.data.length.toFixed(0);
       const hasChild = bone.children.length > 0;
+      const collapsed = hasChild && isCollapsed(bone);
       const indent = 6 + depth * 12;
       if (!hide) {
-        rows.push(`<div class="treeRow ${sel ? "sel" : ""}" data-bone="${esc(bone.data.name)}" style="padding-left:${indent}px" title="${esc(bone.data.name)}${bone.data.parent ? " ← " + esc(bone.data.parent.name) : "（根骨骼）"}">
-          <span class="nm">${hasChild ? (state.expandBones ? "▾" : "▸") : "·"}</span>
+        rows.push(`<div class="treeRow ${sel ? "sel" : ""}" data-bone="${esc(bone.data.name)}" style="padding-left:${indent}px" title="${esc(bone.data.name)}${bone.data.parent ? " ← " + esc(bone.data.parent.name) : "（根骨骼）"}${hasChild ? "（" + bone.children.length + " 个子骨骼）" : ""}">
+          <span class="tw ${hasChild ? "" : "leaf"}"${hasChild ? ` data-boneToggle="${esc(bone.data.name)}"` : ""}>${hasChild ? (collapsed ? "▸" : "▾") : "·"}</span>
           <span class="nm">${esc(bone.data.name)}</span>
           ${ov ? '<span class="meta" style="color:var(--accent)">已调试</span>' : ""}
           <span class="meta">${esc(meta)}</span>
         </div>`);
       }
-      if (state.expandBones || depth === 0) for (const c of bone.children) walk(c, depth + 1);
+      if (!collapsed) for (const c of bone.children) walk(c, depth + 1);
     };
     for (const root of cur.skeleton.bones.filter((b) => !b.parent)) walk(root, 0);
     box.innerHTML = rows.length ? rows.join("") : '<div class="hint" style="padding:9px;">没有匹配的骨骼</div>';
+    box.scrollTop = prevScroll;                    // innerHTML 会重置滚动位置，这里恢复（选中 / 调试刷新不再「跳回顶部」）
     $("boneTag").textContent = `${cur.data.bones.length} 根`;
+    syncBoneExpandButton(cur);
+
     for (const el of box.querySelectorAll("[data-bone]")) {
+      const bone = findBoneByName(cur, el.dataset.bone);
+      if (!bone) continue;
+      // 箭头：折叠 / 展开（Alt+点击连整棵子树）
+      const tw = el.querySelector("[data-boneToggle]");
+      if (tw) {
+        tw.addEventListener("click", (e) => {
+          e.stopPropagation();                     // 只切折叠，不要顺带改选中
+          const collapsed = !isCollapsed(bone);
+          if (e.altKey) setBoneSubtreeCollapsed(bone, collapsed);
+          else if (collapsed) state.boneCollapsed.add(bone.data.name);
+          else state.boneCollapsed.delete(bone.data.name);
+          renderBones();
+        });
+        tw.addEventListener("dblclick", (e) => e.stopPropagation());
+      }
       el.addEventListener("click", () => {
-        const bone = cur.skeleton.bones.find((b) => b.data.name === el.dataset.bone);
         state.pose.selectedBone = bone;
         state.pose.selectedSlot = null;
         renderBones(); renderSlots(); renderInspector();
       });
       el.addEventListener("dblclick", () => {
-        const bone = cur.skeleton.bones.find((b) => b.data.name === el.dataset.bone);
-        if (bone) { state.pose.fitBone(bone, state.view); log("debug", `视图对准骨骼 ${bone.data.name}`); }
+        state.pose.fitBone(bone, state.view);
+        log("debug", `视图对准骨骼 ${bone.data.name}`);
       });
     }
+
+    // 联动选中：滚动到可见 + 闪一下（放在最后，此时行已经真实布局完）
+    if (revealName) flashTreeRow(box, treeRowEl(box, revealName));
   }
 
   /* --------------------------------------------------------- 图集预览 */
@@ -12331,44 +12586,54 @@ SP.app = (() => {
   function onPointerUp(e) {
     const cur = state.current;
     state.gl.classList.remove("panning");
+    let clickThrough = false;
     if (state.dragging) {
       const d = state.pose.endDrag();
       state.dragging = false;
-      if (d && d.kind === "gizmo") {
-        const label = { translate: "位移", rotate: "旋转", scale: "缩放" }[d.tool] || "变换";
-        log("debug", `已对骨骼 ${d.bone.data.name} 应用${label}（叠加在动画之上）`);
+      // 按下了 Gizmo 手柄但指针一下都没动过：其实没发生任何变换，按「点选」处理。
+      // 不这样兜底的话，选中的骨骼 / 部件把自己的 Gizmo 中心方块压在关节上，
+      // 在关节处反复点击会被 Gizmo 吃掉，没法遍历同一位置下重叠的骨骼 / 部件。
+      clickThrough = !!d && d.kind === "gizmo" && !state.pointerMoved;
+      if (!clickThrough) {
+        if (d && d.kind === "gizmo") {
+          const label = { translate: "位移", rotate: "旋转", scale: "缩放" }[d.tool] || "变换";
+          log("debug", `已对骨骼 ${d.bone.data.name} 应用${label}（叠加在动画之上）`);
+        }
+        if (d && d.kind === "vertex") log("debug", `已修改部件 ${d.slot.data.name} 的第 ${d.index + 1} 个顶点（网格形变）`);
+        renderBones(); renderInspector();
+        return;
       }
-      if (d && d.kind === "vertex") log("debug", `已修改部件 ${d.slot.data.name} 的第 ${d.index + 1} 个顶点（网格形变）`);
-      renderBones(); renderInspector();
-      return;
     }
-    const wasPending = state.pendingClick;
+    const wasPending = state.pendingClick || clickThrough;
     state.pendingClick = false;
     state.panning = null;
     if (!cur || !wasPending || state.pointerMoved || e.button !== 0) return;
-    // 点击选择
+    // 点击选择：同一位置连续点击会在重叠的骨骼 / 部件之间逐层循环（Unity 风格）
     const p = screenPos(e);
-    // 骨骼显示关闭时，视口里就没有「可点的骨骼节点」了：
-    // 此时整块视口的点击都不参与骨骼拾取（否则会看不见骨骼却选中骨骼）。
-    const boneHit = state.prefs.bones ? state.pose.pickBone(cur.skeleton, state.view, p.x, p.y, 10) : null;
-    if (boneHit) {
-      state.pose.selectedBone = boneHit.bone;
+    const hit = state.pose.pickAt(cur.skeleton, state.view, p.x, p.y, {
+      // 骨骼显示关闭时，视口里就没有「可点的骨骼节点」了：
+      // 此时整块视口的点击都不参与骨骼拾取（否则会看不见骨骼却选中骨骼）。
+      bones: state.prefs.bones,
+      boneRadius: 10,
+    });
+    if (!hit) {
+      state.pose.selectedBone = null;
       state.pose.selectedSlot = null;
       renderBones(); renderSlots(); renderInspector();
       return;
     }
-    const world = state.view.screenToWorld(p.x, p.y);
-    const slotHit = state.pose.pickSlot(cur.skeleton, state.view, world.x, world.y);
-    if (slotHit) {
-      state.pose.selectedSlot = slotHit.slot;
+    if (hit.kind === "bone") {
+      state.pose.selectedBone = hit.bone;
+      state.pose.selectedSlot = null;
+      // 视口点选 → 层级面板同步：展开祖先 + 滚动到可见（Unity 层级面板的联动行为）
+      renderBones({ reveal: hit.bone }); renderSlots(); renderInspector();
+    } else {
+      state.pose.selectedSlot = hit.slot;
       state.pose.selectedBone = null;
       state.pose.selectedVertex = -1;
-      renderSlots(); renderBones(); renderInspector();
-      return;
+      // 视口点选 → 部件层级面板同步：滚动到可见 + 闪烁高亮（与骨骼层级面板一致）
+      renderSlots({ reveal: hit.slot }); renderBones(); renderInspector();
     }
-    state.pose.selectedBone = null;
-    state.pose.selectedSlot = null;
-    renderBones(); renderSlots(); renderInspector();
   }
 
   function onWheel(e) {
@@ -12387,10 +12652,16 @@ SP.app = (() => {
     const boneHit = state.prefs.bones ? state.pose.pickBone(cur.skeleton, state.view, p.x, p.y, 10) : null;
     if (boneHit) {
       state.pose.resetBone(boneHit.bone);
+      // 双击＝「重置光标下最上层那根骨骼」。双击本身含两次单击，同位置连点会把选中翻到下一层，
+      // 所以这里把选中重新对齐到被重置的那根，并且结束这一轮连点循环。
+      state.pose.selectedBone = boneHit.bone;
+      state.pose.selectedSlot = null;
+      state.pose.pickCycle = null;
       log("info", `已重置骨骼 ${boneHit.bone.data.name} 的调试姿态`);
-      renderBones(); renderInspector();
+      renderBones(); renderSlots(); renderInspector();
       return;
     }
+    state.pose.pickCycle = null;      // 没点中骨骼 → 落回「适配视图」，下一轮点选重新从最上层开始
     fitView();
   }
 
@@ -12845,9 +13116,18 @@ SP.app = (() => {
     $("bgSel").addEventListener("change", () => applyBackground($("bgSel").value));
     $("btnResetPose").addEventListener("click", () => { state.pose.resetAll(); log("info", "已清空姿态调试"); renderBones(); renderInspector(); });
     $("btnResetDeform").addEventListener("click", () => { state.pose.clearDeform(); log("info", "已清空网格形变调试"); renderInspector(); });
-    $("slotSearch").addEventListener("input", renderSlots);
-    $("boneSearch").addEventListener("input", renderBones);
-    $("btnBoneExpand").addEventListener("click", () => { state.expandBones = !state.expandBones; renderBones(); });
+    $("slotSearch").addEventListener("input", () => renderSlots());
+    $("boneSearch").addEventListener("input", () => renderBones());
+    // 全部展开 / 全部折叠：只要有一个带子骨骼的节点是展开的，就整体折叠；否则整体展开
+    $("btnBoneExpand").addEventListener("click", () => {
+      const cur = state.current;
+      if (!cur) return;
+      const parents = cur.skeleton.bones.filter((b) => b.children.length);
+      const anyExpanded = parents.some((b) => !state.boneCollapsed.has(b.data.name));
+      if (anyExpanded) for (const b of parents) state.boneCollapsed.add(b.data.name);
+      else state.boneCollapsed.clear();
+      renderBones();
+    });
     // 视口
     $("btnFit").addEventListener("click", fitView);
     $("btnOne").addEventListener("click", () => { state.view.scale = 1; });
@@ -13165,7 +13445,8 @@ SP.app = (() => {
       const b = cur.skeleton.bones.find((x) => x.data.name === name);
       if (!b) return false;
       state.pose.selectedBone = b; state.pose.selectedSlot = null;
-      renderBones(); renderInspector();
+      // 与视口点选一致：层级面板里展开祖先并滚动到可见
+      renderBones({ reveal: b }); renderInspector();
       return true;
     },
     selectSlot: (name) => {
@@ -13174,7 +13455,8 @@ SP.app = (() => {
       const s = cur.skeleton.slots.find((x) => x.data.name === name);
       if (!s) return false;
       state.pose.selectedSlot = s; state.pose.selectedBone = null;
-      renderSlots(); renderInspector();
+      // 与视口点选一致：部件层级面板里滚动到可见并闪烁高亮
+      renderSlots({ reveal: s }); renderInspector();
       return true;
     },
     selection: () => ({
@@ -13182,6 +13464,46 @@ SP.app = (() => {
       slot: state.pose.selectedSlot ? state.pose.selectedSlot.data.name : null,
       vertex: state.pose.selectedVertex,
     }),
+    /** 骨骼层级树的当前状态（自动化 / 调试用）：可见行、折叠集合、滚动位置 */
+    boneTree: () => {
+      const box = $("boneTree"), grp = $("grpBones");
+      const rows = box ? Array.from(box.querySelectorAll("[data-bone]")).map((el) => {
+        const tw = el.querySelector(".tw");
+        return {
+          name: el.dataset.bone,
+          depth: Math.round(((parseFloat(el.style.paddingLeft) || 6) - 6) / 12),
+          selected: el.classList.contains("sel"),
+          hasChildren: !!(el.querySelector("[data-boneToggle]")),
+          collapsed: !!(tw && tw.textContent === "▸"),
+        };
+      }) : [];
+      return { total: state.current ? state.current.skeleton.bones.length : 0, open: !!(grp && grp.open), collapsed: Array.from(state.boneCollapsed), scrollTop: box ? box.scrollTop : 0, rows };
+    },
+    /** 折叠 / 展开某根骨骼（subtree=true 时连整棵子树；自动化 / 调试用） */
+    setBoneCollapsed: (name, collapsed, subtree) => {
+      const b = findBoneByName(state.current, name);
+      if (!b) return false;
+      if (subtree) setBoneSubtreeCollapsed(b, !!collapsed);
+      else if (collapsed) state.boneCollapsed.add(name);
+      else state.boneCollapsed.delete(name);
+      renderBones();
+      return true;
+    },
+    /** 部件层级表的当前状态（自动化 / 调试用）：可见行、选中行、滚动位置 */
+    slotTree: () => {
+      const box = $("slotTree"), grp = $("grpSlots");
+      const rows = box ? Array.from(box.querySelectorAll("[data-slot]")).map((el) => {
+        const eye = el.querySelector(".eyeBtn");
+        const meta = el.querySelector(".meta");
+        return {
+          name: el.dataset.slot,
+          attachment: meta ? meta.textContent : "",
+          selected: el.classList.contains("sel"),
+          visible: !(eye && eye.classList.contains("off")),
+        };
+      }) : [];
+      return { total: state.current ? state.current.skeleton.slots.length : 0, open: !!(grp && grp.open), scrollTop: box ? box.scrollTop : 0, rows };
+    },
     /** 当前 Gizmo 状态（自动化 / 调试用） */
     gizmo: () => {
       const g = state.pose.gizmoScreen(state.view);
@@ -13199,6 +13521,28 @@ SP.app = (() => {
     },
     /** 命中测试（屏幕 CSS 坐标），返回手柄名或 null */
     pickGizmoAt: (x, y) => state.pose.pickGizmo(state.view, x, y),
+    /**
+     * 光标处的可选目标列表（屏幕 CSS 坐标；自动化 / 调试用，无副作用）。
+     * 顺序＝「同位置连点」的遍历顺序：先骨骼（关节 → 骨段，各自按距离由近到远），
+     * 再部件（按绘制顺序自上而下）。骨骼显示关闭时列表里不会有骨骼。
+     */
+    candidatesAt: (x, y, opts) => {
+      const cur = state.current;
+      if (!cur) return [];
+      const o = Object.assign({ bones: state.prefs.bones, boneRadius: 10 }, opts || {});
+      return state.pose.pickCandidates(cur.skeleton, state.view, x, y, o).map(describePickTarget);
+    },
+    /**
+     * 模拟一次视口点选（屏幕 CSS 坐标），走的是和鼠标点击完全相同的那条路：
+     * 同一个位置连续调用会依次返回下一层目标、遍历完一轮回到最上层（会推进连点循环，
+     * 但**不改选中状态**）。点空返回 null（同时结束这一轮循环）。
+     */
+    pickAt: (x, y, opts) => {
+      const cur = state.current;
+      if (!cur) return null;
+      const o = Object.assign({ bones: state.prefs.bones, boneRadius: 10 }, opts || {});
+      return describePickTarget(state.pose.pickAt(cur.skeleton, state.view, x, y, o));
+    },
     poseBone: (name, delta) => {
       const cur = state.current;
       if (!cur) return false;
