@@ -456,6 +456,7 @@
             <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkAxis" checked=""> 坐标轴</label>
             <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkGrid" checked=""> 网格底纹</label>
             <label class="hint" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkClip" checked=""> 裁剪</label>
+            <label class="hint" title="路径附件：没有贴图的路径（Spine 的 Path 附件），只是路径约束用的贝塞尔控制线，这里按曲线细分后画成虚线轮廓" style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="chkPath" checked=""> 路径</label>
           </div>
           <div class="row">
             <label style="width:52px;">底色</label>
@@ -508,7 +509,8 @@
         <button class="btn sm tgl" id="btnTBones" title="显示骨骼（B）" aria-pressed="true">🦴</button>
         <button class="btn sm tgl" id="btnTMesh" title="显示网格线框（M）· 网格线与顶点手柄一并显示" aria-pressed="true">🕸</button>
         <button class="btn sm tgl" id="btnTBounds" title="显示包围盒（U）" aria-pressed="false">▭</button>
-        <button class="btn sm tgl" id="btnTWeights" title="显示 Mesh 权重：在骨骼线下方叠加「彩色骨骼」示意线（每根骨骼一种颜色），并在 Mesh 顶点处画出按影响骨骼着色的圆形权重扇形图（扇形占比＝骨骼权重）。局部显示：选中骨骼时只画该骨骼影响的顶点，选中网格部件时只画该部件及其相关骨骼，两者都没选中才画全部" aria-pressed="false">◔</button>
+        <button class="btn sm tgl" id="btnTPath" title="显示路径附件：路径附件没有贴图，这里把它的贝塞尔曲线细分后画成绿色虚线轮廓（关掉只影响预览，不影响动画）" aria-pressed="true">〰</button>
+        <button class="btn sm tgl" id="btnTWeights" title="显示 Mesh 权重：在骨骼线下方叠加「彩色骨骼」示意线（每根骨骼一种颜色；没有被任何 mesh 顶点引用（权重 > 0）的骨骼不画，避免误以为它驱动了网格），并在 Mesh 顶点处画出按影响骨骼着色的圆形权重扇形图（扇形占比＝骨骼权重）。局部显示：选中骨骼时只画该骨骼影响的顶点，选中网格部件时只画该部件及其相关骨骼，两者都没选中才画全部" aria-pressed="false">◔</button>
         <button class="btn sm" id="btnTPause" title="播放 / 暂停（空格）" disabled>▶</button>
       </div>
 
@@ -655,8 +657,9 @@
       </ul>
       <div><b>3. 显示与 Gizmo 变换</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
-        <li>骨骼 / 网格线框 / 包围盒 / 贴图 / 骨骼名 / 裁剪 均可独立开关；视口工具条上的骨骼 / 网格 / 包围盒按钮<b>高亮＝开启、压暗＝关闭</b>。</li>
-        <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽的<b>彩色骨骼</b>示意线，并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。顶点权重圆<b>跟随选中项局部显示</b>，避免顶点密集的网格糊成一片：<b>①</b> 选中某根骨骼时，只画「受该骨骼影响（权重 &gt; 0）」的顶点，可用来确认这根骨骼到底驱动了哪些顶点（圆内仍保留该顶点完整的权重构成）；<b>②</b> 选中某个 <b>网格类部件</b>时，只画该部件的顶点；<b>③</b> 既没选骨骼也没选网格部件（选中 region 等非网格部件同样算没选）时，才画全部部件。彩色骨骼示意线<b>同样跟随选中项</b>：选中网格部件时只画<b>与该网格顶点相关（权重 &gt; 0）</b>的骨骼，和顶点权重圆的显示范围一致（颜色 / 下标仍按骨骼在骨架里的原始位置取，所以与扇形颜色一一对应；选中非权重网格时该网格没有相关骨骼，示意线为空）；选中骨骼或什么都没选中时画<b>全部</b>骨骼，便于对照颜色。</li>
+        <li>骨骼 / 网格线框 / 路径 / 包围盒 / 贴图 / 骨骼名 / 裁剪 均可独立开关；视口工具条上的骨骼 / 网格 / 路径 / 包围盒按钮<b>高亮＝开启、压暗＝关闭</b>。</li>
+        <li><b>路径附件（Path，视口工具条的 〰）</b>：Spine 的路径附件本身<b>没有贴图</b>，官方运行时也不渲染它——它只是路径约束用的一条<b>复合贝塞尔控制线</b>。这里按官方几何把每段三次贝塞尔<b>细分后</b>画成<b>绿色虚线</b>轮廓：段划分与官方调试渲染器一致（起点＝上一段终点，控制点从第 3 个顶点开始每 3 个顶点取一段），细分数随缩放按<b>曲率</b>自适应（屏幕上与曲线的偏离 ≤ 0.25px），所以放大也不会露出折角。它跟「网格」开关无关：网格没开也照样在。<b>它就是「路径」开关管的东西</b>，不想要就关掉，或者到「部件层级」里点该插槽的 👁 隐藏这一个部件。裁剪附件的轮廓同样按曲线细分，但它跟着「网格」开关走（网格与顶点手柄一起显示 / 隐藏）。</li>
+        <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽、<b>不透明</b>的<b>彩色骨骼</b>示意线（不透明是为了让示意线的颜色与顶点扇形图里的颜色完全一致——半透明会和压在上面的骨骼线混色），并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。<b>没有被任何 mesh 顶点引用（权重 &gt; 0）的骨骼不画彩色示意线</b>：这类骨骼（纯图标 / 参考骨骼、被动画忽略的残留骨骼等）不驱动任何网格，画上颜色只会让人误以为它参与了权重；它们的骨骼线仍按原样显示。顶点权重圆<b>跟随选中项局部显示</b>，避免顶点密集的网格糊成一片：<b>①</b> 选中某根骨骼时，只画「受该骨骼影响（权重 &gt; 0）」的顶点，可用来确认这根骨骼到底驱动了哪些顶点（圆内仍保留该顶点完整的权重构成）；<b>②</b> 选中某个 <b>网格类部件</b>时，只画该部件的顶点；<b>③</b> 既没选骨骼也没选网格部件（选中 region 等非网格部件同样算没选）时，才画全部部件。彩色骨骼示意线<b>同样跟随选中项</b>：选中网格部件时只画<b>与该网格顶点相关（权重 &gt; 0）</b>的骨骼，和顶点权重圆的显示范围一致（颜色 / 下标仍按骨骼在骨架里的原始位置取，所以与扇形颜色一一对应；选中非权重网格时该网格没有相关骨骼，示意线为空）；选中骨骼时不再按部件收窄（但选中的那根若本身没被任何顶点引用，依然没有颜色——没有权重就没有对应颜色）。当前绘制顺序里没有任何带权重网格时，示意线整体为空（没有权重可言，不画颜色）。</li>
         <li><b>骨骼显示关闭时，视口里点不到骨骼</b>：看不见的骨骼不参与拾取，点视口任意位置都只会命中部件（或取消选中），也不会因双击而重置骨骼。要选中 / 拖拽骨骼，先用工具条的 🦴 或 <b>B</b> 打开骨骼显示。</li>
         <li>视口<b>左上角的竖排工具条</b>（Unity 风格）切换交互类型：<b>位移 / 旋转 / 缩放</b> 会显示不同的 Gizmo，鼠标悬停在按钮上会弹出该工具的操作说明。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
         <li><b>同一位置连续点击＝逐层遍历</b>（Unity 同款）：光标下常常叠着好几根骨骼 / 好几个部件，单击选到的是<b>最上层</b>；在<b>原地继续点</b>就会依次往下选一层，遍历完一轮后回到最上层<b>循环</b>（骨骼之间、部件之间、骨骼与部件之间都算）。点选位置一变、缩放 / 平移了视图、或从两棵树里改了选中，都会重新从最上层开始；按在 Gizmo 上但<b>没拖动</b>也算一次点选，所以在关节点上照样能这样翻。</li>
@@ -8637,11 +8640,13 @@ SP.pose = (() => {
 
   /**
    * 「Mesh 权重」显示的屏幕尺寸（像素，不随视图缩放变化）：
-   *   boneWidth 彩色骨骼示意线宽（当前 10）—— 明显宽于骨骼线（1.6 / 选中 2.6），且半透明，压在上面仍看得清；
+   *   boneWidth 彩色骨骼示意线宽（当前 14）—— 明显宽于骨骼线（1.6 / 选中 2.6），压在上面仍看得清；
+   *   boneAlpha 彩色骨骼示意线的透明度：1 = 完全不透明（半透明会和压在上面的骨骼线混色，
+   *             看起来像「两种颜色叠在一起」，也认不准扇形图里到底是哪种颜色）；
    *   pieR      顶点权重扇形图的半径 —— 大于顶点手柄方块的半宽（3），两者同心；
    *   pieCap    单帧最多绘制的扇形图数量，超大网格时兜底，避免叠加层拖慢帧率。
    */
-  const WT = { boneWidth: 10, boneAlpha: 0.55, pieR: 11, pieCap: 6000 };
+  const WT = { boneWidth: 14, boneAlpha: 1, pieR: 11, pieCap: 6000 };
 
   /**
    * IK 约束上可在检查器里调试的运行时字段（与官方 IkConstraint 一一对应）。
@@ -9302,19 +9307,25 @@ SP.pose = (() => {
     paint(ctx, view, skeleton, opts) {
       opts = opts || {};
       const dpr = view.dpr || 1;
+      // 叠加层的绘制缓冲区是「CSS 尺寸 × dpr」（见 syncOverlayCanvas），所以清屏必须按缓冲区
+      // 的真实像素来：setTransform 之后 clearRect(0,0,width,height) 只覆盖 CSS 尺寸那么大，
+      // dpr > 1 时右下角 (width×dpr − width) 那块永远擦不掉，关掉开关还会留着重影。
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, view.width, view.height);
       // 网格线框的开关同时决定顶点手柄的可见性 / 可拖性（关掉网格线就不该看到顶点）
       this.meshVisible = !!opts.mesh;
       if (!skeleton) return;
       if (opts.grid) this._paintGrid(ctx, view);
       if (opts.mesh) this._paintMeshes(ctx, view, skeleton);
+      // 路径附件（贝塞尔控制线）与包围盒：独立的「路径」/「包围盒」开关，互不影响
+      if (opts.path) this._paintPaths(ctx, view, skeleton);
       if (opts.bounds) this._paintBounds(ctx, view, skeleton);
       // Mesh 权重扇形图：垫在顶点手柄「之下」，圆比手柄方块大，两者同心不互相遮挡
       if (opts.weights) this._paintWeightPies(ctx, view, skeleton);
       // 顶点手柄常驻显示（选中网格部件时），与工具无关；但跟随「网格」开关
       if (this.meshVisible && this.selectedSlot) this._paintVertexHandles(ctx, view, skeleton);
-      // 彩色骨骼（稍宽）垫在骨骼线之下，两者用同一种骨骼色，粗线即「这根骨骼的影响范围色」
+      // 彩色骨骼（更宽、不透明）垫在骨骼线之下：只给「被 mesh 顶点引用」的骨骼上色
       if (opts.bones && opts.weights) this._paintWeightBones(ctx, view, skeleton);
       if (opts.bones) this._paintBones(ctx, view, skeleton, opts.names);
       if (opts.axis) this._paintAxis(ctx, view, skeleton);
@@ -9457,12 +9468,11 @@ SP.pose = (() => {
       return alpha === undefined ? `hsl(${h},75%,62%)` : `hsla(${h},75%,62%,${alpha})`;
     }
     /**
-     * 指定网格「顶点相关」的骨骼下标集合：遍历 att.bones 的每顶点 [boneCount, boneIndex…]，
+     * 一个带权重网格的「顶点相关」骨骼下标集合：遍历 att.bones 的每顶点 [boneCount, boneIndex…]，
      * 收集所有「权重 > 0」的影响骨骼（下标即 skeleton.bones 里的位置，也是彩色骨骼的颜色下标）。
-     * 返回 null 表示「不做限制」（没选中网格类部件）；返回空集合表示该网格没有任何权重骨骼。
+     * 返回 null 表示不是网格类附件（谈不上权重）；返回空集合表示该网格没有任何权重骨骼。
      */
-    _weightMeshBoneIndices(selSlot) {
-      const att = selSlot && selSlot.attachment;
+    _attWeightBoneIndices(att) {
       if (!att || !isEditableMesh(att)) return null;
       const set = new Set();
       const bones = att.bones, verts = att.vertices;
@@ -9479,19 +9489,69 @@ SP.pose = (() => {
       return set;
     }
     /**
-     * 彩色骨骼示意线：比骨骼线更宽、半透明，画在骨骼线之下，用来对应顶点扇形图里的颜色。
-     * 选中网格类部件时只画「与该网格顶点相关（权重 > 0）」的骨骼，与顶点权重圆的局部显示保持一致；
-     * 同时线宽 / 颜色下标仍按 skeleton.bones 的原始位置取，和扇形图里的颜色一一对应。
-     * 选中骨骼（或无选中）时画全部骨骼，方便在整张骨架里对照颜色。
+     * 指定网格部件「顶点相关」的骨骼下标集合：遍历 att.bones 的每顶点 [boneCount, boneIndex…]，
+     * 收集所有「权重 > 0」的影响骨骼（下标即 skeleton.bones 里的位置，也是彩色骨骼的颜色下标）。
+     * 返回 null 表示「不做限制」（没选中网格类部件）；返回空集合表示该网格没有任何权重骨骼。
+     */
+    _weightMeshBoneIndices(selSlot) {
+      return this._attWeightBoneIndices(selSlot && selSlot.attachment);
+    }
+    /**
+     * 当前这批部件里，被「带权重网格顶点」引用（权重 > 0）的骨骼下标集合。
+     *
+     * 只有真正驱动网格顶点的骨骼才配拥有颜色：一根骨骼没被任何 mesh 顶点绑定
+     * （IK 驱动、纯位置参考、被动画忽略的残留骨骼等）时，画一条彩色示意线只会
+     * 让人误以为它参与了权重。附件与权重都是静态数据，所以按附件缓存集合，
+     * 每帧只剩 Map 命中 + Set 合并，不重复解析 att.bones。
+     * slots：默认取当前绘制顺序（跳过隐藏部件；隐藏部件的顶点本来就不在视口里）。
+     */
+    _referencedBoneIndices(skeleton, slots) {
+      const list = slots || skeleton.drawOrder;
+      const cache = this._boneRefCache || (this._boneRefCache = new Map());
+      const set = new Set();
+      let found = false;
+      for (const slot of list) {
+        const att = slot.attachment;
+        if (!att || !isEditableMesh(att) || !att.bones || !att.bones.length) continue;
+        let mine = cache.get(att);
+        if (!mine) {
+          mine = this._attWeightBoneIndices(att) || new Set();
+          cache.set(att, mine);
+        }
+        if (!mine.size) continue;
+        found = true;
+        for (const i of mine) set.add(i);
+      }
+      // 一个带权重网格都没有（也没被缓存下来）→ 这次结果不可信，别留下空集合的负缓存
+      return found ? set : null;
+    }
+    /** 换资源时清掉按附件缓存的「被引用骨骼」集合：附件对象整体换掉，旧缓存只剩占内存 */
+    clearMeshWeightCache() {
+      if (this._boneRefCache) this._boneRefCache.clear();
+    }
+    /**
+     * 彩色骨骼示意线：比骨骼线更宽、不透明，画在骨骼线之下，用来对应顶点扇形图里的颜色。
+     *
+     * 只画「被 mesh 顶点引用（权重 > 0）」的骨骼：没被任何顶点绑定的骨骼不画示意线
+     * （不然看不出它其实不影响任何网格）。选中网格类部件时进一步收窄到「与该网格
+     * 顶点相关」的骨骼，与顶点权重圆的局部显示保持一致；选中骨骼时不再按部件收窄
+     * （但选中的那根若本身没被引用，依然不会有颜色——没有权重就没有对应颜色）。
+     * 线宽 / 颜色下标始终按 skeleton.bones 的原始位置取，
+     * 所以与扇形图里的颜色一一对应。
      */
     _paintWeightBones(ctx, view, skeleton) {
       const bones = skeleton.bones;
-      // 骨骼选中优先：此时不限制彩色骨骼，便于对照「选中的这根」与其它骨骼的颜色
-      const focus = (this.selectedBone || !this.selectedSlot) ? null : this._weightMeshBoneIndices(this.selectedSlot);
+      // 没被任何 mesh 顶点引用的骨骼没有颜色可言，直接跳过
+      const referenced = this._referencedBoneIndices(skeleton);
+      if (!referenced) return;
+      // 骨骼选中优先：此时不再按部件收窄，便于对照「选中的这根」与其它骨骼的颜色
+      const selIndex = this.selectedBone ? this.selectedBone.data.index : -1;
+      const focus = (selIndex >= 0 || !this.selectedSlot) ? null : this._weightMeshBoneIndices(this.selectedSlot);
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineWidth = WT.boneWidth;
       for (let i = 0; i < bones.length; i++) {
+        if (!referenced.has(i)) continue;
         if (focus && !focus.has(i)) continue;
         const bone = bones[i];
         if (bone.data.skinRequired || !bone.data.length) continue;
@@ -9562,23 +9622,22 @@ SP.pose = (() => {
         if (att.type === D.ATT.REGION) {
           if (!isSel) continue;
           R.computeAttachmentWorldVertices(att, slot, 0, 8, wv, 0, 2);
-          this._strokePoly(ctx, view, wv, 4, true, COL.meshSel, 1.6);
+          this._strokeWorld(ctx, view, wv, 4, true, COL.meshSel, 1.6);
           continue;
         }
         if (att instanceof D.VertexAttachment) {
           const n = att.worldVerticesLength / 2;
           if (n * 2 > wv.length) continue;
           R.computeAttachmentWorldVertices(att, slot, 0, att.worldVerticesLength, wv, 0, 2);
+          // 裁剪附件与网格同批处理（网格开关控制它），但按曲线细分，别把控制点连成折线
           if (att.type === D.ATT.CLIPPING) {
-            this._strokePoly(ctx, view, wv, n, true, COL.clip, 1.3, [5, 4]);
+            const count = this._traceCurves(wv, n, view, true, 0);
+            this._strokeWorld(ctx, view, this._curveBuf, count, true, COL.clip, 1.3, [5, 4]);
             continue;
           }
-          if (att.type === D.ATT.PATH) {
-            this._strokePoly(ctx, view, wv, n, !!att.closed, COL.path, 1.5, [6, 4]);
-            continue;
-          }
+          if (att.type === D.ATT.PATH) continue;   // 路径附件由 _paintPaths 单独画（「路径」开关）
           if (att.type === D.ATT.BOUNDINGBOX) {
-            this._strokePoly(ctx, view, wv, n, true, COL.bounds, 1.4, [4, 3]);
+            this._strokeWorld(ctx, view, wv, n, true, COL.bounds, 1.4, [4, 3]);
             continue;
           }
           if (att.type === D.ATT.POINT) continue;
@@ -9612,7 +9671,12 @@ SP.pose = (() => {
         }
       }
     }
-    _strokePoly(ctx, view, wv, count, close, color, width, dash) {
+    /**
+     * 把「世界顶点数组」描成轮廓。
+     * wv 里的顶点是世界坐标（不是线段端点）：本方法只做 worldToScreen，直接顺次连线，
+     * 所以调用方必须先把曲线细分好（见 _traceCurves）。
+     */
+    _strokeWorld(ctx, view, wv, count, close, color, width, dash) {
       ctx.save();
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
@@ -9625,6 +9689,83 @@ SP.pose = (() => {
       if (close) ctx.closePath();
       ctx.stroke();
       ctx.restore();
+    }
+    /**
+     * 路径附件（PathAttachment）：Spine 里「路径 = 复合贝塞尔曲线」，顶点布局是
+     * `[P0, (控制点1, 控制点2, 终点) × n]`——**每段的起点不是独立顶点，而是上一段的终点**
+     * （第 1 段的起点是 P0，控制点是 P2 / P3、终点 P4；第 2 段接着从 P4 起）。
+     * 这与网格的三角面顶点完全不是一回事。
+     * 路径附件没有贴图，运行时官方渲染器也不画它，这里把它当调试轮廓画出来：
+     * 按「路径」开关独立显示，颜色 COL.path（绿色），虚线。
+     */
+    _paintPaths(ctx, view, skeleton) {
+      const wv = new Float32Array(8192);
+      for (const slot of skeleton.slots) {
+        const att = slot.attachment;
+        if (!att || att.type !== D.ATT.PATH || slot.data.visible === false) continue;
+        const n = att.worldVerticesLength / 2;
+        if (!n || n * 2 > wv.length) continue;
+        R.computeAttachmentWorldVertices(att, slot, 0, att.worldVerticesLength, wv, 0, 2);
+        const count = this._traceCurves(wv, n, view, !!att.closed, 1);
+        this._strokeWorld(ctx, view, this._curveBuf, count, !!att.closed, COL.path, 1.5, [6, 4]);
+      }
+    }
+    /**
+     * 曲线细分：把「起点 + 每段 (控制点1, 控制点2, 终点)」的复合三次贝塞尔采样成折线，
+     * 结果写进 this._curveBuf（世界坐标，复用同一个缓冲区，避免每帧分配），返回顶点个数。
+     *
+     * 段的划分（对着官方样例反推出来的，见 .verify/README.md「路径附件」一节）：
+     *   · 0 号顶点是第一段的**起点**；
+     *   · 第 k 段 = 起点 P[3k-1]、控制点 P[3k] / P[3k+1]、终点 P[3k+2]（k 从 1 开始）；
+     *   · 也就是说每段的起点由上一段的终点带过来，每段再吃掉 3 个顶点（控制点1、控制点2、终点）。
+     * **曾经写错过一次**：早期版本从下标 1 起取段（`for (i = 1; …)`），等于整体错了一位——
+     * 控制点被当成端点用，画出来的曲线在每段接缝处拐出 80°~110° 的尖角。
+     * 同一份 vine 数据实测（见 verify-path-final.js 的 maxTurnOnCurve）：
+     * 正确取法曲线上最大方向变化 2.0°，错位取法 109.7°。
+     *
+     * 闭合路径（tank 的 treads-path）用同一套分段；官方在 `lengths` 里多留了一项，
+     * 但**不补**那段「终点 → 起点」的收尾曲线——试过补，接缝处反而会多出 90° 的角
+     * （真实收尾段的控制点不在现成顶点里），不如老实按存下来的段画。
+     *
+     * 细分数按**曲率自适应**：三次贝塞尔对弦的最大偏离 ≈ |B''| / 8，取 |B''| = max(|x''|, |y''|)，
+     * 要求屏幕上的偏离 ≤ TOL 像素，就得到 n = ceil(sqrt(|B''|·scale / (8·TOL)))。
+     * 长而弯的曲线被切得细、短而直的曲线只切几刀。
+     */
+    _traceCurves(wv, n, view, closed, minSeg) {
+      const scale = view.scale || 1;
+      const TOL = 0.25;        // 曲线与弦的最大允许偏离（屏幕像素）
+      const MAX_SEG = 128;     // 单段上限：极端放大时也不会画爆顶点数
+      // 缓冲区按最坏情况（每段 MAX_SEG）分配，之后只增不减：够大就不会每帧重新分配
+      const need = n * MAX_SEG + 8;
+      let buf = this._curveBuf;
+      if (!buf || buf.length < need * 2) buf = this._curveBuf = new Float32Array(Math.max(256, need * 2));
+      let w = 0;
+      if (n < 4) return 0;
+      buf[w++] = wv[0]; buf[w++] = wv[1];
+      // 每段的控制点从下标 2、5、8… 开始（起点是上一段的终点，已经在 buf 里了）
+      for (let i = 2; i + 2 < n; i += 3) {
+        const x0 = buf[w - 2], y0 = buf[w - 1];
+        const x1 = wv[i * 2], y1 = wv[i * 2 + 1];
+        const x2 = wv[(i + 1) * 2], y2 = wv[(i + 1) * 2 + 1];
+        const x3 = wv[(i + 2) * 2], y3 = wv[(i + 2) * 2 + 1];
+        // B''(t) = 6[(1-t)(P2 - 2P1 + P0) + t(P3 - 2P2 + P1)]，取两个端点的分量最大值当上界
+        const maxd = Math.max(
+          Math.abs(x2 - 2 * x1 + x0), Math.abs(y2 - 2 * y1 + y0),
+          Math.abs(x3 - 2 * x2 + x1), Math.abs(y3 - 2 * y2 + y1));
+        let seg = Math.ceil(Math.sqrt(maxd * scale / (8 * TOL)));
+        if (!isFinite(seg)) seg = MAX_SEG;
+        seg = M.clamp(seg, Math.max(2, minSeg || 2), MAX_SEG);
+        const dd = 1 / seg;
+        // 三次贝塞尔：B(t) = u³P0 + 3u²t·P1 + 3ut²·P2 + t³P3
+        for (let s = 1; s <= seg; s++) {
+          const t = s === seg ? 1 : s * dd, u = 1 - t;
+          const uu = u * u, tt = t * t;
+          const a = uu * u, b = 3 * uu * t, c = 3 * u * tt, d = tt * t;
+          buf[w++] = a * x0 + b * x1 + c * x2 + d * x3;
+          buf[w++] = a * y0 + b * y1 + c * y2 + d * y3;
+        }
+      }
+      return w >> 1;
     }
     _paintBounds(ctx, view, skeleton) {
       const wv = new Float32Array(8192);
@@ -9896,7 +10037,7 @@ SP.app = (() => {
 
   const DEFAULT_PREFS = {
     bones: true, mesh: true, bounds: false, weights: false, texture: true, names: false, axis: true,
-    grid: true, clip: true, bg: "checker", tool: "translate", speed: 1, loop: true,
+    grid: true, clip: true, path: true, bg: "checker", tool: "translate", speed: 1, loop: true,
     autoPlay: true, onlySkel: true, groupFolder: true, logDebug: false,
   };
 
@@ -10507,6 +10648,7 @@ SP.app = (() => {
       // 1. 先清理当前预览（释放旧纹理与骨架）
       const hadPrev = !!state.current;
       disposePreview();
+      state.pose.clearMeshWeightCache();   // 旧附件上的「被引用骨骼」缓存一并丢弃
       if (hadPrev) log("info", "已清理上一个预览");
       // 2. 图集
       let atlas = null;
@@ -12474,6 +12616,7 @@ SP.app = (() => {
       bones: state.prefs.bones && !!cur, mesh: state.prefs.mesh && !!cur,
       bounds: state.prefs.bounds && !!cur, names: state.prefs.names,
       axis: state.prefs.axis && !!cur, grid: state.prefs.grid,
+      path: state.prefs.path && !!cur,
       weights: state.prefs.weights && !!cur,
     });
     refreshInspectorAtlas();
@@ -12738,7 +12881,7 @@ SP.app = (() => {
   }
 
   // 视口工具条上的显示开关按钮：与 prefs 双向同步，用 .on 表现「开」
-  const TOGGLE_BTNS = { bones: "btnTBones", mesh: "btnTMesh", bounds: "btnTBounds", weights: "btnTWeights" };
+  const TOGGLE_BTNS = { bones: "btnTBones", mesh: "btnTMesh", bounds: "btnTBounds", weights: "btnTWeights", path: "btnTPath" };
   function syncToggleButtons() {
     for (const [key, id] of Object.entries(TOGGLE_BTNS)) {
       const b = $(id);
@@ -12752,7 +12895,7 @@ SP.app = (() => {
   function setToggle(key, value) {
     state.prefs[key] = value;
     // 「显示与调试」面板里的复选框；视口工具条上的按钮（weights）没有对应复选框
-    const map = { bones: "chkBones", mesh: "chkMesh", bounds: "chkBounds", texture: "chkTexture", names: "chkNames", axis: "chkAxis", grid: "chkGrid", clip: "chkClip" };
+    const map = { bones: "chkBones", mesh: "chkMesh", bounds: "chkBounds", texture: "chkTexture", names: "chkNames", axis: "chkAxis", grid: "chkGrid", clip: "chkClip", path: "chkPath" };
     const el = map[key] ? $(map[key]) : null;
     if (el) el.checked = !!value;
     savePrefs();
@@ -12763,7 +12906,8 @@ SP.app = (() => {
   /** 「显示与调试」标题右侧的标签：只汇总视口里一眼可见的叠加层开关 */
   function viewTagText() {
     return [state.prefs.bones ? "骨骼" : "", state.prefs.mesh ? "网格" : "",
-      state.prefs.bounds ? "包围盒" : "", state.prefs.weights ? "权重" : ""].filter(Boolean).join("/");
+      state.prefs.path ? "路径" : "", state.prefs.bounds ? "包围盒" : "",
+      state.prefs.weights ? "权重" : ""].filter(Boolean).join("/");
   }
 
   /* -------------------------------------------------- 变换工具（Gizmo）
@@ -12907,7 +13051,7 @@ SP.app = (() => {
     }
     window.addEventListener("resize", syncOverlayCanvas);
     // 恢复偏好到 UI
-    for (const [k, id] of Object.entries({ bones: "chkBones", mesh: "chkMesh", bounds: "chkBounds", texture: "chkTexture", names: "chkNames", axis: "chkAxis", grid: "chkGrid", clip: "chkClip" })) {
+    for (const [k, id] of Object.entries({ bones: "chkBones", mesh: "chkMesh", bounds: "chkBounds", texture: "chkTexture", names: "chkNames", axis: "chkAxis", grid: "chkGrid", clip: "chkClip", path: "chkPath" })) {
       $(id).checked = !!state.prefs[k];
       $(id).addEventListener("change", () => setToggle(k, $(id).checked));
     }
@@ -12955,7 +13099,7 @@ SP.app = (() => {
   }
 
   function applyParamToggles(params) {
-    for (const key of ["bones", "mesh", "bounds", "weights", "texture", "names", "axis", "grid"]) {
+    for (const key of ["bones", "mesh", "bounds", "weights", "texture", "names", "axis", "grid", "clip", "path"]) {
       const v = params.get(key);
       if (v !== null) setToggle(key, v !== "0" && v !== "false");
     }
@@ -13137,6 +13281,7 @@ SP.app = (() => {
     $("btnTMesh").addEventListener("click", () => setToggle("mesh", !state.prefs.mesh));
     $("btnTBounds").addEventListener("click", () => setToggle("bounds", !state.prefs.bounds));
     $("btnTWeights").addEventListener("click", () => setToggle("weights", !state.prefs.weights));
+    $("btnTPath").addEventListener("click", () => setToggle("path", !state.prefs.path));
     $("btnHelp").addEventListener("click", () => $("help").classList.remove("hidden"));
     $("btnWelcomeHelp").addEventListener("click", () => $("help").classList.remove("hidden"));
     $("btnHelpClose").addEventListener("click", () => $("help").classList.add("hidden"));
