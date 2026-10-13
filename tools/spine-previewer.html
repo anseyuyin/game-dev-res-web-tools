@@ -661,6 +661,7 @@
         <li><b>路径附件（Path，视口工具条的 〰）</b>：Spine 的路径附件本身<b>没有贴图</b>，官方运行时也不渲染它——它只是路径约束用的一条<b>复合贝塞尔控制线</b>。这里按官方几何把每段三次贝塞尔<b>细分后</b>画成<b>绿色虚线</b>轮廓：段划分与官方调试渲染器一致（起点＝上一段终点，控制点从第 3 个顶点开始每 3 个顶点取一段），细分数随缩放按<b>曲率</b>自适应（屏幕上与曲线的偏离 ≤ 0.25px），所以放大也不会露出折角。它跟「网格」开关无关：网格没开也照样在。<b>它就是「路径」开关管的东西</b>，不想要就关掉，或者到「部件层级」里点该插槽的 👁 隐藏这一个部件。裁剪附件的轮廓同样按曲线细分，但它跟着「网格」开关走（网格与顶点手柄一起显示 / 隐藏）。</li>
         <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽、<b>不透明</b>的<b>彩色骨骼</b>示意线（不透明是为了让示意线的颜色与顶点扇形图里的颜色完全一致——半透明会和压在上面的骨骼线混色），并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。<b>没有被任何 mesh 顶点引用（权重 &gt; 0）的骨骼不画彩色示意线</b>：这类骨骼（纯图标 / 参考骨骼、被动画忽略的残留骨骼等）不驱动任何网格，画上颜色只会让人误以为它参与了权重；它们的骨骼线仍按原样显示。顶点权重圆<b>跟随选中项局部显示</b>，避免顶点密集的网格糊成一片：<b>①</b> 选中某根骨骼时，只画「受该骨骼影响（权重 &gt; 0）」的顶点，可用来确认这根骨骼到底驱动了哪些顶点（圆内仍保留该顶点完整的权重构成）；<b>②</b> 选中某个 <b>网格类部件</b>时，只画该部件的顶点；<b>③</b> 既没选骨骼也没选网格部件（选中 region 等非网格部件同样算没选）时，才画全部部件。彩色骨骼示意线<b>同样跟随选中项</b>：选中网格部件时只画<b>与该网格顶点相关（权重 &gt; 0）</b>的骨骼，和顶点权重圆的显示范围一致（颜色 / 下标仍按骨骼在骨架里的原始位置取，所以与扇形颜色一一对应；选中非权重网格时该网格没有相关骨骼，示意线为空）；选中骨骼时不再按部件收窄（但选中的那根若本身没被任何顶点引用，依然没有颜色——没有权重就没有对应颜色）。当前绘制顺序里没有任何带权重网格时，示意线整体为空（没有权重可言，不画颜色）。</li>
         <li><b>骨骼显示关闭时，视口里点不到骨骼</b>：看不见的骨骼不参与拾取，点视口任意位置都只会命中部件（或取消选中），也不会因双击而重置骨骼。要选中 / 拖拽骨骼，先用工具条的 🦴 或 <b>B</b> 打开骨骼显示。</li>
+        <li><b>骨骼显示开着时，每根骨骼都会画出来</b>（关节圆点必有；长度 &gt; 0 再画骨骼线＋末端小箭头），不会出现「骨骼树里有、视口里却没有」的骨骼。资源里标了 <code class="inl">skin</code>（skinRequired）的骨骼只在包含它的皮肤下生效（官方 <code class="inl">Bone.active</code>）：<b>当前皮肤没列它</b>时视口里画成<b>灰色细线</b>＋略小的关节，骨骼树里标「<b>未启用</b>」并把名字压暗，检查器里也多一行「皮肤启用＝否」——同时它的<b>动画时间轴不参与求值</b>（保持 setup 姿态，与官方一致）。切到包含它的皮肤就恢复成黄色。hero-pro 的 <code class="inl">weapon-sword</code> / <code class="inl">weapon-morningstar</code> / <code class="inl">chain1–8</code> / <code class="inl">weapon-morningstar-physics1–4</code> 就是这种：默认皮肤（<code class="inl">bones</code> 列表为空）下不生效，切到 <code class="inl">weapon/morningstar</code> 或 <code class="inl">weapon/sword</code> 才生效。</li>
         <li>视口<b>左上角的竖排工具条</b>（Unity 风格）切换交互类型：<b>位移 / 旋转 / 缩放</b> 会显示不同的 Gizmo，鼠标悬停在按钮上会弹出该工具的操作说明。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
         <li><b>同一位置连续点击＝逐层遍历</b>（Unity 同款）：光标下常常叠着好几根骨骼 / 好几个部件，单击选到的是<b>最上层</b>；在<b>原地继续点</b>就会依次往下选一层，遍历完一轮后回到最上层<b>循环</b>（骨骼之间、部件之间、骨骼与部件之间都算）。点选位置一变、缩放 / 平移了视图、或从两棵树里改了选中，都会重新从最上层开始；按在 Gizmo 上但<b>没拖动</b>也算一次点选，所以在关节点上照样能这样翻。</li>
         <li><b>位移</b>：拖动绿色（Y）/ 红色（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。</li>
@@ -1513,6 +1514,10 @@ SP.data = (() => {
     apply(skeleton, lastTime, time, events, alpha, blend) {
       const bone = skeleton.bones[this.boneIndex];
       if (!bone) return;
+      // 官方 BoneTimeline1 / BoneTimeline2 的 apply 第一句就是 `if (bone.active)`：
+      // 当前皮肤没启用的骨骼（资源标了 skin、皮肤的 bones 列表又没列它）整条骨骼时间轴
+      // 不参与求值，保持 setup 姿态（hero-pro 用默认皮肤播 "morningstar pose" 就是这种情况）。
+      if (!skeleton.isBoneActive(bone)) return;
       const frames = this.frames;
       if (time < frames[0]) {
         if (blend) bone.rotation += this.shortest(bone.data.rotation - bone.rotation) * alpha;
@@ -1540,6 +1545,10 @@ SP.data = (() => {
     apply(skeleton, lastTime, time, events, alpha, blend) {
       const bone = skeleton.bones[this.boneIndex];
       if (!bone) return;
+      // 官方 BoneTimeline1 / BoneTimeline2 的 apply 第一句就是 `if (bone.active)`：
+      // 当前皮肤没启用的骨骼（资源标了 skin、皮肤的 bones 列表又没列它）整条骨骼时间轴
+      // 不参与求值，保持 setup 姿态（hero-pro 用默认皮肤播 "morningstar pose" 就是这种情况）。
+      if (!skeleton.isBoneActive(bone)) return;
       const frames = this.frames;
       // 单轴时间轴（translatex / translatey）只写自己那一轴，另一轴保持原值：
       // 官方是独立的类，两条时间轴（X / Y）作用在同一根骨骼上是互不干扰的。
@@ -1565,6 +1574,10 @@ SP.data = (() => {
     apply(skeleton, lastTime, time, events, alpha, blend) {
       const bone = skeleton.bones[this.boneIndex];
       if (!bone) return;
+      // 官方 BoneTimeline1 / BoneTimeline2 的 apply 第一句就是 `if (bone.active)`：
+      // 当前皮肤没启用的骨骼（资源标了 skin、皮肤的 bones 列表又没列它）整条骨骼时间轴
+      // 不参与求值，保持 setup 姿态（hero-pro 用默认皮肤播 "morningstar pose" 就是这种情况）。
+      if (!skeleton.isBoneActive(bone)) return;
       const frames = this.frames;
       const wantX = this.drivesAxis("x"), wantY = this.drivesAxis("y");
       if (time < frames[0]) {
@@ -1588,6 +1601,10 @@ SP.data = (() => {
     apply(skeleton, lastTime, time, events, alpha, blend) {
       const bone = skeleton.bones[this.boneIndex];
       if (!bone) return;
+      // 官方 BoneTimeline1 / BoneTimeline2 的 apply 第一句就是 `if (bone.active)`：
+      // 当前皮肤没启用的骨骼（资源标了 skin、皮肤的 bones 列表又没列它）整条骨骼时间轴
+      // 不参与求值，保持 setup 姿态（hero-pro 用默认皮肤播 "morningstar pose" 就是这种情况）。
+      if (!skeleton.isBoneActive(bone)) return;
       const frames = this.frames;
       const wantX = this.drivesAxis("x"), wantY = this.drivesAxis("y");
       if (time < frames[0]) {
@@ -2545,6 +2562,11 @@ SP.json = (() => {
       if (this.boneIndex !== undefined && this.boneIndex >= 0) {
         const bone = skeleton.bones[this.boneIndex];
         if (!bone) return;
+        // 官方 BoneTimeline1 / BoneTimeline2 的 apply 第一句就是 `if (bone.active)`：
+        // 当前皮肤没启用的骨骼（skinRequired 而皮肤没列它）整条骨骼时间轴不参与求值，
+        // 保持 setup 姿态。少了这一句，hero-pro 用默认皮肤播 "morningstar pose" 时
+        // 武器 / 链条骨骼会被动画带走，和官方结果对不上。
+        if (!skeleton.isBoneActive(bone)) return;
         // 与 4.x 官方一致：x/y/shear 是相对 setup 的增量，scale 是相对 setup 的乘数
         switch (p) {
           case "translatex": bone.x = bone.data.x + v; break;
@@ -7813,8 +7835,35 @@ SP.runtime = (() => {
         const att = this.getAttachment(slot.data.index, name);
         slot.setAttachment(att);
       }
+      this.updateBoneActivity();
       this.updateConstraintActivity();
       return found;
+    }
+    /**
+     * 骨骼在当前皮肤下是否「生效」——对齐官方 `Skeleton.updateCache()` 里的 `Bone.active`。
+     *
+     * 资源里标了 skinRequired（JSON 的 `"skin": true`）的骨骼**不是**永远生效的：
+     *   active = 没标 skin
+     *         或 当前皮肤的 bones 列表里有它（有它的子孙骨骼也算，官方会沿 parent 链把祖先一并标活）
+     * hero-pro 就是典型：weapon-sword / weapon-morningstar / chain1..8 /
+     * weapon-morningstar-physics1..4 都标了 skin，默认皮肤的 bones 列表是空的 → 全部不生效；
+     * 切到 weapon/morningstar（或 weapon/sword）皮肤才生效。
+     *
+     * 官方对不生效的骨骼做两件事：`Bone.active = false` 的**骨骼时间轴不参与求值**，
+     * 以它为目标的约束也不求值。视口绘制 / 拾取 / 权重示意 / 时间轴都读这一个判据，
+     * 避免各处各写一份而口径不一（以前绘制侧只看 `data.skinRequired`，于是在
+     * 「皮肤已经启用这些骨骼」时它们照样不画 —— 骨骼树里选得到、视口里什么都没有）。
+     */
+    isBoneActive(bone) { return !!bone && bone.active !== false; }
+    /** 皮肤变了就重算一遍每根骨骼的生效状态（官方在 updateCache 里算，见上面的规则）。 */
+    updateBoneActivity() {
+      const list = this.skin && Array.isArray(this.skin.bones) ? this.skin.bones : null;
+      for (const bone of this.bones) bone.active = !bone.data.skinRequired;
+      if (!list) return;
+      for (const bd of list) {
+        // 从皮肤列出的骨骼出发，沿 parent 链向上把整条祖先链都标成生效
+        for (let b = this.bones[bd.index]; b; b = b.parent) b.active = true;
+      }
     }
     /**
      * 「皮肤要求的约束」（`skinRequired`，JSON 的 `"skin": true`）是否生效。
@@ -7828,10 +7877,11 @@ SP.runtime = (() => {
     updateConstraintActivity() {
       const skin = this.skin;
       const list = skin && Array.isArray(skin.constraints) ? skin.constraints : null;
-      const bones = skin && Array.isArray(skin.bones) ? skin.bones : null;
       // 骨骼的 skinRequired：皮肤没列进 bones 时，官方把该骨骼标为 inactive，
       // 于是「以它为目标的约束」也一并失效（hero 的 weapon-morningstar 就是这种情况）。
-      const boneActive = (b) => !b || !b.data.skinRequired || (!!bones && bones.indexOf(b.data) >= 0);
+      // 骨骼的生效状态由 updateBoneActivity 统一算好（含「皮肤列了子孙骨骼时祖先也生效」），
+      // 这里直接读，别再按 data.skinRequired 单独判一次。
+      const boneActive = (b) => !b || this.isBoneActive(b);
       const allows = (c, targetBone) => boneActive(targetBone)
         && (!c.data.skinRequired || (!!list && list.indexOf(c.data) >= 0));
       for (const c of this.ikConstraints) c.skinActive = allows(c, c.target);
@@ -8607,10 +8657,15 @@ SP.pose = (() => {
 
   const COL = {
     bone: "#ffd166",
+    // 当前皮肤没启用的骨骼（skinRequired 而皮肤的 bones 列表没列它）：灰色细线，
+    // 与「生效」的黄色骨骼一眼可辨。官方此时 Bone.active = false，这些骨骼的
+    // 时间轴不参与求值，但它们在骨骼树 / 检查器里仍然存在，所以视口里也要画出来。
+    boneOff: "rgba(176,188,204,.8)",
     boneIk: "#7ee787",
     boneCon: "#c792ea",
     boneSel: "#4ea1ff",
     joint: "rgba(255,255,255,.85)",
+    jointOff: "rgba(255,255,255,.72)",
     mesh: "rgba(78,161,255,.55)",
     meshSel: "rgba(120,220,255,.95)",
     vertex: "rgba(255,255,255,.7)",
@@ -8954,14 +9009,14 @@ SP.pose = (() => {
       const max = maxPx === undefined ? 9 : maxPx;
       const joints = [], bodies = [];
       for (const bone of skeleton.bones) {
-        // 与 _paintBones 一致：skinRequired 而当前皮肤没启用的骨骼不画，也就不该被点中
-        if (bone.data.skinRequired) continue;
+        // 与 _paintBones 一致：视口里画了什么就能点什么。骨骼全部会画（当前皮肤未启用的
+        // 只是画成灰色细线），所以这里不再按 skinRequired 过滤。
         const p = this.boneJointScreen(bone, view);
         const d = Math.hypot(p.x - sx, p.y - sy);
         if (d <= max) joints.push({ bone, part: "joint", dist: d });
       }
       for (const bone of skeleton.bones) {
-        if (bone.data.skinRequired || !bone.data.length) continue;
+        if (!bone.data.length) continue;
         const a = this.boneJointScreen(bone, view);
         const tip = bone.localToWorld(bone.data.length, 0);
         const b = view.worldToScreen(tip.x, tip.y);
@@ -9554,7 +9609,8 @@ SP.pose = (() => {
         if (!referenced.has(i)) continue;
         if (focus && !focus.has(i)) continue;
         const bone = bones[i];
-        if (bone.data.skinRequired || !bone.data.length) continue;
+        // 当前皮肤没启用的骨骼（skinRequired 而皮肤没列它）不驱动任何网格，不必上色
+        if (!skeleton.isBoneActive(bone) || !bone.data.length) continue;
         const a = view.worldToScreen(bone.worldX, bone.worldY);
         const tip = bone.localToWorld(bone.data.length, 0);
         const b = view.worldToScreen(tip.x, tip.y);
@@ -9566,9 +9622,15 @@ SP.pose = (() => {
       }
       ctx.restore();
     }
-    _boneColor(skeleton, bone) {
+    /**
+     * 骨骼线 / 骨骼箭头的颜色，优先级：选中 > 当前皮肤未启用 > 参与的约束 > 普通。
+     *
+     * active === false 的骨骼（资源标了 skin、当前皮肤的 bones 列表又没列它）一律画成灰色细线，
+     * 而不是干脆不画：它在骨骼树 / 检查器里都还在，视口里凭空少一根只会让人以为工具漏画。
+     */
+    _boneColor(skeleton, bone, active) {
       if (this.selectedBone === bone) return COL.boneSel;
-      const name = bone.data.name;
+      if (active === false) return COL.boneOff;
       for (const c of skeleton.ikConstraints) if (c.bones.indexOf(bone) >= 0) return COL.boneIk;
       for (const c of skeleton.transformConstraints) if (c.bones.indexOf(bone) >= 0) return COL.boneCon;
       for (const c of skeleton.pathConstraints) if (c.bones.indexOf(bone) >= 0) return COL.path;
@@ -9577,15 +9639,17 @@ SP.pose = (() => {
     _paintBones(ctx, view, skeleton, showNames) {
       const joints = [];
       for (const bone of skeleton.bones) {
-        if (bone.data.skinRequired) continue;
+        // 每根骨骼都画（关节圆点必有，长度 > 0 再画骨骼线 + 末端箭头）：
+        // 当前皮肤没启用的骨骼用灰色细线 + 略小的关节，和「生效」的骨骼区分开
+        const active = skeleton.isBoneActive(bone);
         const a = view.worldToScreen(bone.worldX, bone.worldY);
         const sel = this.selectedBone === bone;
-        const color = this._boneColor(skeleton, bone);
+        const color = this._boneColor(skeleton, bone, active);
         if (bone.data.length) {
           const tipW = bone.localToWorld(bone.data.length, 0);
           const b = view.worldToScreen(tipW.x, tipW.y);
           ctx.strokeStyle = color;
-          ctx.lineWidth = sel ? 2.6 : 1.6;
+          ctx.lineWidth = sel ? 2.6 : (active ? 1.6 : 1.3);
           ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
           // 骨骼末端小三角（指示方向）
           const ang = Math.atan2(b.y - a.y, b.x - a.x);
@@ -9596,17 +9660,17 @@ SP.pose = (() => {
           ctx.lineTo(b.x - 5 * Math.cos(ang + 0.4), b.y - 5 * Math.sin(ang + 0.4));
           ctx.closePath(); ctx.fill();
         }
-        joints.push({ a, sel, color });
+        joints.push({ a, sel, active, color });
         if (showNames) {
           ctx.font = "11px 'Microsoft YaHei', system-ui, sans-serif";
-          ctx.fillStyle = sel ? COL.boneSel : COL.label;
+          ctx.fillStyle = sel ? COL.boneSel : (active ? COL.label : COL.boneOff);
           ctx.fillText(bone.data.name, a.x + 7, a.y - 6);
         }
       }
       for (const j of joints) {
         ctx.beginPath();
-        ctx.arc(j.a.x, j.a.y, j.sel ? 4.4 : 3.2, 0, Math.PI * 2);
-        ctx.fillStyle = j.sel ? COL.boneSel : COL.joint;
+        ctx.arc(j.a.x, j.a.y, j.sel ? 4.4 : (j.active ? 3.2 : 2.6), 0, Math.PI * 2);
+        ctx.fillStyle = j.sel ? COL.boneSel : (j.active ? COL.joint : COL.jointOff);
         ctx.fill();
         ctx.lineWidth = 1;
         ctx.strokeStyle = "rgba(0,0,0,.55)";
@@ -10892,6 +10956,9 @@ SP.app = (() => {
     log("info", `切换皮肤：${skin ? skin.name : "（无）"}`);
     renderAnimationPanel();
     renderSlots();
+    // 皮肤换了，骨骼的生效状态（skinRequired）跟着变：灰色 / 黄色细线和树里的「未启用」标记都要重画
+    renderBones();
+    renderInspector();
     return true;
   }
 
@@ -11317,6 +11384,9 @@ SP.app = (() => {
       const hide = kw && !bone.data.name.toLowerCase().includes(kw);
       const sel = state.pose.selectedBone === bone;
       const ov = state.pose.getOverride(bone);
+      // 当前皮肤没启用（skinRequired 而皮肤的 bones 列表没列它）：视口里画成灰色细线，
+      // 这里也标一下并把名字压暗，免得「同一根骨骼两处颜色对不上」看起来像 bug
+      const inactive = !cur.skeleton.isBoneActive(bone);
       let meta = "";
       if (cur.skeleton.ikConstraints.some((c) => c.bones.indexOf(bone) >= 0)) meta = "IK";
       else if (cur.skeleton.ikConstraints.some((c) => c.target === bone)) meta = "IK 目标";
@@ -11329,9 +11399,10 @@ SP.app = (() => {
       const collapsed = hasChild && isCollapsed(bone);
       const indent = 6 + depth * 12;
       if (!hide) {
-        rows.push(`<div class="treeRow ${sel ? "sel" : ""}" data-bone="${esc(bone.data.name)}" style="padding-left:${indent}px" title="${esc(bone.data.name)}${bone.data.parent ? " ← " + esc(bone.data.parent.name) : "（根骨骼）"}${hasChild ? "（" + bone.children.length + " 个子骨骼）" : ""}">
+        rows.push(`<div class="treeRow ${sel ? "sel" : ""}" data-bone="${esc(bone.data.name)}" style="padding-left:${indent}px" title="${esc(bone.data.name)}${bone.data.parent ? " ← " + esc(bone.data.parent.name) : "（根骨骼）"}${hasChild ? "（" + bone.children.length + " 个子骨骼）" : ""}${inactive ? "｜皮肤要求：当前皮肤未启用（视口里画成灰色细线，时间轴不参与求值）" : ""}">
           <span class="tw ${hasChild ? "" : "leaf"}"${hasChild ? ` data-boneToggle="${esc(bone.data.name)}"` : ""}>${hasChild ? (collapsed ? "▸" : "▾") : "·"}</span>
-          <span class="nm">${esc(bone.data.name)}</span>
+          <span class="nm"${inactive ? ' style="opacity:.6"' : ""}>${esc(bone.data.name)}</span>
+          ${inactive ? '<span class="meta" style="color:var(--warn)">未启用</span>' : ""}
           ${ov ? '<span class="meta" style="color:var(--accent)">已调试</span>' : ""}
           <span class="meta">${esc(meta)}</span>
         </div>`);
@@ -12238,6 +12309,7 @@ SP.app = (() => {
           <span class="k" title="世界坐标：该骨骼在舞台坐标系中的最终位置（已累积所有父级变换）">世界坐标</span><span class="v" id="inspBoneWorld">${bone.worldX.toFixed(2)}, ${bone.worldY.toFixed(2)}</span>
           <span class="k" title="世界角度：该骨骼的最终旋转角度（已累积所有父级变换）">世界角度</span><span class="v" id="inspBoneWorldRot">${bone.getWorldRotationX().toFixed(2)}°</span>
           <span class="k" title="长度：骨骼长度；“·”后为变换模式 transformMode（决定缩放/旋转如何影响子骨骼）">长度</span><span class="v">${bone.data.length.toFixed(2)}${bone.data.transformMode ? " · " + D.TransformModeName[bone.data.transformMode] : ""}</span>
+          ${cur.skeleton.isBoneActive(bone) ? "" : `<span class="k" title="皮肤要求（skinRequired）：资源里标了 skin 的骨骼只在包含它的皮肤下生效（官方 Bone.active）。当前皮肤没有列它，所以它的动画时间轴不参与求值，视口里也用灰色细线画——切到包含它的皮肤即可恢复">皮肤启用</span><span class="v" style="color:var(--warn)">否 · 当前皮肤未启用</span>`}
           <span class="k" title="调试偏移：你在下方为该骨骼填入的临时调整量（角度 / 位置 / 缩放），只用于预览，不会修改原资源">调试偏移</span><span class="v" id="inspBoneDelta" style="color:${hasOv ? "var(--accent)" : "inherit"}">${hasOv ? `${ov.dRotation.toFixed(2)}° / ${ov.dX.toFixed(2)}, ${ov.dY.toFixed(2)} / ×${ov.dScaleX.toFixed(3)}, ${ov.dScaleY.toFixed(3)}` : "无"}</span>
         </div>
         <div class="row" style="margin-top:4px;">
