@@ -501,7 +501,7 @@
         <button class="btn sm tgl" id="btnTBones" title="显示骨骼（B）" aria-pressed="true">🦴</button>
         <button class="btn sm tgl" id="btnTMesh" title="显示网格线框（M）· 网格线与顶点手柄一并显示" aria-pressed="true">🕸</button>
         <button class="btn sm tgl" id="btnTBounds" title="显示包围盒（U）" aria-pressed="false">▭</button>
-        <button class="btn sm tgl" id="btnTWeights" title="显示 Mesh 权重：在骨骼线下方叠加「彩色骨骼」示意线（每根骨骼一种颜色），并在 Mesh 顶点处画出按影响骨骼着色的圆形权重扇形图（扇形占比＝骨骼权重）" aria-pressed="false">◔</button>
+        <button class="btn sm tgl" id="btnTWeights" title="显示 Mesh 权重：在骨骼线下方叠加「彩色骨骼」示意线（每根骨骼一种颜色），并在 Mesh 顶点处画出按影响骨骼着色的圆形权重扇形图（扇形占比＝骨骼权重）。局部显示：选中骨骼时只画该骨骼影响的顶点，选中网格部件时只画该部件，两者都没选中才画全部" aria-pressed="false">◔</button>
         <button class="btn sm" id="btnTPause" title="播放 / 暂停（空格）" disabled>▶</button>
       </div>
 
@@ -649,7 +649,7 @@
       <div><b>3. 显示与 Gizmo 变换</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>骨骼 / 网格线框 / 包围盒 / 贴图 / 骨骼名 / 裁剪 均可独立开关；视口工具条上的骨骼 / 网格 / 包围盒按钮<b>高亮＝开启、压暗＝关闭</b>。</li>
-        <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽的<b>彩色骨骼</b>示意线，并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。</li>
+        <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽的<b>彩色骨骼</b>示意线，并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。顶点权重圆<b>跟随选中项局部显示</b>，避免顶点密集的网格糊成一片：<b>①</b> 选中某根骨骼时，只画「受该骨骼影响（权重 &gt; 0）」的顶点，可用来确认这根骨骼到底驱动了哪些顶点（圆内仍保留该顶点完整的权重构成）；<b>②</b> 选中某个 <b>网格类部件</b>时，只画该部件的顶点；<b>③</b> 既没选骨骼也没选网格部件（选中 region 等非网格部件同样算没选）时，才画全部部件。彩色骨骼示意线<b>始终画全部骨骼</b>，方便对照选中骨骼的颜色。</li>
         <li><b>骨骼显示关闭时，视口里点不到骨骼</b>：看不见的骨骼不参与拾取，点视口任意位置都只会命中部件（或取消选中），也不会因双击而重置骨骼。要选中 / 拖拽骨骼，先用工具条的 🦴 或 <b>B</b> 打开骨骼显示。</li>
         <li>视口<b>左上角的竖排工具条</b>（Unity 风格）切换交互类型：<b>位移 / 旋转 / 缩放</b> 会显示不同的 Gizmo，鼠标悬停在按钮上会弹出该工具的操作说明。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
         <li><b>位移</b>：拖动绿色（Y）/ 红色（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。</li>
@@ -9535,14 +9535,27 @@ SP.pose = (() => {
      * Mesh 权重的顶点扇形图：每个顶点画一个圆，按「影响它的骨骼」的权重切成扇形，
      * 扇形颜色 = 该骨骼的颜色（与彩色骨骼示意线同色），扇形角度 ∝ 权重。
      * 只处理带权重（att.bones 非空）的网格顶点；垫在顶点手柄之下、半径大于手柄方块。
+     *
+     * 局部显示（跟随当前选中项；全画会在顶点密集的网格上糊成一片）：
+     *   · 选中骨骼        → 只画「该骨骼参与且权重 > 0」的顶点；
+     *   · 选中网格类部件  → 只画该部件的顶点；
+     *   · 都没选中（或选中的是 region / 包围盒等非网格部件）→ 画全部。
+     * 骨骼优先于部件（两者正常互斥，同时有值时以骨骼为准）。
+     * 注意：过滤只影响「画不画圆」，扇形图里仍然显示该顶点的全部影响骨骼，
+     *       所以选中骨骼时看到的是「这根骨骼影响了哪些顶点」，圆里也保留完整的权重构成。
      */
     _paintWeightPies(ctx, view, skeleton) {
       const rad = WT.pieR, TAU = Math.PI * 2;
+      const selIndex = this.selectedBone ? this.selectedBone.data.index : -1;   // 骨骼下标即 att.bones 里的值
+      const selSlot = this.selectedSlot;
+      // 只有「网格类」部件的选中才收窄范围；选中 region 等非网格部件等同没选
+      const onlySlot = (selIndex < 0 && selSlot && isEditableMesh(selSlot.attachment)) ? selSlot : null;
       let drawn = 0;
       for (const slot of skeleton.drawOrder) {
         const att = slot.attachment;
         if (!att || slot.data.visible === false) continue;
         if (!isEditableMesh(att)) continue;
+        if (onlySlot && slot !== onlySlot) continue;
         const bones = att.bones, verts = att.vertices;
         if (!bones || !bones.length || !verts) continue;
         const count = att.worldVerticesLength / 2;
@@ -9553,34 +9566,43 @@ SP.pose = (() => {
         let v = 0, impact = 0;
         for (let i = 0; i < count; i++) {
           const n = bones[v++];
-          if (drawn >= WT.pieCap) return;
-          let total = 0;
-          for (let k = 0; k < n; k++) total += verts[(impact + k) * 3 + 2];
-          if (total > 0) {
-            const p = view.worldToScreen(wv[i * 2], wv[i * 2 + 1]);
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, rad, 0, TAU);
-            ctx.fillStyle = COL.weightPieBg;
-            ctx.fill();
-            let ang = -Math.PI / 2;   // 从 12 点方向起、顺时针铺开，读图习惯固定
+          // 选中骨骼时：只保留「该骨骼参与且权重 > 0」的顶点
+          let hit = selIndex < 0;
+          if (!hit) {
             for (let k = 0; k < n; k++) {
-              const w = verts[(impact + k) * 3 + 2] / total;
-              if (w <= 0) continue;
-              const next = ang + w * TAU;
-              ctx.beginPath();
-              ctx.moveTo(p.x, p.y);
-              ctx.arc(p.x, p.y, rad, ang, next);
-              ctx.closePath();
-              ctx.fillStyle = this._weightColor(bones[v + k], 0.92);
-              ctx.fill();
-              ang = next;
+              if (bones[v + k] === selIndex && verts[(impact + k) * 3 + 2] > 0) { hit = true; break; }
             }
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, rad, 0, TAU);
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = COL.weightPieEdge;
-            ctx.stroke();
-            drawn++;
+          }
+          if (hit) {
+            if (drawn >= WT.pieCap) return;
+            let total = 0;
+            for (let k = 0; k < n; k++) total += verts[(impact + k) * 3 + 2];
+            if (total > 0) {
+              const p = view.worldToScreen(wv[i * 2], wv[i * 2 + 1]);
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, rad, 0, TAU);
+              ctx.fillStyle = COL.weightPieBg;
+              ctx.fill();
+              let ang = -Math.PI / 2;   // 从 12 点方向起、顺时针铺开，读图习惯固定
+              for (let k = 0; k < n; k++) {
+                const w = verts[(impact + k) * 3 + 2] / total;
+                if (w <= 0) continue;
+                const next = ang + w * TAU;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.arc(p.x, p.y, rad, ang, next);
+                ctx.closePath();
+                ctx.fillStyle = this._weightColor(bones[v + k], 0.92);
+                ctx.fill();
+                ang = next;
+              }
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, rad, 0, TAU);
+              ctx.lineWidth = 1;
+              ctx.strokeStyle = COL.weightPieEdge;
+              ctx.stroke();
+              drawn++;
+            }
           }
           v += n; impact += n;
         }
