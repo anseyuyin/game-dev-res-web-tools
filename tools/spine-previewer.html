@@ -501,7 +501,7 @@
         <button class="btn sm tgl" id="btnTBones" title="显示骨骼（B）" aria-pressed="true">🦴</button>
         <button class="btn sm tgl" id="btnTMesh" title="显示网格线框（M）· 网格线与顶点手柄一并显示" aria-pressed="true">🕸</button>
         <button class="btn sm tgl" id="btnTBounds" title="显示包围盒（U）" aria-pressed="false">▭</button>
-        <button class="btn sm tgl" id="btnTWeights" title="显示 Mesh 权重：在骨骼线下方叠加「彩色骨骼」示意线（每根骨骼一种颜色），并在 Mesh 顶点处画出按影响骨骼着色的圆形权重扇形图（扇形占比＝骨骼权重）。局部显示：选中骨骼时只画该骨骼影响的顶点，选中网格部件时只画该部件，两者都没选中才画全部" aria-pressed="false">◔</button>
+        <button class="btn sm tgl" id="btnTWeights" title="显示 Mesh 权重：在骨骼线下方叠加「彩色骨骼」示意线（每根骨骼一种颜色），并在 Mesh 顶点处画出按影响骨骼着色的圆形权重扇形图（扇形占比＝骨骼权重）。局部显示：选中骨骼时只画该骨骼影响的顶点，选中网格部件时只画该部件及其相关骨骼，两者都没选中才画全部" aria-pressed="false">◔</button>
         <button class="btn sm" id="btnTPause" title="播放 / 暂停（空格）" disabled>▶</button>
       </div>
 
@@ -649,7 +649,7 @@
       <div><b>3. 显示与 Gizmo 变换</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>骨骼 / 网格线框 / 包围盒 / 贴图 / 骨骼名 / 裁剪 均可独立开关；视口工具条上的骨骼 / 网格 / 包围盒按钮<b>高亮＝开启、压暗＝关闭</b>。</li>
-        <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽的<b>彩色骨骼</b>示意线，并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。顶点权重圆<b>跟随选中项局部显示</b>，避免顶点密集的网格糊成一片：<b>①</b> 选中某根骨骼时，只画「受该骨骼影响（权重 &gt; 0）」的顶点，可用来确认这根骨骼到底驱动了哪些顶点（圆内仍保留该顶点完整的权重构成）；<b>②</b> 选中某个 <b>网格类部件</b>时，只画该部件的顶点；<b>③</b> 既没选骨骼也没选网格部件（选中 region 等非网格部件同样算没选）时，才画全部部件。彩色骨骼示意线<b>始终画全部骨骼</b>，方便对照选中骨骼的颜色。</li>
+        <li><b>Mesh 权重</b>（视口工具条的 <b>◔</b>）：打开后在<b>骨骼线下方</b>叠加一层更宽的<b>彩色骨骼</b>示意线，并在带权重网格的<b>每个顶点</b>处画一个圆，圆内按影响该顶点的骨骼切成<b>扇形</b>——扇形颜色＝对应骨骼的示意线颜色，扇形角度 ∝ 权重占比（从 12 点方向顺时针铺开）。圆的尺寸大于顶点的方形手柄、垫在手柄之下，所以选中网格拖顶点时两者互不遮挡。顶点权重圆<b>跟随选中项局部显示</b>，避免顶点密集的网格糊成一片：<b>①</b> 选中某根骨骼时，只画「受该骨骼影响（权重 &gt; 0）」的顶点，可用来确认这根骨骼到底驱动了哪些顶点（圆内仍保留该顶点完整的权重构成）；<b>②</b> 选中某个 <b>网格类部件</b>时，只画该部件的顶点；<b>③</b> 既没选骨骼也没选网格部件（选中 region 等非网格部件同样算没选）时，才画全部部件。彩色骨骼示意线<b>同样跟随选中项</b>：选中网格部件时只画<b>与该网格顶点相关（权重 &gt; 0）</b>的骨骼，和顶点权重圆的显示范围一致（颜色 / 下标仍按骨骼在骨架里的原始位置取，所以与扇形颜色一一对应；选中非权重网格时该网格没有相关骨骼，示意线为空）；选中骨骼或什么都没选中时画<b>全部</b>骨骼，便于对照颜色。</li>
         <li><b>骨骼显示关闭时，视口里点不到骨骼</b>：看不见的骨骼不参与拾取，点视口任意位置都只会命中部件（或取消选中），也不会因双击而重置骨骼。要选中 / 拖拽骨骼，先用工具条的 🦴 或 <b>B</b> 打开骨骼显示。</li>
         <li>视口<b>左上角的竖排工具条</b>（Unity 风格）切换交互类型：<b>位移 / 旋转 / 缩放</b> 会显示不同的 Gizmo，鼠标悬停在按钮上会弹出该工具的操作说明。点击骨骼或部件即选中，Gizmo 中心随之移动到该对象上。</li>
         <li><b>位移</b>：拖动绿色（Y）/ 红色（X）箭头按轴位移，拖中心方块在 XY 平面自由位移。</li>
@@ -9357,13 +9357,43 @@ SP.pose = (() => {
       const h = this._weightHue(index).toFixed(0);
       return alpha === undefined ? `hsl(${h},75%,62%)` : `hsla(${h},75%,62%,${alpha})`;
     }
-    /** 彩色骨骼示意线：比骨骼线更宽、半透明，画在骨骼线之下，用来对应顶点扇形图里的颜色 */
+    /**
+     * 指定网格「顶点相关」的骨骼下标集合：遍历 att.bones 的每顶点 [boneCount, boneIndex…]，
+     * 收集所有「权重 > 0」的影响骨骼（下标即 skeleton.bones 里的位置，也是彩色骨骼的颜色下标）。
+     * 返回 null 表示「不做限制」（没选中网格类部件）；返回空集合表示该网格没有任何权重骨骼。
+     */
+    _weightMeshBoneIndices(selSlot) {
+      const att = selSlot && selSlot.attachment;
+      if (!att || !isEditableMesh(att)) return null;
+      const set = new Set();
+      const bones = att.bones, verts = att.vertices;
+      if (!bones || !bones.length || !verts) return set;   // 非权重网格 → 没有相关骨骼
+      const count = att.worldVerticesLength / 2;
+      let v = 0, impact = 0;
+      for (let i = 0; i < count; i++) {
+        const n = bones[v++];
+        for (let k = 0; k < n; k++) {
+          if (verts[(impact + k) * 3 + 2] > 0) set.add(bones[v + k]);
+        }
+        v += n; impact += n;
+      }
+      return set;
+    }
+    /**
+     * 彩色骨骼示意线：比骨骼线更宽、半透明，画在骨骼线之下，用来对应顶点扇形图里的颜色。
+     * 选中网格类部件时只画「与该网格顶点相关（权重 > 0）」的骨骼，与顶点权重圆的局部显示保持一致；
+     * 同时线宽 / 颜色下标仍按 skeleton.bones 的原始位置取，和扇形图里的颜色一一对应。
+     * 选中骨骼（或无选中）时画全部骨骼，方便在整张骨架里对照颜色。
+     */
     _paintWeightBones(ctx, view, skeleton) {
       const bones = skeleton.bones;
+      // 骨骼选中优先：此时不限制彩色骨骼，便于对照「选中的这根」与其它骨骼的颜色
+      const focus = (this.selectedBone || !this.selectedSlot) ? null : this._weightMeshBoneIndices(this.selectedSlot);
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineWidth = WT.boneWidth;
       for (let i = 0; i < bones.length; i++) {
+        if (focus && !focus.has(i)) continue;
         const bone = bones[i];
         if (bone.data.skinRequired || !bone.data.length) continue;
         const a = view.worldToScreen(bone.worldX, bone.worldY);
