@@ -676,7 +676,7 @@
       <div><b>4. IK 约束调试</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
         <li>在视口或骨骼树里<b>选中一根骨骼</b>：只要它参与 IK（是链条里的骨骼，或是 IK 的目标骨骼），检查器下半部分就会出现 <b>🎯 IK 约束</b> 卡片，列出它参与的每条 IK，并标注当前骨骼的角色（<b>链条骨骼</b> / <b>目标骨骼</b>）、链条顺序、目标骨骼与求值顺序。骨骼树里这类骨骼也会标 <b>IK</b> / <b>IK 目标</b>。</li>
-        <li>卡片上可直接调 <b>混合 mix</b>（0–1）、<b>柔和 softness</b>（0–100）、<b>弯曲方向</b>（正向 / 反向＝bendPositive）、<b>压缩 compress</b>、<b>拉伸 stretch</b>、<b>统一缩放 uniform</b>，每一项都有悬浮说明。</li>
+        <li>卡片上可直接调 <b>混合 mix</b>（0–1）、<b>柔和 softness</b>（0–100）、<b>弯曲方向</b>（正向 / 反向＝bendPositive）、<b>压缩 compress</b>、<b>拉伸 stretch</b>、<b>缩放方式 scaleYMode</b>（none / uniform / volume，对应资源里的 scaleY），每一项都有悬浮说明。</li>
         <li><b>改动即时生效，并且压过动画</b>：覆盖值写在每帧动画之后，所以即使该动画有 IK 时间轴，你调的值也不会被冲掉。未改动的参数会跟随动画实时刷新显示（例如 running 动作里柔和的逐帧变化）。</li>
         <li>改过的约束在卡片上标「<b>已改</b>」并高亮边框，点卡片右上角的 <b>↺</b> 单独还原这一条；「显示与调试」里的 <b>↺ 清空姿态调试</b> 会把骨骼偏移与 IK 覆盖一起还原。覆盖只在运行时，<b>不会修改资源文件</b>。</li>
         <li>典型用法：把 mix 调到 0 看「没有 IK 时动画原本的姿势」，或在目标超出骨骼链长度（够不到）时打开 <b>拉伸</b> / 调 <b>柔和</b> 观察关节如何取舍。</li>
@@ -720,7 +720,7 @@
       </div>
       <div><b>7. 兼容性与限制</b></div>
       <ul class="helpList hint" style="color:var(--text-dim);">
-        <li>JSON 导出支持 Spine <b>3.6 / 3.7 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组与变换约束的 <code class="inl">properties</code> 属性映射；3.6 / 3.7 与 3.8 同构，按 3.8 规则解析并兼容 <code class="inl">deform</code> / <code class="inl">paths</code> 两个旧键名，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>3.6 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3 全部支持</b>：官方样例 <b>3.6 17/18、3.8 20/20、4.0 20/20、4.1 21/21、4.2 28/28、4.3 44/44 整文件字节对齐</b>，其中 4.3 的 44 个样例还与官方 <code class="inl">spine-core 4.3</code> 运行时<b>逐次读取序列完全一致</b>、骨骼 / 插槽 / 约束 / 动画的解析结果<b>逐字段数值一致</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
+        <li>JSON 导出支持 Spine <b>3.6 / 3.7 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3</b>（4.3 另支持统一的 <code class="inl">constraints</code> 数组、变换约束的 <code class="inl">properties</code> 属性映射与 IK 的 <code class="inl">scaleY</code> 缩放方式（none / uniform / volume，数组下标即约束求值顺序）；3.6 / 3.7 与 3.8 同构，按 3.8 规则解析并兼容 <code class="inl">deform</code> / <code class="inl">paths</code> 两个旧键名，解析细节会在日志里提示）；二进制 <code class="inl">.skel</code> 的 <b>3.6 / 3.8 / 4.0 / 4.1 / 4.2 / 4.3 全部支持</b>：官方样例 <b>3.6 17/18、3.8 20/20、4.0 20/20、4.1 21/21、4.2 28/28、4.3 44/44 整文件字节对齐</b>，其中 4.3 的 44 个样例还与官方 <code class="inl">spine-core 4.3</code> 运行时<b>逐次读取序列完全一致</b>、骨骼 / 插槽 / 约束 / 动画的解析结果<b>逐字段数值一致</b>（解析不了会给出中文原因，不会静默读错）。渲染使用 WebGL2。</li>
         <li>二进制 <code class="inl">.skel</code> 的版本在扫描时会读文件头判定：<b>3.6 没有共享字符串表、骨骼没有 skinRequired、IK 约束没有 softness、普通皮肤没有 bones/constraints 列表</b>，这些差异都按版本分支处理；<b>3.6 / 3.8 的曲线控制点是归一化比例且写在本帧数据之后</b>，与 4.0+ 的绝对控制点写法不同。</li>
         <li><b>3.6 / 3.7 的 JSON 与 3.8 同构</b>，差别只有动画里的键名：附件（形变）时间轴叫 <code class="inl">deform</code>（3.8 起叫 <code class="inl">attachments</code>，而且 3.6 少一层 —— 附件名下面直接就是帧数组）、路径约束时间轴叫 <code class="inl">paths</code>（3.8 起叫 <code class="inl">path</code>）；其余 3.8 才出现的字段（IK 的 softness / compress / stretch、皮肤自带 bones / constraints、序列帧等）按缺省处理。已用官方 <code class="inl">spine-ts 3.6</code> 运行时对 9 个官方 3.6 / 3.7 样例做骨骼 / 插槽 / 皮肤 / 附件 / 动画逐项对照，全部一致。</li>
         <li><b>4.3 的二进制与 4.2 的字节布局不同</b>，本工具按版本分别解析：骨骼的 <code class="inl">inherit</code> 挪到了 <code class="inl">length</code> 之前、nonessential 的骨骼多了 <code class="inl">iconSize</code>/<code class="inl">iconRotation</code>、有顶点权重时多一个条目数 varint、五类约束合并成带 type 字节的 <code class="inl">constraints</code> 数组（IK 的 uniform 换成 <code class="inl">scaleYMode</code>、path 的 <code class="inl">skinRequired</code> 并入 flags、transform 改成「源属性 → 目标属性」映射表、新增 slider）、mesh 附件多一段 <code class="inl">timelineSlots</code>、linked mesh 多一个 <code class="inl">sourceIndex</code>、clipping 多 <code class="inl">convex</code>/<code class="inl">inverse</code> 两位，动画里多了 slider 时间轴、draw order folder 时间轴与动画自带颜色。另外 <b>4.3 的约束时间轴用「统一 constraints 数组」的下标引用约束</b>（官方 <code class="inl">skeleton.constraints[i]</code>），而本运行时按分类型数组取值，解析时已按下标换算——换算错会让 IK / 路径约束驱动到别的骨骼上，表现为这些部件跑到别处或不显示。</li>
@@ -973,6 +973,16 @@ SP.data = (() => {
     normal: 0, onlytranslation: 1, norotationorreflection: 2, noscale: 3, noscaleorreflection: 4,
   };
   const TransformModeName = ["normal", "onlyTranslation", "noRotationOrReflection", "noScale", "noScaleOrReflection"];
+  /**
+   * IK 的 scaleYMode（官方 `ConstraintData.ScaleYMode`）：压缩 / 拉伸改变 scaleX 时 scaleY 怎么跟。
+   *   None    不动 scaleY（3.6–4.2 的 uniform:false，也是 4.3 的缺省）
+   *   Uniform scaleY 乘以同一个系数，保持长宽比（＝ 4.2 的 uniform:true）
+   *   Volume  scaleY 除以该系数，保持面积（4.3 新增）
+   * JSON 里是字符串（官方 SkeletonJson 读的是 `scaleY` 键，值走 `Utils.enumValue`，所以大小写不敏感）。
+   */
+  const ScaleYMode = { None: 0, Uniform: 1, Volume: 2 };
+  const SCALE_Y_MODE_BY_NAME = { none: 0, uniform: 1, volume: 2 };
+  const ScaleYModeName = ["none", "uniform", "volume"];
   const PositionMode = { Fixed: 0, Percent: 1 };
   const SpacingMode = { Length: 0, Fixed: 1, Percent: 2, Proportional: 3 };
   const RotateMode = { Tangent: 0, Chain: 1, ChainScale: 2 };
@@ -1279,7 +1289,7 @@ SP.data = (() => {
       this.boneNames = []; this.bones = [];
       this.targetName = null; this.target = null;
       this.mix = 1; this.softness = 0; this.bendDirection = 1;
-      this.compress = false; this.stretch = false; this.uniform = false;
+      this.compress = false; this.stretch = false; this.scaleYMode = ScaleYMode.None;
     }
   }
   class TransformConstraintData extends ConstraintData {
@@ -2033,6 +2043,7 @@ SP.data = (() => {
 
   return {
     BlendMode, BLEND_BY_NAME, BlendName, TransformMode, TRANSFORM_MODE_BY_NAME, TransformModeName,
+    ScaleYMode, SCALE_Y_MODE_BY_NAME, ScaleYModeName,
     PositionMode, SpacingMode, RotateMode, PositionModeName, SpacingModeName, RotateModeName,
     ATT, rgba,
     wrapDeg180,
@@ -3284,6 +3295,39 @@ SP.json = (() => {
     return out;
   }
 
+  /**
+   * 读 IK 约束的 scaleYMode（压缩 / 拉伸改 scaleX 时 scaleY 怎么跟）。
+   *
+   * 官方 4.3 的 SkeletonJson 读的键名是 **`scaleY`**，值交给 `Utils.enumValue(ScaleYMode, 值)`
+   * ——该函数只把首字母大写后查表，所以 `"uniform"` / `"Uniform"` 都认，也认 `"none"` / `"volume"`。
+   * ≤4.2 没有这个字段，用的是 `uniform: true/false`（true ⇔ Uniform）。
+   *
+   * 之前这里读的是 `scaleYMode`（官方 JSON 从来没有这个键名）→ 官方 4.3 导出里永远读不到，
+   * 一律退回 None：带 Volume 的 IK（编辑器里设成「保持面积」时很常见）会被当成完全不缩放，
+   * 压缩 / 拉伸后的骨骼粗细与官方对不上。
+   */
+  function readScaleYMode(m, what) {
+    // 4.3+：scaleY（官方键名）；scaleYMode 只是容错别名，方便手工改过的 JSON
+    const raw = getv(m, "scaleY", getv(m, "scaleYMode", null));
+    if (raw !== null && raw !== undefined) {
+      if (typeof raw === "number") {
+        // 兼容「直接写枚举序号」的写法
+        return raw === D.ScaleYMode.Volume ? D.ScaleYMode.Volume
+          : raw === D.ScaleYMode.Uniform ? D.ScaleYMode.Uniform : D.ScaleYMode.None;
+      }
+      if (typeof raw === "boolean") return raw ? D.ScaleYMode.Uniform : D.ScaleYMode.None;
+      const key = String(raw).toLowerCase();
+      const mode = D.SCALE_Y_MODE_BY_NAME[key];
+      if (mode === undefined) {
+        warn(`${what} 的缩放方式 "${raw}" 无法识别（应为 none / uniform / volume），按 none 处理`);
+        return D.ScaleYMode.None;
+      }
+      return mode;
+    }
+    // ≤4.2：uniform 布尔值
+    return bool(getv(m, "uniform", false)) ? D.ScaleYMode.Uniform : D.ScaleYMode.None;
+  }
+
   function readIkConstraint(m, sd, map) {
     if (!m || typeof m.name !== "string") { warn("IK 约束缺少 name，已跳过"); return null; }
     if (map && map.has(m.name)) return null;
@@ -3298,11 +3342,7 @@ SP.json = (() => {
     c.bendDirection = bool(getv(m, "bendPositive", true), true) ? 1 : -1;
     c.compress = bool(getv(m, "compress", false));
     c.stretch = bool(getv(m, "stretch", false));
-    // 4.3 把 3.8/4.0 的 uniform 换成了 scaleYMode；本运行时的 IK 只区分「是否统一缩放」
-    const scaleYMode = getv(m, "scaleYMode", null);
-    c.uniform = scaleYMode == null
-      ? bool(getv(m, "uniform", false))
-      : String(scaleYMode).toLowerCase() === "uniform";
+    c.scaleYMode = readScaleYMode(m, `IK 约束 "${m.name}"`);
     sd.ikConstraints.push(c);
     if (map) map.set(c.name, c);
     return c;
@@ -3484,16 +3524,25 @@ SP.json = (() => {
   function readConstraintsArray(root, sd, maps) {
     const list = getv(root, "constraints", null);
     if (!Array.isArray(list)) return;
-    for (const m of list) {
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
       if (!m || typeof m !== "object") continue;
+      let c = null;
       switch (String(getv(m, "type", "")).toLowerCase()) {
-        case "ik": readIkConstraint(m, sd, maps.ik); break;
-        case "transform": readTransformConstraint(m, sd, maps.transform); break;
-        case "path": readPathConstraint(m, sd, maps.path); break;
+        case "ik": c = readIkConstraint(m, sd, maps.ik); break;
+        case "transform": c = readTransformConstraint(m, sd, maps.transform); break;
+        case "path": c = readPathConstraint(m, sd, maps.path); break;
         case "physics": warn(`物理约束 "${m.name}" 暂不支持（4.3 物理需要独立解算，预览时不参与求值）`); break;
         case "slider": warn(`滑块约束 "${m.name}" 暂不支持`); break;
         default: warn(`未知的约束类型 "${getv(m, "type", "")}"（约束 "${m.name}"），已跳过`); break;
       }
+      // 4.3 起约束没有 order 字段（官方 SkeletonJson 也是按数组顺序 push 进 sd.constraints），
+      // **数组下标就是求值顺序**。各 readXxxConstraint 的 `getNum(m,"order",0)` 会让这里全变 0，
+      // 运行时的约束队列就退回「IK → 变换 → 路径」的分组顺序（那是 ≤4.2 的语义）：
+      // 变换约束会先于路径约束求值，被路径约束摆位的骨骼（例如腿）还没算好，
+      // 变换约束就已经拿去摆脚了 —— 表现就是「脚跑到别处 / 被拉成一条」。
+      // 二进制解析器（readConstraints43）同样把 order 写成统一下标，两边必须一致。
+      if (c) c.order = i;
     }
   }
 
@@ -4820,7 +4869,8 @@ SP.binary = (() => {
         data.bendDirection = (flags & 0x02) !== 0 ? 1 : -1;
         data.compress = (flags & 0x04) !== 0;
         data.stretch = (flags & 0x08) !== 0;
-        data.uniform = (flags & 0x10) !== 0;
+        // 4.2 只有 uniform 布尔位（ScaleYMode 是 4.3 才拆成三档的）
+        data.scaleYMode = (flags & 0x10) !== 0 ? D.ScaleYMode.Uniform : D.ScaleYMode.None;
         if (flags & 0x20) data.mix = (flags & 0x40) ? r.float() : 1;
         else data.mix = 0;
         data.softness = (flags & 0x80) ? r.float() : 0;
@@ -4834,7 +4884,8 @@ SP.binary = (() => {
         data.bendDirection = r.byte();
         data.compress = r.boolean();
         data.stretch = r.boolean();
-        data.uniform = r.boolean();
+        // 3.8 / 4.0 / 4.1：uniform 布尔值 → Uniform / None
+        data.scaleYMode = r.boolean() ? D.ScaleYMode.Uniform : D.ScaleYMode.None;
       }
       sd.ikConstraints.push(data);
     }
@@ -5182,11 +5233,8 @@ SP.binary = (() => {
           data.target = target; data.targetName = target.name;
           const flags = r.ubyte();
           data.skinRequired = (flags & 0x01) !== 0;
-          // 4.3 用 scaleYMode(ubyte) 取代了 4.2 的 uniform 位
-          if (flags & 0x02) {
-            data.scaleYMode = r.ubyte();
-            data.uniform = data.scaleYMode === 1;   // ScaleYMode.Uniform
-          }
+          // 4.3 用 scaleYMode(ubyte) 取代了 4.2 的 uniform 位：0 = None / 1 = Uniform / 2 = Volume
+          if (flags & 0x02) data.scaleYMode = r.ubyte();
           // 注意极性：4.3 是「置位 = -1」，与 4.2 的「置位 = 1」相反
           data.bendDirection = (flags & 0x04) !== 0 ? -1 : 1;
           data.compress = (flags & 0x08) !== 0;
@@ -6876,14 +6924,14 @@ SP.runtime = (() => {
     constructor(data, skeleton) {
       this.data = data;
       this.mix = data.mix; this.softness = data.softness; this.bendDirection = data.bendDirection;
-      this.compress = data.compress; this.stretch = data.stretch; this.uniform = data.uniform;
+      this.compress = data.compress; this.stretch = data.stretch; this.scaleYMode = data.scaleYMode;
       this.bones = data.boneNames.map((n) => skeleton.findBone(n)).filter(Boolean);
       this.target = skeleton.findBone(data.targetName);
     }
     setToSetupPose() {
       const d = this.data;
       this.mix = d.mix; this.softness = d.softness; this.bendDirection = d.bendDirection;
-      this.compress = d.compress; this.stretch = d.stretch; this.uniform = d.uniform;
+      this.compress = d.compress; this.stretch = d.stretch; this.scaleYMode = d.scaleYMode;
     }
     apply() {
       if (!this.target || !this.bones.length) return;
@@ -6941,7 +6989,9 @@ SP.runtime = (() => {
           if ((this.compress && dd < b * b) || (this.stretch && dd > b * b)) {
             const s = (Math.sqrt(dd) / b - 1) * this.mix + 1;
             sx *= s;
-            if (this.uniform) sy *= s;
+            // 官方 IkConstraint.apply1 的 scaleYMode 分支
+            if (this.scaleYMode === D.ScaleYMode.Uniform) sy *= s;
+            else if (this.scaleYMode === D.ScaleYMode.Volume) sy /= s < 0.7 ? 0.25 + 0.642857 * s : s;
           }
         }
       }
@@ -7014,7 +7064,9 @@ SP.runtime = (() => {
           if (this.stretch) {
             const s = (Math.sqrt(dd) / (l1 + l2) - 1) * alpha + 1;
             sx *= s;
-            if (this.uniform) sy *= s;
+            // 官方 IkConstraint.apply2 的 scaleYMode 分支
+            if (this.scaleYMode === D.ScaleYMode.Uniform) sy *= s;
+            else if (this.scaleYMode === D.ScaleYMode.Volume) sy /= s < 0.7 ? 0.25 + 0.642857 * s : s;
           }
         } else a2 = Math.acos(cos) * this.bendDirection;
         a = l1 + l2 * cos;
@@ -8766,9 +8818,9 @@ SP.pose = (() => {
   /**
    * IK 约束上可在检查器里调试的运行时字段（与官方 IkConstraint 一一对应）。
    * mix / softness / bendDirection 会被动画的 IK 时间轴逐帧改写，
-   * compress / stretch / uniform 只来自资源。
+   * compress / stretch / scaleYMode 只来自资源。
    */
-  const IK_KEYS = ["mix", "softness", "bendDirection", "compress", "stretch", "uniform"];
+  const IK_KEYS = ["mix", "softness", "bendDirection", "compress", "stretch", "scaleYMode"];
 
   /**
    * 变换约束上可在检查器里调试的运行时字段。
@@ -8805,7 +8857,7 @@ SP.pose = (() => {
     constructor() {
       this.overrides = new Map();      // boneName -> { dRotation, dX, dY, dScaleX, dScaleY }
       this.slotOverrides = new Map();  // slotIndex -> { blendMode?, color? }（混合模式 / 颜色覆盖）
-      this.ikOverrides = new Map();    // ikConstraintName -> { mix?, softness?, bendDirection?, compress?, stretch?, uniform? }
+      this.ikOverrides = new Map();    // ikConstraintName -> { mix?, softness?, bendDirection?, compress?, stretch?, scaleYMode? }
       this.tcOverrides = new Map();    // transformConstraintName -> { mixX?, localTarget?, offsetX?, ... }
       this.pathOverrides = new Map();  // pathConstraintName -> { position?, spacing?, mixRotate?, rotateMode?, ... }
       this.vertexEdits = new Map();    // slotIndex -> Float32Array（附加形变偏移）
@@ -8913,7 +8965,7 @@ SP.pose = (() => {
       }
       return any;
     }
-    // ---------------- IK 约束覆盖：mix / softness / bendDirection / compress / stretch / uniform ----------------
+    // ---------------- IK 约束覆盖：mix / softness / bendDirection / compress / stretch / scaleYMode ----------------
     getIkOverride(c) { return c ? (this.ikOverrides.get(c.data.name) || null) : null; }
     /**
      * 写入 IK 参数覆盖；patch 里值为 null 表示「该字段恢复资源 / 动画的原始值」。
@@ -10098,7 +10150,7 @@ SP.app = (() => {
     bendDirection: "弯曲方向：正向 = 关节朝一侧弯，反向 = 朝另一侧弯（对应资源里的 bendPositive）",
     compress: "压缩 compress：单骨骼 IK 且目标比骨骼长度更近时，缩短骨骼以碰到目标",
     stretch: "拉伸 stretch：目标超出骨骼链最大伸展距离时，拉长骨骼链以够到目标（两骨骼链上父骨骼带非均匀缩放时不生效）",
-    uniform: "统一缩放 uniform：配合压缩 / 拉伸使用，缩放时 X / Y 一起变化",
+    scaleYMode: "缩放方式 scaleYMode：配合压缩 / 拉伸使用（资源里的 scaleY）。none = 不动 scaleY；uniform = scaleY 乘同一系数，保持长宽比（≤4.2 的 uniform:true）；volume = scaleY 除以该系数，保持面积",
   };
 
   const PREFS_KEY = "spine-previewer.prefs.v1";
@@ -11752,7 +11804,7 @@ SP.app = (() => {
   /**
    * IK 参数调节：选中骨骼时，列出「这根骨骼参与的 IK 约束」（它是链条里的骨骼，
    * 或是目标骨骼），每条约束一张卡片，可直接调 mix / softness / 弯曲方向 /
-   * 压缩 / 拉伸 / 统一缩放。
+   * 压缩 / 拉伸 / 缩放方式（scaleYMode）。
    *
    * 覆盖值存在 PoseController.ikOverrides 里，由 applyEditsAndUpdate() 在每帧的
    * 「setup 姿态 + 动画」之后写回运行时约束，所以能压过 IK 时间轴；只影响预览，
@@ -11790,6 +11842,7 @@ SP.app = (() => {
       const mix = M.clamp(Number(pick("mix")) || 0, 0, 1);
       const soft = Number(pick("softness")) || 0;
       const bend = pick("bendDirection") >= 0 ? 1 : -1;
+      const syMode = Number(pick("scaleYMode")) || 0;
       const role = c.bones.indexOf(bone) >= 0 ? "链条骨骼" : "目标骨骼";
       const chain = d.boneNames.join(" → ") || "（无）";
       return `<div class="ikCard${changed ? " hasOv" : ""}" id="inspIk${i}">
@@ -11824,7 +11877,14 @@ SP.app = (() => {
         <div class="row wrap" style="gap:10px;">
           <label class="hint" style="display:flex;align-items:center;gap:4px;" title="${IK_TIPS.compress}"><input type="checkbox" id="inspIk${i}Compress"${on("compress")}> 压缩</label>
           <label class="hint" style="display:flex;align-items:center;gap:4px;" title="${IK_TIPS.stretch}"><input type="checkbox" id="inspIk${i}Stretch"${on("stretch")}> 拉伸</label>
-          <label class="hint" style="display:flex;align-items:center;gap:4px;" title="${IK_TIPS.uniform}"><input type="checkbox" id="inspIk${i}Uniform"${on("uniform")}> 统一缩放</label>
+        </div>
+        <div class="row">
+          <label style="width:56px;" title="${IK_TIPS.scaleYMode}">缩放方式</label>
+          <select class="grow" id="inspIk${i}ScaleY" title="${IK_TIPS.scaleYMode}">
+            <option value="0"${syMode === 0 ? " selected" : ""}>none（不动 scaleY）</option>
+            <option value="1"${syMode === 1 ? " selected" : ""}>uniform（保持长宽比）</option>
+            <option value="2"${syMode === 2 ? " selected" : ""}>volume（保持面积）</option>
+          </select>
         </div>
       </div>`;
     }).join("");
@@ -11845,7 +11905,7 @@ SP.app = (() => {
         bendDirection: $("inspIk" + i + "Bend"),
         compress: $("inspIk" + i + "Compress"),
         stretch: $("inspIk" + i + "Stretch"),
-        uniform: $("inspIk" + i + "Uniform"),
+        scaleYMode: $("inspIk" + i + "ScaleY"),
       };
       const ovBadge = $("inspIk" + i + "Ov");
       /** 覆盖状态变了只更新卡片自身的高亮与「已改」角标，不重建 DOM（否则会打断滑杆拖动） */
@@ -11892,10 +11952,12 @@ SP.app = (() => {
       els.softness.addEventListener("change", () => { els.softness.value = fmtIkNum(Math.max(0, parseFloat(els.softness.value) || 0)); });
       // 弯曲方向
       els.bendDirection.addEventListener("change", () => set("bendDirection", els.bendDirection.value === "-1" ? -1 : 1));
-      // 压缩 / 拉伸 / 统一缩放
-      for (const k of ["compress", "stretch", "uniform"]) {
+      // 压缩 / 拉伸
+      for (const k of ["compress", "stretch"]) {
         els[k].addEventListener("change", () => set(k, !!els[k].checked));
       }
+      // 缩放方式 scaleYMode：0 = none / 1 = uniform / 2 = volume
+      els.scaleYMode.addEventListener("change", () => set("scaleYMode", Number(els.scaleYMode.value) || 0));
       $("inspIk" + i + "Reset").addEventListener("click", () => {
         state.pose.resetIk(c);
         log("info", `已清除 IK 约束 ${c.data.name} 的调试覆盖`);
@@ -11926,8 +11988,12 @@ SP.app = (() => {
         if (k === "bendDirection") {
           const s = String(v >= 0 ? 1 : -1);
           if (el.value !== s) el.value = s;
-        } else if (k === "compress" || k === "stretch" || k === "uniform") {
+        } else if (k === "compress" || k === "stretch") {
           if (el.checked !== !!v) el.checked = !!v;
+        } else if (k === "scaleYMode") {
+          // 下拉框：值按 0 / 1 / 2 写进 value
+          const s = String(Number(v) || 0);
+          if (el.value !== s) el.value = s;
         } else {
           const s = fmtIkNum(v);
           if (el.value !== s) el.value = s;
