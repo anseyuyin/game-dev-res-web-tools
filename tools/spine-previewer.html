@@ -1223,6 +1223,52 @@ SP.data = (() => {
     }
   }
 
+  // ---------------- 序列帧区域名 / 图集绑定 ----------------
+  /**
+   * Spine 序列帧区域名规则（真实素材核对：4.1 dragon 的序列附件 path="left-wing"，
+   * 图集里的区域名是 left-wing01 / left-wing02 …，**没有下划线**）：
+   *   name = path + 序号（digits > 0 时序号左侧补零到 digits 位）
+   *   序号 = start + index - 1（index 从 1 开始，与官方 setupIndex/时间轴 index 的 1 基语义一致）
+   * 例：path="left-wing", start=1, digits=2, count=9 → left-wing01 … left-wing09
+   */
+  function sequenceRegionName(path, seq, index) {
+    let s = String(seq.start + index - 1);
+    const digits = seq.digits || 0;
+    if (digits > 0) while (s.length < digits) s = "0" + s;
+    return path + s;
+  }
+
+  /**
+   * 按序号把图集区域逐个绑到序列帧上（等价官方 AtlasAttachmentLoader.findRegions）：
+   *   regions[i - 1] = atlas.findRegion(path + 序号)
+   * 并把 setup 帧写回 att.region —— 官方 setup 姿态显示的就是 setup 帧。
+   *
+   * 两条解析路径共用这个函数，缺了它就会出「部件没贴图」的问题：
+   * 序列帧附件的 path 是**不带序号**的（left-wing），图集里却只有带序号的区域
+   * （left-wing01…），按名字直接查必然查不到 → region 为 null → 渲染层拿不到贴图，
+   * 只能画半透明纯色占位几何。
+   *   · JSON：解析附件时图集已就绪，readSequence 里立刻绑（官方也是这时绑）。
+   *   · 二进制：附件先读完、最后才 bindAtlas，所以推迟到那里绑（见 SP.binary 的 bindAtlas）。
+   *
+   * @param {{path?:string,name:string,region:?object}} att 附件（region / mesh）
+   * @param {{count:number,start:number,digits:number,setupIndex:number,regions:Array}} seq 序列
+   * @param {{findRegion:(name:string,index:number)=>?object}} atlas 图集（鸭子类型，避免模块依赖）
+   * @returns {string[]} 图集里缺失的区域名，供调用方决定怎么提示
+   */
+  function bindSequenceRegions(att, seq, atlas) {
+    const missing = [];
+    if (!att || !seq || !(seq.count > 0) || !atlas || typeof atlas.findRegion !== "function") return missing;
+    const base = att.path || att.name;
+    for (let i = 1; i <= seq.count; i++) {
+      const name = sequenceRegionName(base, seq, i);
+      const region = atlas.findRegion(name, -1);
+      if (!region) missing.push(name);
+      seq.regions[i - 1] = region || null;
+    }
+    att.region = seq.regions[seq.setupIndex] || null;
+    return missing;
+  }
+
   // ---------------- 约束 ----------------
   class ConstraintData {
     constructor(name) { this.name = name; this.order = 0; this.skinRequired = false; }
@@ -1992,6 +2038,7 @@ SP.data = (() => {
     wrapDeg180,
     BoneData, SlotData, Attachment, VertexAttachment, RegionAttachment, MeshAttachment, LinkedMeshAttachment,
     BoundingBoxAttachment, ClippingAttachment, PathAttachment, PointAttachment, Sequence,
+    sequenceRegionName, bindSequenceRegions,
     ConstraintData, IkConstraintData, TransformConstraintData, PathConstraintData, PhysicsConstraintData,
     defaultTransformProperties, normalizeClassicTransform,
     EventData, Event, Skin, SkeletonData,
@@ -2783,20 +2830,10 @@ SP.json = (() => {
     return { findRegion: (name, index) => fr.call(atlas, name, index), raw: atlas };
   }
 
-  // ---------------- 序列帧区域名 ----------------
-  /**
-   * Spine 序列帧区域名规则（真实素材核对：4.1 dragon 的序列附件 path="left-wing"，
-   * 图集里的区域名是 left-wing01 / left-wing02 …，**没有下划线**）：
-   *   name = path + 序号（digits > 0 时序号左侧补零到 digits 位）
-   *   序号 = start + index - 1（index 从 1 开始，与官方 setupIndex/时间轴 index 的 1 基语义一致）
-   * 例：path="left-wing", start=1, digits=2, count=9 → left-wing01 … left-wing09
-   */
-  function sequenceRegionName(path, seq, index) {
-    let s = String(seq.start + index - 1);
-    const digits = seq.digits || 0;
-    if (digits > 0) while (s.length < digits) s = "0" + s;
-    return path + s;
-  }
+  // ---------------- 序列帧区域名 / 图集绑定 ----------------
+  // 规则与绑定实现都在 SP.data 里（D.sequenceRegionName / D.bindSequenceRegions），
+  // 与二进制解析（SP.binary 的 bindAtlas）共用同一份，避免两条路径的行为越走越远。
+  // 这里直接用 D.bindSequenceRegions 就够了，不再本地复制一份区域名拼接逻辑。
 
   // ---------------- 附件解析 ----------------
   /**
@@ -2890,11 +2927,9 @@ SP.json = (() => {
       if (!atlasView) {
         warn(`序列帧附件 "${base}"（count=${seq.count}）没有图集，region 全部为 null`);
       } else {
-        for (let i = 1; i <= seq.count; i++) {
-          const name = sequenceRegionName(base, seq, i);
-          const region = atlasView.findRegion(name, -1);
-          if (!region) warn(`序列帧附件 "${base}" 找不到图集区域 "${name}"`);
-          seq.regions.push(region || null);
+        // 区域名带序号（left-wing01…）在这里就按序号绑好；缺哪个提示哪个
+        for (const name of D.bindSequenceRegions(attachment, seq, atlasView)) {
+          warn(`序列帧附件 "${base}" 找不到图集区域 "${name}"`);
         }
       }
     }
@@ -2933,12 +2968,9 @@ SP.json = (() => {
       att.sequence = readSequence(getv(map, "sequence", null), att, atlasView);
       if (atlasView) {
         if (att.sequence && att.sequence.count > 0) {
-          // 序列帧附件：图集里没有「无序号」的区域名（left-wing01…），
-          // 所以 setup region 要按 path + setup 序号自己拼名字（官方语义：setupIndex 默认 0 → 序号 start）
-          const setupName = sequenceRegionName(att.path || att.name, att.sequence, att.sequence.setupIndex + 1);
-          const setupRegion = atlasView.findRegion(setupName, -1);
-          if (!setupRegion) warn(`序列帧附件 "${name}" 找不到 setup 区域 "${setupName}"`);
-          att.region = setupRegion || null;
+          // 序列帧附件：图集里没有「无序号」的区域名（left-wing01…），setup 区域由
+          // readSequence → bindSequenceRegions 按 path + 序号绑好（att.region = setup 帧），
+          // 这里不用再查一次；缺哪个区域 readSequence 已经逐条提示过。
         } else {
           const region = atlasView.findRegion(att.path, -1);
           // 也兼容图集里只有带序号区域名的情况（部分导出）
@@ -6555,6 +6587,23 @@ SP.binary = (() => {
       for (const entry of skin.attachments.values()) {
         for (const att of entry.values()) {
           if (att.type !== D.ATT.REGION && att.type !== D.ATT.MESH && att.type !== D.ATT.LINKED_MESH) continue;
+          // 序列帧附件（4.1+ 的 sequence，如 dragon 的翅膀）：
+          // 附件的 path 是**不带序号**的（left-wing），图集里却只有带序号的区域（left-wing01…），
+          // 直接按名字查必然落空 → region 为 null → 渲染层拿不到贴图，只能画半透明纯色占位几何
+          // （表现就是「翅膀/某几个部件没有贴图」）。所以必须先按序号逐个绑，
+          // 这与官方 AtlasAttachmentLoader.findRegions + Sequence.update 的做法一致。
+          if (att.sequence && att.sequence.count > 0) {
+            const base = att.path || att.name;
+            for (const name of D.bindSequenceRegions(att, att.sequence, atlas)) {
+              warn(`序列帧附件 "${base}" 找不到图集区域 "${name}"`);
+            }
+            if (att.region) {   // 绑上了 setup 帧：布局/UV 按它算，之后按帧索引切换
+              if (att.type === D.ATT.REGION) att.updateOffset();
+              else att.updateUVs();
+              continue;
+            }
+            // 一个都没绑上（图集区域名没带序号）：继续走下面的普通名字查找兜底
+          }
           const key = att.path || att.name;
           const setupIndex = att.sequence ? att.sequence.setupIndex : -1;
           const region = atlas.findRegion(key, setupIndex);
@@ -8543,6 +8592,17 @@ void main () {
           vertexCount = 4;
         } else if (att.type === D.ATT.MESH || att.type === D.ATT.WEIGHTED_MESH || att.type === D.ATT.LINKED_MESH) {
           region = att.region;
+          // 网格序列帧：官方 SkeletonRenderer 对 mesh 也用 sequence.getUVs(index) 换帧，
+          // 所以这里和上面的 region 分支同样按当前帧索引切区域并重算页绝对 UV。
+          // 必须在下面取 att.uvs 之前做（updateUVs 可能换一个新的数组）。
+          if (att.sequence && att.sequence.regions && att.sequence.regions.length) {
+            const idx = M.clamp(slot.sequenceIndex >= 0 ? slot.sequenceIndex : att.sequence.setupIndex, 0, att.sequence.regions.length - 1);
+            const seqRegion = att.sequence.regions[idx];
+            if (seqRegion) {
+              if (region !== seqRegion) { att.region = seqRegion; if (att.updateUVs) att.updateUVs(); }
+              region = seqRegion;
+            }
+          }
           const n = att.worldVerticesLength / 2;
           if (n > 4000) { this.stats.skipped++; continue; }
           R.computeAttachmentWorldVertices(att, slot, 0, att.worldVerticesLength, scratch, 0, 2);
