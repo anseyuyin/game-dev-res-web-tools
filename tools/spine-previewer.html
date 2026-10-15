@@ -268,8 +268,11 @@
   #inspector .ikCard input[type=number]{width:60px;flex:0 0 auto;}
   /* 检查器底部：图集预览（完整图集 + 当前部件 UV 线框叠加，支持滚轮缩放 / 拖拽平移） */
   #inspAtlasHead{display:flex;align-items:baseline;gap:6px;font-size:11px;color:var(--text-dim);font-weight:600;}
-  #inspAtlasHead .hint{font-weight:400;font-size:10px;}
-  #inspAtlasHead .meta{margin-left:auto;font-weight:400;font-size:10.5px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #inspAtlasHead > span:first-child{flex:0 0 auto;white-space:nowrap;}
+  #inspAtlasHead .hint{font-weight:400;font-size:10px;flex:0 0 auto;white-space:nowrap;}
+  #inspAtlasHead .meta{margin-left:auto;min-width:0;font-weight:400;font-size:10.5px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #inspAtlasPma{margin-left:8px;flex:0 0 auto;font-size:10.5px;padding:1px 2px;max-width:76px;background:var(--bg-input,#161b22);color:inherit;border:1px solid var(--line,#2b3444);border-radius:4px;cursor:pointer;}
+  #inspAtlasPma:disabled{opacity:.45;cursor:default;}
   #inspAtlasFrame{
     position:relative;height:240px;
     border:1px solid var(--border);border-radius:8px;overflow:hidden;background-color:#0f1319;
@@ -469,6 +472,15 @@
               <option value="black">纯黑</option>
             </select>
           </div>
+          <div class="row">
+            <label style="width:52px;" title="预乘 alpha（PMA）：图集 PNG 里存的是「已经乘过 alpha 的颜色」还是「原始颜色」。口径选错时，只有半透明过渡带会出问题——所有羽化边缘被压暗（深色底上就是一圈黑边）或变亮，全透明 / 全不透明的像素看不出来。">预乘 α</label>
+            <select id="pmaSel" class="grow" title="预乘 alpha 口径：自动判定（读图集 pma 字段，没有就采样半透明像素判断）／强制已预乘／强制未预乘">
+              <option value="auto">自动判定（推荐）</option>
+              <option value="pma">强制：图集已预乘</option>
+              <option value="straight">强制：图集未预乘</option>
+            </select>
+          </div>
+          <div class="hint" id="pmaHint">自动判定：先看图集里的 <code class="inl">pma</code> 字段；老版本导出不带该字段时，采样半透明像素判断。判错会让羽化边缘发黑 / 发白。</div>
           <div class="sep"></div>
           <div class="row">
             <button class="btn sm" id="btnResetPose">↺ 清空姿态调试</button>
@@ -2077,6 +2089,19 @@ SP.atlas = (() => {
       this.texture = null;   // 渲染层填充（WebGLTexture 包装）
       this.image = null;     // ImageBitmap / HTMLImageElement
       this.error = null;
+      // ---- 预乘 alpha（PMA）口径 -------------------------------------------------
+      // 渲染要求纹理里「预乘且只预乘一次」，但图集本身可能是预乘导出的，
+      // 也可能是直通（straight）导出的，且老版本导出的 .atlas 里不写 pma 字段，
+      // 所以这里把「声明 / 自动判定 / 用户覆盖」三个来源分别记下来：
+      this.pmaDeclared = null;  // 图集文本里的 pma: 声明（null = 根本没写这一行）
+      this.pmaDetected = null;  // 内容自动判定结果（true=已预乘 / false=未预乘 / null=判不出来）
+      this.pmaSample = null;    // 判定时的采样统计 { semi, violations, read }
+      this.pmaReason = "";      // 判定失败 / 回退的原因，用于提示
+      this.pmaOverride = null;  // 用户对「这一页」的手动覆盖（true/false，null = 跟自动）
+      this.pmaEffective = false; // 本次上传实际采用的口径
+      this.pmaSource = "";      // 口径来自哪：override / forced / atlas / detect / default
+      this.blob = null;         // 贴图原始 blob，手动切换口径时要重新解码
+      this.previewCanvas = null; // 图集预览专用的「反预乘」画布（懒创建，见 previewImageFor）
     }
   }
 
@@ -2316,7 +2341,9 @@ SP.atlas = (() => {
         case "repeat":
           if (isPage) { target.wrapU = parts[0]; target.wrapV = parts[1] || parts[0]; }
           break;
-        case "pma": if (isPage) target.pma = value.toLowerCase() === "true"; break;
+        case "pma":
+          if (isPage) { target.pma = value.toLowerCase() === "true"; target.pmaDeclared = target.pma; }
+          break;
         case "scale": if (isPage) target.scale = nums[0] || 1; break;
         case "rotate":
           if (isPage) target.rotation = parseFloat(value) || 0;
@@ -8399,11 +8426,18 @@ void main () {
       return p;
     }
     // ---------------- 纹理 ----------------
-    createTexture(page, image) {
+    /**
+     * @param {SP.atlas.AtlasPage} page
+     * @param {ImageBitmap} image 已经按 `pma` 归一化好的位图（见 SP.gl.makeTextureBitmap）
+     * @param {boolean} pma 该位图是否已经是预乘数据。纹理里最终一定是「预乘且只预乘一次」，
+     *   这里是给非 ImageBitmap 源留的保险：ImageBitmap 源会忽略 UNPACK_PREMULTIPLY_ALPHA_WEBGL
+     *   （Chrome 实测 true / false 结果完全一致），预乘与否在解码那一步就定死了。
+     */
+    createTexture(page, image, pma) {
       const gl = this.gl;
       const t = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, t);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, !pma);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
       const min = page.minFilter, mag = page.magFilter;
       const minMap = {
@@ -8427,6 +8461,12 @@ void main () {
     clearTextures() {
       for (const t of this.textures) t.dispose();
       this.textures.clear();
+    }
+    /** 释放单张贴图（手动切换预乘口径后重新上传时用；clearTextures 会连别的页一起删） */
+    releaseTexture(tex) {
+      if (!tex) return;
+      this.textures.delete(tex);
+      tex.dispose();
     }
     // ---------------- 视图 ----------------
     resize() {
@@ -8776,7 +8816,131 @@ void main () {
     return { r: a.r * b.r, g: a.g * b.g, b: a.b * b.b, a: a.a * b.a };
   }
 
-  return { Renderer, View, Texture, mulColor, REGION_INDICES };
+  /* ------------------------------------------------------------------
+   * 预乘 alpha（PMA）判定 + 贴图归一化
+   *
+   * 背景：Spine 图集可以按「预乘 alpha」导出（文件名常带 -pma，图集里也可能写
+   * `pma: true`），PNG 里存的就已经是 C·α；也可以按直通 alpha（straight）导出，
+   * 存的是 C。两者在进纹理前必须归一成同一种口径 —— 本工具的着色器与混合因子
+   * （BLEND_FUNCS 的 normal = ONE / ONE_MINUS_SRC_ALPHA）全都按**预乘**写，
+   * 所以纹理里必须且只能预乘一次：
+   *   · 本来就是 PMA 的图集 → 原样上传（再乘一次 α 会把羽化边缘整体压暗，
+   *     落在深色底上就是一圈「黑边」；α=1 / α=0 的像素不受影响）
+   *   · straight 图集       → 上传时预乘一次
+   *
+   * 为什么不能靠 gl.pixelStorei(UNPACK_PREMULTIPLY_ALPHA_WEBGL) 来切：
+   * 实测（Chrome）源为 ImageBitmap 时该开关**被完全忽略**，预乘与否只由
+   * createImageBitmap 的 premultiplyAlpha 决定。所以归一化必须发生在解码这一步。
+   *
+   * 注意：Spine 3.6/3.8 导出的 .atlas 里不会写 `pma:` 字段，光看图集文本判断不了，
+   * 只能靠内容判定（pmaProbe）兜底 —— 这正是本工具遇到的那批资源的情况。
+   * ------------------------------------------------------------------ */
+
+  /**
+   * 按目标口径把贴图 blob 解成可直接上传的 ImageBitmap。
+   * @param {Blob} blob
+   * @param {boolean} pma true = 文件里已经是预乘数据（原样进纹理）；false = 直通数据（交给浏览器预乘一次）
+   */
+  async function makeTextureBitmap(blob, pma) {
+    return await createImageBitmap(blob, {
+      premultiplyAlpha: pma ? "none" : "premultiply",
+      colorSpaceConversion: "none",
+    });
+  }
+
+  /**
+   * 内容判定：这张贴图是不是**已经是**预乘 alpha？
+   *
+   * 做法：按 premultiplyAlpha:"none" 上传 ⇒ 纹理里就是文件的原始字节；把纹理挂到
+   * 离屏 FBO 上分条 readPixels 回读，统计半透明像素里 max(r,g,b) > α 的个数。
+   * 预乘数据恒有 rgb ≤ α（C·α/255 ≤ α，取整只会更小），straight 数据则会大量越界
+   * （尤其是白发 / 高光这类亮色羽化边），所以这是个非常干净的判据。
+   *
+   * 用独立离屏上下文而不是主渲染上下文，是为了不打乱 drawSkeleton 的批次状态
+   * （那套状态在「攒几何」时就设好了，见 drawSkeleton 的注释）。
+   */
+  const pmaProbe = (() => {
+    const STRIP = 64;         // 每次回读的行数
+    const NEED_SEMI = 400;    // 至少要有这么多半透明样本才敢下结论
+    const MAX_SEMI = 4000;    // 攒够就提前收工，不必读完整页
+    const TOLERANCE = 0.005;  // 允许 0.5% 的越界（8bit 取整、二次编码噪声）
+    let ctx = null;           // { gl, fbo, buf } / false 表示不可用
+
+    function ensure() {
+      if (ctx !== null) return ctx;
+      let c = null;
+      try {
+        const cv = document.createElement("canvas");
+        cv.width = 1; cv.height = 1;
+        const gl = cv.getContext("webgl2", { alpha: true, antialias: false, premultipliedAlpha: false });
+        if (gl) c = { gl, fbo: gl.createFramebuffer(), buf: null, bufLen: 0 };
+      } catch (e) { c = null; }
+      ctx = c || false;
+      return ctx;
+    }
+
+    /**
+     * @param {ImageBitmap|HTMLImageElement|HTMLCanvasElement} image 必须是「原始字节」口径的源
+     * @returns {{pma:boolean|null, semi:number, violations:number, read:number, reason?:string}}
+     *          pma === null 表示判不出来（样本太少 / 环境不支持），由上层回退
+     */
+    function probe(image) {
+      const c = ensure();
+      const empty = { pma: null, semi: 0, violations: 0, read: 0 };
+      if (!c) return Object.assign(empty, { reason: "当前环境没有可用的 WebGL2" });
+      const gl = c.gl;
+      const W = image.width | 0, H = image.height | 0;
+      if (!W || !H) return Object.assign(empty, { reason: "贴图尺寸为 0" });
+      let semi = 0, viol = 0, read = 0;
+      const tex = gl.createTexture();
+      try {
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, c.fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+          return Object.assign({ pma: null, semi, violations: viol, read }, { reason: "离屏帧缓冲不完整" });
+        }
+        const need = W * STRIP * 4;
+        if (c.bufLen < need) { c.buf = new Uint8Array(need); c.bufLen = need; }
+        const buf = c.buf;
+        for (let y = 0; y < H && semi < MAX_SEMI; y += STRIP) {
+          const h = Math.min(STRIP, H - y);
+          gl.readPixels(0, y, W, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+          read += W * h;
+          for (let i = 0, n = W * h; i < n; i++) {
+            const o = i * 4;
+            const a = buf[o + 3];
+            if (a === 0 || a === 255) continue;   // 全透明 / 全不透明都不受口径影响
+            semi++;
+            if (buf[o] > a || buf[o + 1] > a || buf[o + 2] > a) viol++;
+          }
+        }
+      } catch (e) {
+        return { pma: null, semi, violations: viol, read, reason: (e && e.message) ? e.message : String(e) };
+      } finally {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.deleteTexture(tex);   // 探针不留整页副本，免得白白占一份显存
+      }
+      if (semi < NEED_SEMI) {
+        return { pma: null, semi, violations: viol, read, reason: `半透明像素样本太少（只有 ${semi} 个）` };
+      }
+      return { pma: viol / semi <= TOLERANCE, semi, violations: viol, read };
+    }
+
+    return { probe };
+  })();
+
+  return { Renderer, View, Texture, mulColor, REGION_INDICES, makeTextureBitmap, pmaProbe };
 })();
 /* =========================================================================
  * 模块 6 · 调试叠加层：骨骼 / 网格线框 / 包围盒 / 顶点手柄 + 拾取 + 拖拽
@@ -10299,7 +10463,7 @@ SP.app = (() => {
   const DEFAULT_PREFS = {
     bones: true, mesh: true, bounds: false, weights: false, texture: true, names: false, axis: true,
     grid: true, clip: true, path: true, bg: "checker", tool: "translate", speed: 1, loop: true,
-    autoPlay: true, onlySkel: true, groupFolder: true, logDebug: false,
+    autoPlay: true, onlySkel: true, groupFolder: true, logDebug: false, pmaMode: "auto",
   };
 
   let logSeq = 0;
@@ -10883,6 +11047,7 @@ SP.app = (() => {
         for (const p of cur.atlas.pages) {
           if (p.image && p.image.close) { try { p.image.close(); } catch (e) { /* 忽略 */ } }
           p.image = null; p.texture = null;
+          p.blob = null; p.previewCanvas = null;
         }
       }
       state.current = null;
@@ -10897,6 +11062,116 @@ SP.app = (() => {
     renderBones();
     renderInspector();
     renderAnimationPanel();
+  }
+
+  /* ------------------------------------------------- 贴图的预乘 alpha 口径 */
+  /** 口径来源的中文说明，用于日志与提示文案 */
+  const PMA_SOURCE_TEXT = {
+    override: "手动指定（本页）",
+    forced: "手动强制（全局）",
+    atlas: "图集 pma 字段",
+    detect: "内容自动判定",
+    default: "默认（判不出来，按未预乘处理）",
+  };
+
+  /**
+   * 决定一页图集的预乘口径。优先级：
+   *   手动覆盖（本页） > 手动强制（全局） > 图集 pma: 声明 > 内容自动判定 > 默认（未预乘）
+   * 图集声明之所以排在自动判定之前：`pma:` 是导出器写下的明确事实，直接采信即可，
+   * 也省掉一次全页回读；而 Spine 3.6/3.8 的 .atlas 根本不写这个字段，
+   * 那批资源只能落到自动判定上。
+   * @returns {{pma:boolean, source:string}}
+   */
+  function resolvePagePma(page) {
+    if (page.pmaOverride === true || page.pmaOverride === false) {
+      return { pma: page.pmaOverride, source: "override" };
+    }
+    const g = state.prefs ? state.prefs.pmaMode : "auto";
+    if (g === "pma" || g === "forcePma") return { pma: true, source: "forced" };
+    if (g === "straight" || g === "forceStraight") return { pma: false, source: "forced" };
+    if (page.pmaDeclared !== null && page.pmaDeclared !== undefined) {
+      return { pma: !!page.pmaDeclared, source: "atlas" };
+    }
+    if (page.pmaDetected !== null && page.pmaDetected !== undefined) {
+      return { pma: !!page.pmaDetected, source: "detect" };
+    }
+    return { pma: false, source: "default" };
+  }
+
+  /**
+   * 按当前口径加载（或重新加载）一张图集页：判定 → 解码 → 上传纹理 → 写日志。
+   * 手动切换口径时会再次调用，所以 page.blob 必须留着。
+   * @returns {Promise<{width:number, height:number, pma:boolean, source:string}>}
+   */
+  async function loadPageTexture(page) {
+    if (!page.blob) throw new Error("贴图 blob 已释放，需要重新加载资源");
+    if (!state.renderer) throw new Error("渲染器未就绪");
+
+    // 1) 需要判定且还没判过：先按「原始字节」解一份出来采样本
+    let raw = null;
+    if (page.pmaOverride === null || page.pmaOverride === undefined) {
+      const g = state.prefs ? state.prefs.pmaMode : "auto";
+      const needProbe = (g === "auto" || !g) &&
+        (page.pmaDeclared === null || page.pmaDeclared === undefined) &&
+        (page.pmaDetected === null || page.pmaDetected === undefined);
+      if (needProbe) {
+        raw = await SP.gl.makeTextureBitmap(page.blob, true);   // 原样字节
+        const r = SP.gl.pmaProbe.probe(raw);
+        page.pmaDetected = r.pma;
+        page.pmaSample = r;
+        page.pmaReason = r.pma === null ? (r.reason || "无法判定") : "";
+        if (r.pma === null) {
+          log("warn", `贴图 ${page.name} 的预乘 alpha 无法自动判定（${page.pmaReason}），已按「未预乘」处理；` +
+            `若画面边缘发黑，请在左侧「显示与调试 → 预乘 α」里手动指定`);
+        }
+      }
+    }
+
+    const { pma, source } = resolvePagePma(page);
+
+    // 2) 归一化：纹理里最终一定是「预乘且只预乘一次」的数据。
+    //    已是 PMA 的图集原样上传；straight 图集交给浏览器预乘一次。
+    let bmp;
+    if (pma && raw) bmp = raw;                       // 判定时解出来的已经是原始字节，直接复用
+    else bmp = await SP.gl.makeTextureBitmap(page.blob, pma);
+    if (raw && bmp !== raw && raw.close) { try { raw.close(); } catch (e) { /* 忽略 */ } }
+
+    // 3) 换掉旧的位图 / 纹理 / 预览画布
+    if (page.texture) state.renderer.releaseTexture(page.texture);
+    if (page.image && page.image !== bmp && page.image.close) { try { page.image.close(); } catch (e) { /* 忽略 */ } }
+    page.previewCanvas = null;
+    page.image = bmp;
+    // 与旧实现保持一致：图集文本里声明的 size 优先（区域 UV 是按它归一化的），
+    // 只有在没写 size 时才退回图片自身的尺寸。
+    page.width = page.width || bmp.width;
+    page.height = page.height || bmp.height;
+    page.pmaEffective = pma;
+    page.pmaSource = source;
+    page.texture = state.renderer.createTexture(page, bmp, pma);
+
+    // 4) 日志：把「判成什么 + 凭什么」讲清楚，判错了用户才知道去改哪里
+    let extra = "";
+    if (source === "detect" && page.pmaSample) {
+      extra = `（采样 ${page.pmaSample.semi} 个半透明像素，越界 ${page.pmaSample.violations} 个）`;
+    }
+    log("info", `贴图 ${page.name}（${bmp.width}×${bmp.height}）：` +
+      `${pma ? "已预乘 alpha，原样上传" : "未预乘 alpha，上传时预乘一次"} · ${PMA_SOURCE_TEXT[source] || source}${extra}`);
+    return { width: bmp.width, height: bmp.height, pma, source };
+  }
+
+  /** 全局口径变了：把当前骨架的所有图集页重新上传一遍。 */
+  async function reloadPageTextures() {
+    const cur = state.current;
+    if (!cur || !cur.atlas) return;
+    let n = 0;
+    for (const page of cur.atlas.pages) {
+      if (!page.blob) continue;
+      try { await loadPageTexture(page); n++; }
+      catch (e) { log("warn", `贴图 ${page.name} 重新上传失败：${e.message}`); }
+    }
+    if (n) log("info", `已按新的预乘 alpha 口径重新上传 ${n} 张图集页`);
+    updatePmaHint();
+    renderInspector();
   }
 
   async function loadResource(res) {
@@ -10974,12 +11249,10 @@ SP.app = (() => {
             continue;
           }
           try {
-            const bmp = await createImageBitmap(blob, { premultiplyAlpha: "premultiply", colorSpaceConversion: "none" });
-            page.image = bmp;
-            page.width = page.width || bmp.width;
-            page.height = page.height || bmp.height;
-            page.texture = state.renderer.createTexture(page, bmp);
-            timing.pages.push({ name: page.name, ms: Math.round(performance.now() - p0), w: bmp.width, h: bmp.height, ok: true });
+            page.blob = blob;
+            const r = await loadPageTexture(page);
+            timing.pages.push({ name: page.name, ms: Math.round(performance.now() - p0), w: r.width, h: r.height, ok: true,
+                                pma: page.pmaEffective, pmaSource: page.pmaSource });
           } catch (e) {
             log("warn", `贴图 ${page.name} 解码失败：${e.message}`);
             timing.pages.push({ name: page.name, ms: Math.round(performance.now() - p0), ok: false, error: e.message });
@@ -11675,6 +11948,42 @@ SP.app = (() => {
     V.oy = sy - py * V.scale;
   }
 
+  /**
+   * 图集预览（Canvas2D）用的图像。
+   *
+   * Canvas2D 合成时一律把源当作 **直通 alpha（straight）**：喂给它的数据如果本身
+   * 已经预乘过，它会在画的时候再乘一次 α —— 预览里就会出现和 WebGL 修复前一模一样的
+   * 「黑边」。所以 PMA 页要先把数据反预乘回真实颜色 C，放到一张离屏 canvas 上再画。
+   *
+   * 顺带一提：getImageData 返回的是**反预乘**后的值，而 page.image 是
+   * premultiplyAlpha:"none" 的位图（文件原始字节 C·α）。先 drawImage 让它进画布
+   * （画布内部存 C·α²），再 getImageData 会把 α 除回去，拿到的正好是 C·α，
+   * 于是除以 α/255 就还原出 C。这张画布之后按「预乘源」被 drawImage，结果才正确。
+   */
+  function previewImageFor(page) {
+    if (!page || !page.image) return null;
+    if (!page.pmaEffective) return page.image;   // 未预乘的图集本来就是 straight，直接用
+    if (page.previewCanvas) return page.previewCanvas;
+    const w = page.image.width | 0, h = page.image.height | 0;
+    if (!w || !h) return page.image;
+    const cv = document.createElement("canvas");
+    cv.width = w; cv.height = h;
+    const g = cv.getContext("2d");
+    g.drawImage(page.image, 0, 0);
+    const d = g.getImageData(0, 0, w, h);
+    const p = d.data;
+    for (let i = 0; i < p.length; i += 4) {
+      const a = p[i + 3];
+      if (a === 0) { p[i] = 0; p[i + 1] = 0; p[i + 2] = 0; continue; }
+      if (a === 255) continue;
+      const k = 255 / a;                          // Uint8ClampedArray 赋值本身会取整 + 截断
+      p[i] = p[i] * k; p[i + 1] = p[i + 1] * k; p[i + 2] = p[i + 2] * k;
+    }
+    g.putImageData(d, 0, 0);
+    page.previewCanvas = cv;
+    return cv;
+  }
+
   /** 按当前视图把整页图集 + 当前部件 UV 线框重绘进预览画布。 */
   function paintInspectorAtlas() {
     const D = inspAtlasCtx;
@@ -11771,7 +12080,13 @@ SP.app = (() => {
 
     canvas.dataset.seqIndex = String(slot.sequenceIndex);   // 记录已绘制的序列帧索引，供渲染循环判断是否需要刷新
     const meta = $("inspAtlasMeta");
-    if (meta) meta.textContent = `${region.name} · ${rw}×${rh}px / 页 ${pageW}×${pageH} · ${Math.round(s * 100)}%`;
+    if (meta) {
+      // 顺手把这一页的预乘口径写出来，判错了用户才知道要去哪儿改
+      const pmaTxt = page.pmaEffective ? "已预乘" : "未预乘";
+      const srcTxt = (PMA_SOURCE_TEXT[page.pmaSource] || "").replace(/（.*?）/, "");
+      meta.textContent = `${region.name} · ${rw}×${rh}px / 页 ${pageW}×${pageH} · ${Math.round(s * 100)}%` +
+        ` · α ${pmaTxt}${srcTxt ? "(" + srcTxt + ")" : ""}`;
+    }
   }
 
   /** 装配图集预览：创建画布、恢复/适配视图、绑定滚轮缩放与拖拽平移。 */
@@ -11791,7 +12106,31 @@ SP.app = (() => {
       region = seq.regions[i] || region;
     }
     const page = region ? region.page : null;
-    const img = page ? page.image : null;
+    const img = page ? previewImageFor(page) : null;   // PMA 页会先反预乘，否则预览也会发黑
+
+    // 每页的预乘 alpha 口径开关：只覆盖这一页，改完立刻重新上传该页贴图
+    const selPma = $("inspAtlasPma");
+    if (selPma) {
+      selPma.disabled = !page;
+      selPma.value = !page ? "auto"
+        : page.pmaOverride === true ? "pma"
+        : page.pmaOverride === false ? "straight" : "auto";
+      selPma.onchange = async () => {
+        if (!page) return;
+        page.pmaOverride = selPma.value === "pma" ? true : selPma.value === "straight" ? false : null;
+        const wasDisabled = selPma.disabled;
+        selPma.disabled = true;
+        try {
+          await loadPageTexture(page);
+          paintInspectorAtlas();
+          renderInspector();
+        } catch (e) {
+          log("warn", `贴图 ${page.name} 重新上传失败：${e.message}`);
+          toast("err", `贴图 ${page.name} 重新上传失败：${e.message}`);
+          selPma.disabled = wasDisabled;
+        }
+      };
+    }
 
     const showEmpty = (msg) => {
       frame.classList.add("empty");
@@ -12619,7 +12958,7 @@ SP.app = (() => {
           <span class="hint">位置＝父级本地空间，缩放＝倍率(1)</span></div>
         <div class="hint" style="margin-top:4px;">用 Gizmo 变换该部件时，作用于其所属骨骼 <b>${esc(slot.data.boneData.name)}</b>（Spine 中部件随骨骼变换）。</div>
         <div class="sep" style="margin:8px 0 6px;"></div>
-        <div id="inspAtlasHead"><span>🗺️ 图集预览</span><span class="hint">滚轮缩放 · 拖拽平移 · 双击适配</span><span class="meta" id="inspAtlasMeta"></span></div>
+        <div id="inspAtlasHead"><span>🗺️ 图集预览</span><span class="hint">滚轮缩放 · 拖拽平移</span><span class="meta" id="inspAtlasMeta"></span><select id="inspAtlasPma" title="这张图集页的预乘 alpha 口径：自动跟随全局设置；也可以只给这一页指定「已预乘 / 未预乘」。只影响这一页，改完立刻重新上传该页贴图。"><option value="auto">自动</option><option value="pma">已预乘</option><option value="straight">未预乘</option></select></div>
         <div id="inspAtlasFrame"></div>`);
     }
     if (!parts.length) {
@@ -12862,6 +13201,7 @@ SP.app = (() => {
     renderPlayButtons();
     renderResourceList();
     renderTimeUI();
+    updatePmaHint();
   }
 
   /* --------------------------------------------------------- 渲染循环 */
@@ -13348,6 +13688,8 @@ SP.app = (() => {
     $("speedText").textContent = state.prefs.speed.toFixed(2) + "×";
     $("bgSel").value = state.prefs.bg;
     applyBackground(state.prefs.bg);
+    $("pmaSel").value = state.prefs.pmaMode || "auto";
+    updatePmaHint();
     for (const b of $("toolBar").querySelectorAll("button")) {
       b.addEventListener("click", () => setTool(b.dataset.tool));
     }
@@ -13381,6 +13723,26 @@ SP.app = (() => {
     if (state.readyResolve) state.readyResolve(true);
   }
 
+  /** 把「预乘 α」当前口径与当前骨架的判定结果写进提示行。 */
+  function updatePmaHint() {
+    const el = $("pmaHint");
+    if (!el) return;
+    const mode = state.prefs ? state.prefs.pmaMode : "auto";
+    if (mode === "pma") { el.textContent = "已强制按「图集已预乘」上传：文件里的预乘数据原样进纹理。"; return; }
+    if (mode === "straight") { el.textContent = "已强制按「图集未预乘」上传：上传时预乘一次（若图集本来就预乘过，羽化边缘会发黑）。"; return; }
+    const cur = state.current;
+    const pages = cur && cur.atlas ? cur.atlas.pages : [];
+    if (!pages.length) {
+      el.textContent = "自动判定：先看图集里的 pma 字段；老版本导出不带该字段时，采样半透明像素判断。";
+      return;
+    }
+    const bits = pages.map((p) => {
+      const how = (PMA_SOURCE_TEXT[p.pmaSource] || p.pmaSource || "未判定").replace(/（.*?）/g, "");
+      return `${p.name}：${p.pmaEffective ? "已预乘" : "未预乘"}（${how}）`;
+    });
+    el.textContent = "自动判定结果 —— " + bits.join("；");
+  }
+
   function applyParamToggles(params) {
     for (const key of ["bones", "mesh", "bounds", "weights", "texture", "names", "axis", "grid", "clip", "path"]) {
       const v = params.get(key);
@@ -13390,6 +13752,10 @@ SP.app = (() => {
     if (!isNaN(zoom) && zoom > 0) state.view.scale = zoom;
     const bg = params.get("bg");
     if (bg) { $("bgSel").value = bg; applyBackground(bg); }
+    const pma = params.get("pma");
+    if (pma === "auto" || pma === "pma" || pma === "straight") {
+      state.prefs.pmaMode = pma; $("pmaSel").value = pma; updatePmaHint(); savePrefs();
+    }
     // 兼容旧的 ?drag=none|bone|vertex 与新的 ?tool=translate|rotate|scale
     // （select / vertex 已并入默认行为，统一回落到 translate）
     const toolParam = params.get("tool") || params.get("drag");
@@ -13541,6 +13907,13 @@ SP.app = (() => {
     $("chkAutoPlay").addEventListener("change", () => { state.prefs.autoPlay = $("chkAutoPlay").checked; savePrefs(); });
     // 显示
     $("bgSel").addEventListener("change", () => applyBackground($("bgSel").value));
+    // 预乘 alpha：换口径要把当前骨架的贴图全部重新上传（纹理里的数据要重算）
+    $("pmaSel").addEventListener("change", () => {
+      state.prefs.pmaMode = $("pmaSel").value;
+      savePrefs();
+      updatePmaHint();
+      reloadPageTextures();
+    });
     $("btnResetPose").addEventListener("click", () => { state.pose.resetAll(); log("info", "已清空姿态调试"); renderBones(); renderInspector(); });
     $("btnResetDeform").addEventListener("click", () => { state.pose.clearDeform(); log("info", "已清空网格形变调试"); renderInspector(); });
     $("slotSearch").addEventListener("input", () => renderSlots());
@@ -13641,7 +14014,7 @@ SP.app = (() => {
 
   function demoAsset() {
     const atlas = [
-      "demo.png", "\tsize: 512,512", "\tfilter: Linear,Linear", "\tpma: true", "",
+      "demo.png", "\tsize: 512,512", "\tfilter: Linear,Linear", "\tpma: false", "",
       "box", "\txy: 0, 0", "\tsize: 128, 128", "\torig: 128, 128", "\toffset: 0, 0", "\tindex: -1", "",
       "ball", "\trotate: 90", "\txy: 200, 0", "\tsize: 96, 64", "\torig: 96, 64", "\toffset: 0, 0", "\tindex: -1", "",
       "strip", "\txy: 0, 200", "\tsize: 200, 64", "\torig: 200, 64", "\toffset: 0, 0", "\tindex: -1", "",
@@ -13736,9 +14109,9 @@ SP.app = (() => {
 
   async function loadDemo() {
     const demo = demoAsset();
-    const bmp = await createImageBitmap(demo.texture, { premultiplyAlpha: "premultiply" });
     const blobToCanvas = demo.texture;
     // 用 canvas 生成 png blob，走与真实资源一致的贴图加载路径
+    // （canvas / PNG 都是直通 alpha，所以上面的图集声明写 pma: false）
     const blob = await new Promise((res) => blobToCanvas.toBlob(res, "image/png"));
     return await loadEntries({
       "demo/demo.json": demo.json,
@@ -13818,6 +14191,36 @@ SP.app = (() => {
     setLoop: (b) => { state.prefs.loop = !!b; $("chkLoop").checked = !!b; savePrefs(); },
     setToggles: (obj) => { for (const k of Object.keys(obj || {})) if (k in DEFAULT_PREFS) setToggle(k, !!obj[k]); },
     toggles: () => Object.assign({}, state.prefs),
+    /** 每页图集的预乘 alpha 口径：判定结果 + 实际采用值，便于自动化断言 */
+    pmaInfo: () => {
+      const cur = state.current;
+      const pages = cur && cur.atlas ? cur.atlas.pages : [];
+      return {
+        mode: state.prefs ? state.prefs.pmaMode : "auto",
+        pages: pages.map((p) => ({
+          name: p.name, declared: p.pmaDeclared, detected: p.pmaDetected,
+          override: p.pmaOverride, effective: p.pmaEffective, source: p.pmaSource,
+          semi: p.pmaSample ? p.pmaSample.semi : null,
+          violations: p.pmaSample ? p.pmaSample.violations : null,
+          reason: p.pmaReason || "",
+        })),
+      };
+    },
+    /** 全局口径：auto | pma | straight（等价于左侧「显示与调试 → 预乘 α」） */
+    setPmaMode: (m) => {
+      state.prefs.pmaMode = m === "pma" || m === "straight" ? m : "auto";
+      $("pmaSel").value = state.prefs.pmaMode;
+      savePrefs(); updatePmaHint();
+      return reloadPageTextures().then(() => api.pmaInfo());
+    },
+    /** 单页口径覆盖：name + (true | false | null)，null = 回到自动 */
+    setPagePma: (name, v) => {
+      const cur = state.current;
+      const page = cur && cur.atlas ? cur.atlas.pages.find((p) => p.name === name) : null;
+      if (!page) return Promise.reject(new Error(`没有名为 ${name} 的图集页`));
+      page.pmaOverride = v === true ? true : v === false ? false : null;
+      return loadPageTexture(page).then(() => { updatePmaHint(); renderInspector(); return api.pmaInfo(); });
+    },
     setTool: (m) => { setTool(m); return state.pose.tool; },
     /** 兼容旧接口：none→select，bone→rotate */
     setDragMode: (m) => { setTool({ none: "translate", bone: "rotate" }[m] || m); return state.pose.tool; },
