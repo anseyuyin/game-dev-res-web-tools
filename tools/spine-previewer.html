@@ -4230,7 +4230,8 @@ SP.json = (() => {
     tl.slotIndex = slot.index;
     tl.attachment = attachment;
     tl.attachmentName = attName;   // JSON 里的附件名（附件自身的 name 可能与之不同）
-    let prevT = null;
+    const times = new Array(frames.length);
+    const curves = new Array(frames.length).fill(undefined);
     for (let i = 0; i < frames.length; i++) {
       const f = Array.isArray(frames[i])
         ? { time: frames[i][0], vertices: frames[i][1] }
@@ -4248,11 +4249,26 @@ SP.json = (() => {
       } else if (!weighted) {
         for (let k = 0; k < deformLength; k++) values[k] = setup[k] || 0;
       }
-      tl.setFrameValues(i, num(f.time, 0), values, 0);
-      // deform 的曲线在官方是「整段共用」（readCurve 只给一个 value 槽），所以用段级 setBezier；
-      // 归一化换算需要 v0/v1，这里用 deform 空间的 (0,1) 与官方 4.x readAnimation 的取值一致。
-      if (f.curve !== undefined && prevT !== null) applyCurve(tl, i, f.curve, 0, prevT, 0, num(f.time, 0), 1, norm);
-      prevT = num(f.time, 0);
+      times[i] = num(f.time, 0);
+      tl.setFrameValues(i, times[i], values, 0);
+      // 3.6/3.7/3.8 的曲线还可能写成同一帧上的平铺字段（"curve"/"c2"/"c3"/"c4"），
+      // 与 readFrame 的归一化规则一致：缺字段 c2=0、c3=1、c4=1。
+      let cv = f.curve;
+      if (typeof cv === "number") cv = [cv, num(f.c2, 0), num(f.c3, 1), num(f.c4, 1)];
+      curves[i] = cv;
+    }
+    // 曲线落段：与 readCurveTimeline 同一约定 —— **帧 i 的 curve 描述 i → i+1 这一段**
+    //（最后一个关键帧没有下一帧，官方不读它的 curve）。
+    //
+    // deform 的曲线在官方是「整段共用 + **百分比空间**」：DeformTimeline 覆写了 setBezier，
+    // 两个端点固定为 (t0, 0) / (t1, 1)，所以 y 手柄是「该段走了百分之几」而不是顶点数值。
+    // 官方 SkeletonJson 读 deform 曲线时也是按 0 / 1 传端点（readCurve(..., value1=0, value2=1)）。
+    //
+    // ⚠ 曾经写成「帧 i 的 curve 用 (上一帧时间 → 本帧时间) 换算、且首帧直接跳过」：
+    //   ① 首帧曲线整条丢失（该段退化成线性）；
+    //   ② 其余段的手柄时间按**上一段**的长度算（等距关键帧碰巧看不出来，非等距就全错）。
+    for (let i = 0; i + 1 < frames.length; i++) {
+      applyCurve(tl, i, curves[i], 0, times[i], 0, times[i + 1], 1, norm);
     }
     if (!Array.isArray(attachment.deformAttachments)) attachment.deformAttachments = [];
     attachment.deformAttachments.push(tl);
@@ -6406,7 +6422,11 @@ SP.binary = (() => {
               if (is38) {
                 const curve = readLegacyCurve(r);
                 const nextTime = r.float();       // 下一帧时间
-                applyLegacyCurve(tl, f, curve, time, [deform[0] || 0], nextTime, [deform[0] || 0]);
+                // deform 的曲线是**百分比空间**（DeformTimeline 的两端固定 0 / 1），
+                // 归一化控制点要按 (t0,0) → (t1,1) 换算。官方二进制读 deform 曲线时同样传
+                // value1=0 / value2=1。曾经把 deform[0]（真实顶点坐标）当成端点值传进去，
+                // 手柄 y 被换算成顶点数值 → 百分比爆表 → 整块网格抽风。
+                applyLegacyCurve(tl, f, curve, time, [0], nextTime, [1]);
                 time = nextTime;
               } else {
                 const nextTime = r.float();       // 下一帧时间
