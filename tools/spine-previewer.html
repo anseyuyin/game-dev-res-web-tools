@@ -1221,7 +1221,12 @@ SP.data = (() => {
   }
 
   class ClippingAttachment extends VertexAttachment {
-    constructor(name) { super(name); this.type = ATT.CLIPPING; this.endSlotName = null; this.endSlot = null; }
+    constructor(name) {
+      super(name); this.type = ATT.CLIPPING; this.endSlotName = null; this.endSlot = null;
+      // 4.3 新增：convex 表示多边形保证是凸的（inverse 只对凹多边形有意义），
+      // inverse 表示「裁掉多边形内部、保留外部」的反选裁剪
+      this.convex = false; this.inverse = false;
+    }
   }
 
   class PathAttachment extends VertexAttachment {
@@ -2235,14 +2240,24 @@ SP.atlas = (() => {
     let mode = "page";           // page | pageProps | regionProps
 
     // 预读：判断某个「无缩进行」后面紧跟的属性是否是分页级属性
-    //   - 紧跟空行 / 另一个名字行 / 分页专有键（filter/format/repeat/pma/scale）→ 分页名
+    //   - 紧跟分页专有键（filter/format/repeat/pma/scale）→ 分页名
     //   - 紧跟区域专有键（xy/bounds/rotate/index/offset(s)/orig/pad/split）→ 区域名
     //   （Spine 导出时页面属性以 size/format/filter 开头，因此 size 视为分页级）
     const REGION_ONLY_KEYS = new Set(["xy", "bounds", "rotate", "index", "offset", "offsets", "orig", "pad", "split"]);
     function classifyNameLine(idx) {
       for (let i = idx + 1; i < lines.length; i++) {
         const l = lines[i];
-        if (!l.trim()) return "page";
+        // 空行：文件末尾的换行（尾部空行）要看**再往后**还有没有属性行 ——
+        // 真实导出常以换行结尾，若在这里直接判成「分页名」，最后一个区域就会被当成
+        // 一个只含名字的新分页：图集里于是凭空多出一页、区域全丢，贴图配对报「缺少贴图：xxx」。
+        if (!l.trim()) {
+          let j = i + 1;
+          while (j < lines.length && !lines[j].trim()) j++;
+          if (j >= lines.length) return "page";     // 全是尾部空行：没有属性行可判，按分页处理
+          const c2 = lines[j].indexOf(":");
+          if (c2 < 0) return "page";                // 后面还有名字行 → 这确实是分页分隔
+          return REGION_ONLY_KEYS.has(lines[j].slice(0, c2).trim().toLowerCase()) ? "region" : "page";
+        }
         if (!/^\s/.test(l)) return "page";
         const c = l.indexOf(":");
         if (c < 0) continue;
@@ -3036,6 +3051,10 @@ SP.json = (() => {
       att.endSlotName = end || null;
       att.endSlot = end ? skeletonData.findSlot(end) : null;
       if (end && !att.endSlot) warn(`裁剪附件 "${name}" 的 end 插槽 "${end}" 不存在`);
+      // 4.3 的凸 / 反选标记。旧版本没有这两个字段：多边形按「可能凹」处理（绕数法一律正确），
+      // inverse 默认关（不反选）——与官方旧版本的语义一致。
+      att.convex = bool(getv(map, "convex", false));
+      att.inverse = bool(getv(map, "inverse", false));
       readVertices(map, att, getNum(map, "vertexCount", 0) * 2);
       if (hasOwn(map, "color") && !applyColor(att, map.color)) warn(`附件 "${name}" 的颜色无法解析`);
       return att;
@@ -8358,7 +8377,7 @@ void main () {
       this.gl = gl;
       this.view = new View();
       this.textures = new Set();
-      this.stats = { drawCalls: 0, vertices: 0, textureSwitches: 0, skipped: 0 };
+      this.stats = { drawCalls: 0, vertices: 0, textureSwitches: 0, skipped: 0, clip: 0 };
       this._initGL();
     }
     _initGL() {
@@ -8398,6 +8417,7 @@ void main () {
       gl.bindVertexArray(null);
       gl.disable(gl.DEPTH_TEST);
       gl.disable(gl.CULL_FACE);
+      gl.disable(gl.STENCIL_TEST);
       gl.enable(gl.BLEND);
       gl.blendEquation(gl.FUNC_ADD);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
@@ -8598,8 +8618,12 @@ void main () {
       const view = this.view;
       const depth = 1 - (opts.depth || 0) * 0.001;
       this.stats.drawCalls = 0; this.stats.vertices = 0; this.stats.textureSwitches = 0;
+      this.stats.clip = 0;
       let vcount = 0, icount = 0;
-      const clips = [];   // 裁剪栈 {x,y,w,h,endSlot}
+      // 裁剪栈：[{ endSlot, pts, count, inverse }]
+      //   pts/count 是裁剪多边形的**世界坐标**顶点（见 _clipWorldVertices），已规整为顺时针；
+      //   几何随世界变换逐帧重算，不做缓存。
+      const clipStack = [];
       const scratch = new Float32Array(8192);
 
       const flush = () => {
@@ -8613,6 +8637,8 @@ void main () {
         this.stats.drawCalls++;
         vcount = 0; icount = 0;
       };
+
+      // gl.clear 不受 colorMask 影响；掩码推进前必须先 flush，把已攒下的几何用旧掩码画掉
 
       // 当前批次的 GL 状态（u_tex / u_mode / u_color / blendFunc）。
       // bMode 初值 -1 保证第一个附件一定会把全部状态写一遍。
@@ -8640,33 +8666,72 @@ void main () {
         }
       };
 
+      // 裁剪段的结束槽：附件的 endSlot 是**数据层**的 SlotData（解析期 findSlot 得来），
+      // 而绘制顺序里是运行时的 Slot，所以统一换算成运行时 Slot 再比较。
+      // 数据里没写 end（或指向了不存在的插槽、甚至是别的骨架的同名插槽）时按名字在本骨架里找，
+      // 找不到就当作「持续到绘制顺序结束」—— 与官方 SkeletonClipping.clipEndWithSlot 的宽松语义一致。
+      const endSlotOf = (att) => {
+        const want = att.endSlot || null;
+        const name = att.endSlotName || (want ? want.name : null);
+        if (!name) return null;
+        for (let i = 0; i < drawOrder.length; i++) {
+          const s = drawOrder[i];
+          if (s === want || (s.data && s.data.name === name)) return s;
+        }
+        return null;
+      };
+      const pushClip = (att, slot) => {
+        const geom = this._clipWorldVertices(att, slot);
+        if (!geom || geom.count < 3) return;   // 退化多边形：忽略该段裁剪（官方同样不裁剪 3 顶点以下）
+        // 逐边相交要求多边形**顺时针**（屏幕坐标）——官方 SkeletonClipping.clipStart 也先 makeClockwise
+        ensureClipWinding(geom);
+        // 凹多边形先分解成一组三角形：凸多边形 ∩ 三角形恒为凸，逐块求交再取并集就等价于
+        // 「对整块凹多边形求交」（官方 SkeletonClipping 同样是 triangulate 之后逐块 clip）
+        const pieces = this._triangulate(geom.pts, geom.count);
+        if (pieces.length < 6) return;
+        // 反选要用包围盒（三角形先与它求交，再减去各凸块）
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (let i = 0; i < geom.count; i++) {
+          const x = geom.pts[i * 2], y = geom.pts[i * 2 + 1];
+          if (x < minX) minX = x; if (y < minY) minY = y;
+          if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+        }
+        clipStack.push({
+          endSlot: endSlotOf(att),
+          pieces,
+          box: [minX, minY, maxX, maxY],
+          // 4.3 的 inverse：保留多边形外部、裁掉内部（官方 CPU 裁剪的 clipInverse 分支同义）
+          inverse: !!att.inverse,
+        });
+        // stats.clip = 本帧**达到过**的最大裁剪层数
+        this.stats.clip = Math.max(this.stats.clip, clipStack.length);
+      };
+      const popClip = () => { clipStack.pop(); };
+
       gl.useProgram(this.prog);
       gl.bindVertexArray(this.vao);
       gl.uniform4fv(this.loc.view, view.viewUniform());
 
       const drawOrder = skeleton.drawOrder;
+      // 每个运行时插槽在绘制顺序里的位置：裁剪段**包含**它的结束槽
+      // （官方 SkeletonClipping.clipEndWithSlot 是在画完该插槽之后才结束裁剪），
+      // 因此要等绘制位置**越过**结束槽才退出该层。
+      const drawIndex = new Map();
+      for (let i = 0; i < drawOrder.length; i++) drawIndex.set(drawOrder[i], i);
+      const clipEnded = (top, pos, slot) => {
+        if (!top || !top.endSlot) return false;         // 没写 end：持续到绘制顺序结束
+        const ep = drawIndex.get(top.endSlot);
+        if (ep === undefined) return false;
+        return pos > ep;
+      };
       for (let si = 0; si < drawOrder.length; si++) {
         const slot = drawOrder[si];
-        // 裁剪段结束。scissor 也是「改了就要立刻生效」的状态，所以要先把上一批画掉。
-        while (clips.length && clips[clips.length - 1].endSlot === slot) {
-          clips.pop();
-          flush();
-          if (clips.length) this._applyScissor(clips[clips.length - 1]);
-          else gl.disable(gl.SCISSOR_TEST);
-        }
+        // 裁剪段结束：段内的插槽画完后就退出该层
+        while (clipStack.length && clipEnded(clipStack[clipStack.length - 1], si, slot)) popClip();
         const att = slot.attachment;
         if (!att || slot.data.visible === false) continue;
         if (att.type === D.ATT.CLIPPING) {
-          const rect = this._clipRect(att, slot);
-          if (rect) {
-            const prev = clips.length ? clips[clips.length - 1] : null;
-            const inter = prev ? this._intersect(prev, rect) : rect;
-            inter.endSlot = att.endSlot || null;
-            clips.push(inter);
-            flush();   // 同 setBatch：scissor 变了，先结算上一批
-            this._applyScissor(inter);
-            this.stats.clip = true;
-          }
+          pushClip(att, slot);
           continue;
         }
         if (att.type === D.ATT.POINT || att.type === D.ATT.BOUNDINGBOX || att.type === D.ATT.PATH) continue;
@@ -8727,6 +8792,13 @@ void main () {
           continue;
         }
         if (!verts || !uvs || !vertexCount) { this.stats.skipped++; continue; }
+        // 裁剪：把三角形对裁剪栈逐层求交（CPU 侧，与官方 SkeletonClipping 同路数）。
+        // 必须在 setBatch 之前做 —— 顶点/索引变了，批次状态与几何数量都随之改变。
+        if (clipStack.length) {
+          const cl = this.clipTriangles(verts, uvs, indices, vertexCount, clipStack);
+          if (!cl) { this.stats.skipped++; continue; }
+          verts = cl.verts; uvs = cl.uvs; indices = cl.indices; vertexCount = cl.vertexCount;
+        }
         if (vcount + vertexCount > MAX_VERTICES || icount + indices.length > MAX_INDICES) flush();
 
         const tex = region && region.page ? region.page.texture : null;
@@ -8758,43 +8830,198 @@ void main () {
         vcount += vertexCount; icount += indices.length;
         this.stats.vertices += vertexCount;
       }
+      // 没有 end 的裁剪段（或绘制顺序里找不到结束槽）在这里统一收尾
+      while (clipStack.length) popClip();
       flush();
       gl.bindVertexArray(null);
       gl.disable(gl.SCISSOR_TEST);
-      // 结束时的裁剪栈清理
-      clips.length = 0;
     }
-    _applyScissor(rect) {
-      const gl = this.gl, view = this.view, dpr = view.dpr;
-      const h = this.canvas.height;
-      const x = Math.max(0, Math.floor(rect.x * dpr));
-      const y = Math.max(0, Math.floor(h - (rect.y + rect.h) * dpr));
-      const w = Math.max(0, Math.floor(rect.w * dpr));
-      const hh = Math.max(0, Math.floor(rect.h * dpr));
-      gl.enable(gl.SCISSOR_TEST);
-      gl.scissor(x, y, w, hh);
-    }
-    _intersect(a, b) {
-      const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
-      const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
-      return { x, y, w: Math.max(0, x2 - x), h: Math.max(0, y2 - y) };
-    }
-    // 裁剪附件在屏幕空间的包围盒
-    _clipRect(att, slot) {
+    /* ---------------- 裁剪附件：CPU 侧多边形裁剪 ----------------
+     *
+     * 与官方 spine-webgl 的 SkeletonRenderer 同路数：把每个三角形对裁剪路径做
+     * Sutherland–Hodgman 相交，再对得到的凸多边形做扇形三角化，最后交给批次绘制。
+     * 这样不依赖 stencil 缓冲，凹多边形与嵌套裁剪都只是「逐个裁剪多边形依次求交」，
+     * 结果与官方 SkeletonClipping.clipTriangles 一致。
+     *
+     * 代价：被裁剪的附件顶点/UV 变了，不能再和邻居合批，会各自产生一次 draw call ——
+     * 官方渲染器在裁剪期间同样是这个代价。
+     *
+     * 反选（4.3 的 inverse）：**暂未实现**，见 _clipConvex 里的说明。
+     */
+    /** 裁剪多边形的**世界坐标**顶点（a_pos 走 u_view 变换，与主批次同口径） */
+    _clipWorldVertices(att, slot) {
       const n = att.worldVerticesLength / 2;
       if (!n) return null;
-      const wv = new Float32Array(att.worldVerticesLength);
-      R.computeAttachmentWorldVertices(att, slot, 0, att.worldVerticesLength, wv, 0, 2);
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (let i = 0; i < n; i++) {
-        const p = this.view.worldToScreen(wv[i * 2], wv[i * 2 + 1]);
-        if (p.x < minX) minX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y > maxY) maxY = p.y;
+      const pts = new Float32Array(n * 2);
+      R.computeAttachmentWorldVertices(att, slot, 0, att.worldVerticesLength, pts, 0, 2);
+      return { pts, count: n };
+    }
+    /**
+     * 把一个附件的三角形列表对裁剪栈逐层求交。
+     *
+     * @param {Float32Array} verts  顶点（交错 x,y）
+     * @param {ArrayLike} uvs       UV（交错 u,v，与顶点一一对应）
+     * @param {ArrayLike} indices   三角形索引
+     * @param {number} vertexCount  顶点数
+     * @param {Array<{pts:Float32Array,count:number,inverse:boolean}>} stack 裁剪栈（外 → 内）
+     * @returns {?{verts:Float32Array,uvs:Float32Array,indices:Uint16Array,vertexCount:number}}
+     *          返回 null 表示整块都被裁掉了
+     */
+    clipTriangles(verts, uvs, indices, vertexCount, stack) {
+      // 被裁剪后的几何用「凸区域列表」表示：初始 = 输入三角形，逐层与每层的凸小块求交。
+      //
+      // 关键点：各块交集的**并集不一定是星形**，所以最后必须**逐块**扇形化 ——
+      // 把所有块的顶点拼成一个多边形、再从 0 号顶点扇形化，会画出多边形之外的三角形
+      // （对加号形这类凹裁剪区会同时出现「多画」和「漏画」）。
+      const cap = (vertexCount + 4) * 8 + stack.length * 64;
+      let curV = new Float32Array(cap), curU = new Float32Array(cap);
+      let nxtV = new Float32Array(cap), nxtU = new Float32Array(cap);
+      const outV = [], outU = [], outI = [];
+      let base = 0;
+      for (let t = 0; t + 2 < indices.length; t += 3) {
+        for (let k = 0; k < 3; k++) {
+          const idx = indices[t + k];
+          curV[k * 2] = verts[idx * 2]; curV[k * 2 + 1] = verts[idx * 2 + 1];
+          curU[k * 2] = uvs[idx * 2]; curU[k * 2 + 1] = uvs[idx * 2 + 1];
+        }
+        let spans = [[0, 3]];                      // [区域起点, 顶点数]
+        for (let li = 0; li < stack.length && spans.length; li++) {
+          const layer = stack[li];
+          const pieces = layer.pieces;
+          let outN = 0;
+          const nextSpans = [];
+          for (const sp of spans) {
+            for (let pi = 0; pi + 5 < pieces.length; pi += 6) {
+              if (outN + sp[1] + 8 > cap) break;
+              const m = this._clipConvex(curV, curU, sp[0], sp[1], pieces, pi,
+                layer.inverse, nxtV, nxtU, outN, layer.box);
+              if (m < 3) continue;
+              nextSpans.push([outN, m]);
+              outN += m;
+            }
+          }
+          if (!nextSpans.length) { spans = []; break; }
+          const tv = curV; curV = nxtV; nxtV = tv;
+          const tu = curU; curU = nxtU; nxtU = tu;
+          spans = nextSpans;
+        }
+        if (!spans.length) continue;
+        // 逐块扇形化
+        for (const sp of spans) {
+          const st = sp[0], n = sp[1];
+          if (n < 3) continue;
+          if (base + n > 65535) break;
+          for (let z = 0; z < n * 2; z++) { outV.push(curV[st * 2 + z]); outU.push(curU[st * 2 + z]); }
+          for (let k = 1; k + 1 < n; k++) outI.push(base, base + k, base + k + 1);
+          base += n;
+        }
       }
-      if (!isFinite(minX)) return null;
-      return { x: minX, y: minY, w: Math.max(0, maxX - minX), h: Math.max(0, maxY - minY) };
+      if (base < 3 || !outI.length) return null;
+      return {
+        verts: Float32Array.from(outV), uvs: Float32Array.from(outU),
+        indices: Uint16Array.from(outI), vertexCount: base,
+      };
+    }
+    /**
+     * 一个凸区域（poly 里从 po 开始的 polyN 个顶点）对**一个三角形**裁剪区做
+     * Sutherland–Hodgman，结果写到 outV/outU 的 oo 处。
+     *
+     * 凸区域 ∩ 三角形恒为凸（不会分裂），所以凹裁剪区的做法是：把它分解成一组三角形
+     * （见 _triangulate），各自求交，再逐块扇形化拼起来 —— 与官方 SkeletonClipping 一致。
+     *
+     * @param {number} po 输入区域在 poly 里的起始顶点下标
+     * @param {number} oo 输出在 outV/outU 里的起始顶点下标
+     * @param {boolean} inverse 反选（注意：当前未支持，会直接返回 0）
+     * @param {number[]} [box] 该层包围盒（反选用）
+     * @returns {number} 输出顶点数
+     */
+    _clipConvex(poly, polyU, po, polyN, pieces, off, inverse, outV, outU, oo, box) {
+      // 反选（4.3 的 inverse）：本工具**未实现**。正确实现需要把「包围盒 − 多边形」的
+      // 环状区域分解成凸三角块，而凹多边形的环分解要带桥接的三角化；官方那条 clipInverse
+      // 分支也要求先把多边形凸化。这里直接返回 0（受该段影响的附件整块不画），检查器里
+      // 标注为未支持，避免静默画出错误的裁剪结果。
+      if (inverse) return 0;
+      const x0 = pieces[off], y0 = pieces[off + 1];
+      const x1 = pieces[off + 2], y1 = pieces[off + 3];
+      const x2 = pieces[off + 4], y2 = pieces[off + 5];
+      const area2 = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+      // area2 > 0（屏幕坐标下逆时针）时边的左侧是内侧 —— 与「边函数 > 0 = 内侧」一致
+      const sign = area2 > 0 ? 1 : -1;
+      const EX = [x0, y0, x1, y1, x2, y2];
+      const aV = new Float32Array((polyN + 8) * 2), aU = new Float32Array((polyN + 8) * 2);
+      const bV = new Float32Array((polyN + 8) * 2), bU = new Float32Array((polyN + 8) * 2);
+      let srcV = aV, srcU = aU, dstV = bV, dstU = bU, srcN = polyN;
+      for (let z = 0; z < polyN * 2; z++) { srcV[z] = poly[po * 2 + z]; srcU[z] = polyU[po * 2 + z]; }
+      for (let e = 0; e < 3; e++) {
+        const ax = EX[e * 2], ay = EX[e * 2 + 1];
+        const ex = EX[((e + 1) % 3) * 2] - ax, ey = EX[((e + 1) % 3) * 2 + 1] - ay;
+        let m = 0;
+        for (let i = 0, k = srcN - 1; i < srcN; k = i++) {
+          const px = srcV[k * 2], py = srcV[k * 2 + 1];
+          const qx = srcV[i * 2], qy = srcV[i * 2 + 1];
+          const sp = (ey * (ax - px) - ex * (ay - py)) * sign;
+          const sq = (ey * (ax - qx) - ex * (ay - qy)) * sign;
+          if (sp > 0) {
+            if (sq > 0) m = copyVert(dstV, dstU, m, srcV, srcU, i);
+            else m = interVert(dstV, dstU, m, px, py, qx, qy, sp, sq, srcU, k, i);
+          } else if (sq > 0) {
+            m = interVert(dstV, dstU, m, px, py, qx, qy, sp, sq, srcU, k, i);
+            m = copyVert(dstV, dstU, m, srcV, srcU, i);
+          }
+        }
+        if (!m) return 0;
+        const tv = srcV; srcV = dstV; dstV = tv;
+        const tu = srcU; srcU = dstU; dstU = tu;
+        srcN = m;
+      }
+      for (let z = 0; z < srcN * 2; z++) { outV[oo * 2 + z] = srcV[z]; outU[oo * 2 + z] = srcU[z]; }
+      return srcN;
+    }
+    _triangulate(pts, count) {
+      // 本方法会规整绕序，所以先用副本，避免改到调用方的数组
+      const p = new Float32Array(pts.subarray(0, count * 2));
+      ensureClipWinding({ pts: p, count });
+      const idx = [];
+      for (let i = 0; i < count; i++) idx.push(i);
+      const out = [];
+      const cross = (a, b, c) => {
+        const ax = p[a * 2], ay = p[a * 2 + 1];
+        const bx = p[b * 2], by = p[b * 2 + 1];
+        const cx = p[c * 2], cy = p[c * 2 + 1];
+        return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+      };
+      // 每轮挑一个**有效耳**（凸角且不包含其它顶点），并且优先选面积最大的那个 ——
+      // 多边形里常有共线顶点（退化耳），面积排序能跳过它们，避免三角化提前中止留下空洞。
+      let guard = count * count + 16;
+      while (idx.length > 3 && guard-- > 0) {
+        let best = -1, bestArea = 0;
+        for (let i = 0; i < idx.length; i++) {
+          const a = idx[(i + idx.length - 1) % idx.length];
+          const b = idx[i];
+          const c = idx[(i + 1) % idx.length];
+          const area = cross(a, b, c);
+          if (area >= 0) continue;               // 顺时针多边形里 <0 才是凸角
+          let bad = false;
+          for (const j of idx) {
+            if (j === a || j === b || j === c) continue;
+            if (pointInTri(p, j, a, b, c)) { bad = true; break; }
+          }
+          if (bad) continue;
+          if (-area > bestArea) { bestArea = -area; best = i; }
+        }
+        if (best < 0) break;                     // 退化 / 自交：放弃剩余部分
+        const a = idx[(best + idx.length - 1) % idx.length];
+        const b = idx[best];
+        const c = idx[(best + 1) % idx.length];
+        out.push(p[a * 2], p[a * 2 + 1], p[b * 2], p[b * 2 + 1], p[c * 2], p[c * 2 + 1]);
+        idx.splice(best, 1);
+      }
+      if (idx.length === 3) {
+        out.push(p[idx[0] * 2], p[idx[0] * 2 + 1],
+                 p[idx[1] * 2], p[idx[1] * 2 + 1],
+                 p[idx[2] * 2], p[idx[2] * 2 + 1]);
+      }
+      return Float32Array.from(out);
     }
     dispose() {
       const gl = this.gl;
@@ -8809,6 +9036,60 @@ void main () {
   }
 
   const REGION_INDICES = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+  /* ---------------- 多边形裁剪的小工具（SP.gl.Renderer.clipTriangles 用） ---------------- */
+
+  /** 把 src 的第 i 个顶点追加到 out 的第 m 位，返回 m+1 */
+  function copyVert(outV, outU, m, srcV, srcU, i) {
+    outV[m * 2] = srcV[i * 2]; outV[m * 2 + 1] = srcV[i * 2 + 1];
+    outU[m * 2] = srcU[i * 2]; outU[m * 2 + 1] = srcU[i * 2 + 1];
+    return m + 1;
+  }
+  /** 边 p→q 被裁剪边界切出的交点（UV 线性插值），追加到 out 的第 m 位，返回 m+1 */
+  function interVert(outV, outU, m, px, py, qx, qy, sp, sq, srcU, k, i) {
+    const t = sp / (sp - sq);
+    outV[m * 2] = px + (qx - px) * t;
+    outV[m * 2 + 1] = py + (qy - py) * t;
+    outU[m * 2] = srcU[k * 2] + (srcU[i * 2] - srcU[k * 2]) * t;
+    outU[m * 2 + 1] = srcU[k * 2 + 1] + (srcU[i * 2 + 1] - srcU[k * 2 + 1]) * t;
+    return m + 1;
+  }
+  /**
+   * 点 p 是否在三角形 (a,b,c) 内（允许边界，用在耳切法的可见性判断里）。
+   */
+  function pointInTri(pts, p, a, b, c) {
+    const ax = pts[a * 2], ay = pts[a * 2 + 1];
+    const bx = pts[b * 2], by = pts[b * 2 + 1];
+    const cx = pts[c * 2], cy = pts[c * 2 + 1];
+    const px = pts[p * 2], py = pts[p * 2 + 1];
+    const d1 = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+    const d2 = (cx - bx) * (py - by) - (cy - by) * (px - bx);
+    const d3 = (ax - cx) * (py - cy) - (ay - cy) * (px - cx);
+    const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+    const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+    return !(hasNeg && hasPos);
+  }
+  /**
+   * 把裁剪多边形规整成**顺时针**（屏幕坐标下的直觉绕序）。
+   *
+   * 逐边相交用「边函数 s = ey*(ax-px) - ex*(ay-py) > 0 表示顶点在边的内侧」——这个判据
+   * 要求多边形是顺时针的。世界坐标经 u_view（缩放为正）到 NDC 时 y 会翻转一次，
+   * 屏幕顺时针 ⇒ 世界坐标下有符号面积为正；这里直接按面积符号决定是否反转顶点顺序，
+   * 与镜像（负缩放）无关。官方 SkeletonClipping.clipStart 的 makeClockwise 同理。
+   */
+  function ensureClipWinding(geom) {
+    const pts = geom.pts, n = geom.count;
+    let area = 0;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      area += pts[j * 2] * pts[i * 2 + 1] - pts[i * 2] * pts[j * 2 + 1];
+    }
+    if (area <= 0) return;                       // 已经是顺时针（屏幕坐标）
+    for (let i = 0, j = n - 1; i < j; i++, j--) {
+      const x = pts[i * 2], y = pts[i * 2 + 1];
+      pts[i * 2] = pts[j * 2]; pts[i * 2 + 1] = pts[j * 2 + 1];
+      pts[j * 2] = x; pts[j * 2 + 1] = y;
+    }
+  }
 
   function mulColor(a, b) {
     if (!a) return b || { r: 1, g: 1, b: 1, a: 1 };
@@ -11929,7 +12210,52 @@ SP.app = (() => {
    * 视图变换（缩放 s、平移 o）让 1 个「图集像素」落在 s 个 CSS 像素上，
    * 于是 region.x / att.uvs * 页尺寸 都能直接落到画布上，线宽按 1/s 反算保持恒定粗细。
    */
-  let inspAtlasCtx = null;   // { canvas, frame, slot, att, page, img, pageW, pageH }
+  let inspAtlasCtx = null;     // { canvas, frame, slot, att, region, page, img, pageW, pageH, seqIndex }
+  // 上一次真正构建出来的内容（附件 / 图集区域 / 图集页 / 预览图 / 空状态提示）：
+  // 渲染循环每帧拿它和「此刻应该显示的内容」比对，附件被动画换掉时才知道要重建预览。
+  let inspAtlasShown = null;
+
+  /** 图集预览的视图状态（缩放 / 平移 / 是否待适配），同一张图集页内保持。 */
+  function atlasView() {
+    return state.inspAtlasView || (state.inspAtlasView = { key: "", scale: 1, ox: 0, oy: 0, needFit: true });
+  }
+
+  /**
+   * 该部件「此刻」实际引用的图集区域。
+   *
+   * 序列帧附件（region / mesh 的 sequence）会随播放推进逐帧换区域，取哪一帧由
+   * slot.sequenceIndex 决定（未播放时退化为 sequence.setupIndex），所以这里不能只读
+   * att.region，也不能在装配预览时解析一次就固定下来 —— 每帧都要重新解析。
+   * 渲染器 drawSkeleton 里同样会把 att.region / att.uvs 同步到当前帧，两者口径一致。
+   */
+  function resolveAttachmentRegion(att, slot) {
+    if (!att) return null;
+    let region = att.region || null;
+    const seq = (att.sequence && att.sequence.regions && att.sequence.regions.length) ? att.sequence : null;
+    if (seq) {
+      const i = M.clamp(slot && slot.sequenceIndex >= 0 ? slot.sequenceIndex : seq.setupIndex, 0, seq.regions.length - 1);
+      region = seq.regions[i] || region;
+    }
+    return region;
+  }
+
+  /**
+   * 附件 / 图集区域 / 图集页 / 预览图 / 空状态 —— 这些一变，图集预览就得整块重建
+   * （换的可能是另一张贴图、另一张图集页，甚至变成一个不引用图集的附件）。
+   * 只是序列帧换区域而页没变时不算「结构变化」，重绘线框即可，不必重建 DOM。
+   */
+  function atlasContentOf(slot) {
+    const cur = state.current;
+    const att = slot ? slot.attachment : null;
+    const region = resolveAttachmentRegion(att, slot);
+    const page = region ? region.page : null;
+    const img = page ? previewImageFor(page) : null;
+    let empty = "";
+    if (!cur || !att) empty = "当前部件未装配附件，无图集可显示。";
+    else if (!region || !page) empty = "该附件不引用图集区域（如骨骼点 / 裁剪 / 包围盒 / 路径），无图集可显示。";
+    else if (!img) empty = `图集页 ${page.name} 的图片尚未加载完成。`;
+    return { slot: slot || null, att: att || null, region: region || null, page: page || null, img: img || null, empty };
+  }
 
   /** 把整页图集居中、留边后适配进预览窗口。 */
   function atlasFitView(V, vw, vh, pageW, pageH) {
@@ -11990,16 +12316,16 @@ SP.app = (() => {
     if (!D || !D.canvas.isConnected) return;
     const { canvas, att, slot, page, img, pageW, pageH } = D;
 
+    // 播放推进时部件可能刚换了附件 / 图集页：D 若已过期，直接整块重建（重建完会再回到这里重绘）
+    if (slot && slot.attachment !== att) { drawInspectorAtlas(slot); return; }
     // 序列帧附件：区域随当前帧变化，每次重绘都重新解析
-    let region = att.region || null;
-    const seq = (att.sequence && att.sequence.regions && att.sequence.regions.length) ? att.sequence : null;
-    if (seq) {
-      const i = M.clamp(slot.sequenceIndex >= 0 ? slot.sequenceIndex : seq.setupIndex, 0, seq.regions.length - 1);
-      region = seq.regions[i] || region;
-    }
-    if (!region) return;
+    const region = resolveAttachmentRegion(att, slot);
+    if (!region) { drawInspectorAtlas(slot); return; }
+    if (region.page !== page) { drawInspectorAtlas(slot); return; }
+    D.region = region;                       // 记下本次画的是哪一帧的区域
+    D.seqIndex = slot ? slot.sequenceIndex : -1;
 
-    const V = state.inspAtlasView;
+    const V = atlasView();
     const vw = canvas.clientWidth || 1, vh = canvas.clientHeight || 1;
     // 首次显示该页 / 显示尺寸拿到有效值后，先按窗口自适应
     if (V.needFit && vw > 1 && vh > 1) { atlasFitView(V, vw, vh, pageW, pageH); V.needFit = false; }
@@ -12078,35 +12404,37 @@ SP.app = (() => {
       ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
     }
 
-    canvas.dataset.seqIndex = String(slot.sequenceIndex);   // 记录已绘制的序列帧索引，供渲染循环判断是否需要刷新
     const meta = $("inspAtlasMeta");
     if (meta) {
       // 顺手把这一页的预乘口径写出来，判错了用户才知道要去哪儿改
       const pmaTxt = page.pmaEffective ? "已预乘" : "未预乘";
       const srcTxt = (PMA_SOURCE_TEXT[page.pmaSource] || "").replace(/（.*?）/, "");
+      // 区域名随序列帧变化，所以文案里也带上它 —— 换帧时用户能看出预览跟着切了
       meta.textContent = `${region.name} · ${rw}×${rh}px / 页 ${pageW}×${pageH} · ${Math.round(s * 100)}%` +
         ` · α ${pmaTxt}${srcTxt ? "(" + srcTxt + ")" : ""}`;
     }
   }
 
-  /** 装配图集预览：创建画布、恢复/适配视图、绑定滚轮缩放与拖拽平移。 */
+  /**
+   * 装配图集预览：按当前部件（的附件 / 图集区域 / 图集页）建立画布与交互。
+   *
+   * 关键点：动画播放时部件会换附件 —— 可能是同一张图集页上的另一个 sprite / mesh，
+   * 也可能换到另一张图集页，甚至变成不引用图集的附件。所以这里每次都用
+   * atlasContentOf(slot) 重新取「此刻该显示的内容」，而不是沿用建面板时的旧附件。
+   *
+   * 画布元素**复用**：内容只是换了附件 / 换了页时，不重建 DOM（重建会打断用户正在
+   * 进行的滚轮缩放 / 拖拽平移），只更新 inspAtlasCtx 与标题后重绘；只有在 canvas 与
+   * 空状态提示之间切换时才动结构。
+   */
   function drawInspectorAtlas(slot) {
     const frame = $("inspAtlasFrame");
     if (!frame) return;
-    frame.innerHTML = "";
+    const prev = inspAtlasCtx;      // 上一份上下文（面板重建后其画布已脱离文档）
     inspAtlasCtx = null;
 
-    const cur = state.current;
-    const att = slot ? slot.attachment : null;
-    // 序列帧附件：取当前帧对应的图集区域
-    let region = att && att.region ? att.region : null;
-    const seq = (att && att.sequence && att.sequence.regions && att.sequence.regions.length) ? att.sequence : null;
-    if (seq) {
-      const i = M.clamp(slot.sequenceIndex >= 0 ? slot.sequenceIndex : seq.setupIndex, 0, seq.regions.length - 1);
-      region = seq.regions[i] || region;
-    }
-    const page = region ? region.page : null;
-    const img = page ? previewImageFor(page) : null;   // PMA 页会先反预乘，否则预览也会发黑
+    const content = atlasContentOf(slot);
+    inspAtlasShown = content;       // 记下本次构建的内容，供逐帧刷新比对
+    const { att, region, page, img, empty } = content;
 
     // 每页的预乘 alpha 口径开关：只覆盖这一页，改完立刻重新上传该页贴图
     const selPma = $("inspAtlasPma");
@@ -12121,8 +12449,9 @@ SP.app = (() => {
         const wasDisabled = selPma.disabled;
         selPma.disabled = true;
         try {
+          // 换口径会重新上传贴图（page.image / previewCanvas 都会换新），
+          // 所以直接整体重建面板，别拿旧位图去画（旧位图已被 close）。
           await loadPageTexture(page);
-          paintInspectorAtlas();
           renderInspector();
         } catch (e) {
           log("warn", `贴图 ${page.name} 重新上传失败：${e.message}`);
@@ -12132,40 +12461,62 @@ SP.app = (() => {
       };
     }
 
-    const showEmpty = (msg) => {
+    // ---- 空状态：没有可画的图集 ----
+    if (empty) {
+      const old = prev && prev.canvas;
+      if (old && old.parentNode === frame) old.parentNode.removeChild(old);
       frame.classList.add("empty");
+      frame.classList.remove("panning");   // 画布被拆掉时指针捕获也跟着没了，别把「抓取中」的光标留在预览框上
       const meta = $("inspAtlasMeta");
       if (meta) meta.textContent = "";
-      const div = document.createElement("div");
-      div.className = "inspAtlasEmpty";
-      div.textContent = msg;
-      frame.appendChild(div);
-    };
-    if (!cur || !att) { showEmpty("当前部件未装配附件，无图集可显示。"); return; }
-    if (!region || !page) { showEmpty("该附件不引用图集区域（如骨骼点 / 裁剪 / 包围盒 / 路径），无图集可显示。"); return; }
-    if (!img) { showEmpty(`图集页 ${page.name} 的图片尚未加载完成。`); return; }
+      let div = frame.querySelector(".inspAtlasEmpty");
+      if (!div) {
+        div = document.createElement("div");
+        div.className = "inspAtlasEmpty";
+        frame.appendChild(div);
+      }
+      if (div.textContent !== empty) div.textContent = empty;
+      return;
+    }
 
     frame.classList.remove("empty");
     const pageW = page.width || img.width || 1;
     const pageH = page.height || img.height || 1;
 
-    const canvas = document.createElement("canvas");
-    canvas.id = "inspAtlas";
+    let canvas = frame.querySelector("canvas#inspAtlas");
+    if (!canvas) {
+      // 从空状态切回来：清掉提示，新建画布并绑定交互
+      const div = frame.querySelector(".inspAtlasEmpty");
+      if (div) frame.removeChild(div);
+      canvas = document.createElement("canvas");
+      canvas.id = "inspAtlas";
+      frame.appendChild(canvas);
+      bindAtlasInteractions(canvas, frame);
+    }
     canvas.title = `图集页 ${page.name} · ${pageW}×${pageH}px —— 滚轮缩放 / 拖拽平移 / 双击适配`;
-    frame.appendChild(canvas);
-    inspAtlasCtx = { canvas, frame, slot, att, page, img, pageW, pageH };
+    inspAtlasCtx = { canvas, frame, slot, att, region, page, img, pageW, pageH, seqIndex: slot ? slot.sequenceIndex : -1 };
 
     // 视图状态：同一张图集页内保留缩放 / 平移；换页时标记需重新适配（尺寸有效后再算）
-    const V = state.inspAtlasView || (state.inspAtlasView = { key: "", scale: 1, ox: 0, oy: 0, needFit: true });
+    const V = atlasView();
     const key = `${page.name}|${Math.round(pageW)}×${Math.round(pageH)}`;
     V.needFit = key !== V.key;
     V.key = key;
 
+    paintInspectorAtlas();
+  }
+
+  /**
+   * 绑定图集预览的交互（滚轮缩放 / 拖拽平移 / 双击适配）。
+   *
+   * 画布会被不同附件、不同图集页复用，所以事件里一律从 inspAtlasCtx 现场取页面尺寸，
+   * 不捕获构建时的 pageW / pageH，否则换页后「双击适配」会按旧页面尺寸算。
+   */
+  function bindAtlasInteractions(canvas, frame) {
     // ---- 滚轮缩放（以光标为锚点）----
     canvas.addEventListener("wheel", (e) => {
       const r = canvas.getBoundingClientRect();
       const factor = Math.pow(1.12, -Math.sign(e.deltaY) * Math.min(3, Math.abs(e.deltaY) / 60 + 0.6));
-      atlasZoomAt(V, e.clientX - r.left, e.clientY - r.top, factor);
+      atlasZoomAt(atlasView(), e.clientX - r.left, e.clientY - r.top, factor);
       paintInspectorAtlas();
       e.preventDefault();
     }, { passive: false });
@@ -12173,7 +12524,10 @@ SP.app = (() => {
     // ---- 双击自适应整页 ----
     canvas.addEventListener("dblclick", (e) => {
       e.preventDefault();
-      atlasFitView(V, canvas.clientWidth || 1, canvas.clientHeight || 1, pageW, pageH);
+      const D = inspAtlasCtx;
+      if (!D) return;
+      const V = atlasView();
+      atlasFitView(V, canvas.clientWidth || 1, canvas.clientHeight || 1, D.pageW, D.pageH);
       V.needFit = false;
       paintInspectorAtlas();
     });
@@ -12186,6 +12540,7 @@ SP.app = (() => {
       frame.classList.add("panning");
       let lx = e.clientX, ly = e.clientY;
       const onMove = (ev) => {
+        const V = atlasView();
         V.ox += ev.clientX - lx; V.oy += ev.clientY - ly;
         lx = ev.clientX; ly = ev.clientY;
         paintInspectorAtlas();
@@ -12202,25 +12557,40 @@ SP.app = (() => {
       canvas.addEventListener("pointerup", onUp);
       canvas.addEventListener("pointercancel", onUp);
     });
-
-    paintInspectorAtlas();
   }
 
-  /** 序列帧换帧 / 预览框尺寸变化时按需重绘图集预览。 */
+  /**
+   * 逐帧（渲染循环每帧调用）核对图集预览是否还跟得上部件：
+   *
+   *   · 附件被动画换掉 / 换到另一张图集页 / 贴图刚加载好 / 空状态变了
+   *     → 内容整体变了，重建预览（见 drawInspectorAtlas）；
+   *   · 同一附件、同一张页，只是序列帧换了区域（att.region / att.uvs 变了）
+   *     → 只重绘线框，DOM 与缩放 / 平移都保持不动；
+   *   · 预览框尺寸变化（面板展开 / 窗口缩放）或视图待适配 → 重绘。
+   */
   function refreshInspectorAtlas() {
+    if (!$("inspAtlasFrame")) return;        // 当前不是「选中部件」的检查器，没有图集预览
+    const slot = state.pose.selectedSlot;
+    if (!slot) return;
+
+    const content = atlasContentOf(slot);
+    const shown = inspAtlasShown;
+    // 附件 / 区域 / 页 / 预览图 / 空状态任一变化 —— 整体重建（序列帧换区域但同页不算）
+    if (!shown || shown.slot !== content.slot || shown.att !== content.att || shown.page !== content.page
+      || shown.img !== content.img || shown.empty !== content.empty) {
+      drawInspectorAtlas(slot);
+      return;
+    }
+
     const D = inspAtlasCtx;
     if (!D || !D.canvas.isConnected) return;
-    const slot = state.pose.selectedSlot;
-    if (!slot || D.slot !== slot) return;
-    const att = slot.attachment;
-    const seq = att && att.sequence && att.sequence.regions && att.sequence.regions.length;
-    const seqChanged = !!seq && D.canvas.dataset.seqIndex !== String(slot.sequenceIndex);
+    const regionChanged = D.region !== content.region || D.seqIndex !== (slot.sequenceIndex | 0);
     const vw = D.canvas.clientWidth, vh = D.canvas.clientHeight;
     if (!vw || !vh) return;   // 预览框尚未布局（面板折叠），等拿到尺寸后再画
     const dpr = window.devicePixelRatio || 1;
     const sizeChanged = D.canvas.width !== Math.max(1, Math.round(vw * dpr))
       || D.canvas.height !== Math.max(1, Math.round(vh * dpr));
-    if (!seqChanged && !sizeChanged && !state.inspAtlasView.needFit) return;
+    if (!regionChanged && !sizeChanged && !atlasView().needFit) return;
     paintInspectorAtlas();
   }
 
@@ -12921,6 +13291,8 @@ SP.app = (() => {
           <span class="k rVerts" title="顶点数：网格附件的顶点数量；“带权重”表示蒙皮网格（顶点受多根骨骼影响）"${att && att.vertices ? "" : ' style="display:none"'}>顶点数</span><span class="v rVerts" id="inspVertsVal"${att && att.vertices ? "" : ' style="display:none"'}>${att && att.vertices ? `${att.worldVerticesLength / 2}${att.bones && att.bones.length ? " · 带权重" : ""}` : "-"}</span>
           <span class="k rSeq" title="序列帧：该附件的序列帧动画总帧数及当前显示帧的索引"${att && att.sequence ? "" : ' style="display:none"'}>序列帧</span><span class="v rSeq" id="inspSeqVal"${att && att.sequence ? "" : ' style="display:none"'}>${att && att.sequence ? `${att.sequence.regions.length} 帧，当前 ${slot.sequenceIndex}` : "-"}</span>
           <span class="k rClip" title="裁剪到：裁剪附件的结束部件，决定从本部件到该部件之间的裁剪生效范围"${att && att.type === "clipping" ? "" : ' style="display:none"'}>裁剪到</span><span class="v rClip" id="inspClipVal"${att && att.type === "clipping" ? "" : ' style="display:none"'}>${att && att.type === "clipping" ? esc(att.endSlot ? att.endSlot.name : "（末尾）") : "-"}</span>
+          <span class="k rClipInv" title="裁剪形状：凸 / 凹（4.3 的 convex）。本工具按任意简单多边形做 CPU 侧三角形裁剪，不依赖这个标记（凹多边形照样正确）"${att && att.type === "clipping" ? "" : ' style="display:none"'}>裁剪形状</span><span class="v rClipInv" id="inspClipShape"${att && att.type === "clipping" ? "" : ' style="display:none"'}>${att && att.type === "clipping" ? (att.convex ? "凸多边形" : "凹多边形") : "-"}</span>
+          <span class="k rClipInv" title="反选裁剪（4.3 的 inverse）：勾选时保留多边形外部、裁掉内部。⚠️ 本工具暂未实现该模式（会把受该段影响的部件整块裁掉），以免静默画出错误结果"${att && att.type === "clipping" ? "" : ' style="display:none"'}>反选裁剪</span><span class="v rClipInv" id="inspClipInverse"${att && att.type === "clipping" ? "" : ' style="display:none"'}>${att && att.inverse ? "是 ⚠️ 未支持" : "否"}</span>
           <span class="k rPath" title="路径：路径附件的形态（闭合/开放，以及是否匀速运动）"${att && att.type === "path" ? "" : ' style="display:none"'}>路径</span><span class="v rPath" id="inspPathVal"${att && att.type === "path" ? "" : ' style="display:none"'}>${att && att.type === "path" ? `${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}` : "-"}</span>
         </div>
         <div class="row" style="margin-top:6px;">
@@ -13078,13 +13450,14 @@ SP.app = (() => {
         attName: $("inspSlotAttName"), attType: $("inspSlotAttType"),
         blend: $("inspBlendVal"), color: $("inspColorVal"), dark: $("inspDarkVal"),
         region: $("inspRegionVal"), verts: $("inspVertsVal"), seq: $("inspSeqVal"),
-        clip: $("inspClipVal"), path: $("inspPathVal"),
+        clip: $("inspClipVal"), clipShape: $("inspClipShape"), clipInverse: $("inspClipInverse"),
+        path: $("inspPathVal"),
         visible: $("inspVisible"),
         blendReset: $("inspBlendReset"), colorReset: $("inspColorReset"), tReset: $("inspTReset"),
       },
       rows: {
         dark: rowsOf("rDark"), region: rowsOf("rRegion"), verts: rowsOf("rVerts"),
-        seq: rowsOf("rSeq"), clip: rowsOf("rClip"), path: rowsOf("rPath"),
+        seq: rowsOf("rSeq"), clip: rowsOf("rClip"), clipInv: rowsOf("rClipInv"), path: rowsOf("rPath"),
       },
     };
   }
@@ -13178,6 +13551,9 @@ SP.app = (() => {
       const clipping = !!(att && att.type === "clipping");
       setRow(ctx.rows.clip, clipping);
       setText(E.clip, clipping ? (att.endSlot ? att.endSlot.name : "（末尾）") : "-");
+      setRow(ctx.rows.clipInv, clipping);
+      setText(E.clipShape, clipping ? (att.convex ? "凸多边形" : "凹多边形") : "-");
+      setText(E.clipInverse, att && att.inverse ? "是 ⚠️ 未支持" : "否");
       const isPath = !!(att && att.type === "path");
       setRow(ctx.rows.path, isPath);
       setText(E.path, isPath ? `${att.closed ? "闭合" : "开放"}${att.constantSpeed ? " · 匀速" : ""}` : "-");
@@ -14624,6 +15000,38 @@ SP.app = (() => {
           rec.uvs = Array.from(att.uvs || []);
         }
         out.push(rec);
+      }
+      return out;
+    },
+    /**
+     * 当前骨架里所有生效的裁剪段（用于自动化断言与排查「为什么这块被裁掉了」）。
+     * @returns {Array<{slot:string,name:string,end:string,convex:boolean,inverse:boolean,
+     *                 world:number[],bbox:number[],endIndex:number}>}
+     */
+    clipInfo: () => {
+      const cur = state.current;
+      if (!cur) return [];
+      const sk = cur.skeleton;
+      const out = [];
+      for (const slot of sk.slots) {
+        const att = slot.attachment;
+        if (!att || att.type !== "clipping" || !att.worldVerticesLength) continue;
+        const n = att.worldVerticesLength / 2;
+        const world = new Float32Array(n * 2);
+        R.computeAttachmentWorldVertices(att, slot, 0, att.worldVerticesLength, world, 0, 2);
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (let i = 0; i < n; i++) {
+          const x = world[i * 2], y = world[i * 2 + 1];
+          if (x < minX) minX = x; if (y < minY) minY = y;
+          if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+        }
+        out.push({
+          slot: slot.data.name, name: att.name, end: att.endSlotName,
+          // 同渲染：end 指向的数据层插槽（没写 / 找不到就是 -1 = 裁剪持续到绘制顺序结束）
+          endIndex: att.endSlot ? att.endSlot.index : -1,
+          convex: !!att.convex, inverse: !!att.inverse,
+          world: Array.from(world), bbox: [minX, minY, maxX - minX, maxY - minY],
+        });
       }
       return out;
     },
