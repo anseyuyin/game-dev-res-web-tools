@@ -13,7 +13,7 @@
   --line:#2c333e; --line2:#39424f;
   --fg:#dbe2ec; --fg2:#8e99a8; --fg3:#5f6a79;
   --acc:#4da3ff; --acc-d:#2b6bc4; --ok:#57d18a; --warn:#ffb454; --err:#ff6b6b;
-  --tl-h:190px; --left-w:322px; --right-w:400px;
+  --tl-h:190px; --left-w:322px; --right-w:400px; --player-h:300px;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
@@ -72,17 +72,43 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* ============================================================
    主布局
    ============================================================ */
-#layout{display:flex;height:calc(100% - 46px);min-height:0}
+#layout{display:flex;height:calc(100% - 46px);min-height:0;overflow:hidden}
 #left{
-  width:var(--left-w);min-width:var(--left-w);background:var(--bg2);
-  border-right:1px solid var(--line);overflow-y:auto;overflow-x:hidden;
+  width:var(--left-w);flex:0 0 var(--left-w);min-width:0;background:var(--bg2);
+  overflow-y:auto;overflow-x:hidden;
 }
-#center{flex:1;min-width:0;display:flex;flex-direction:column;background:#0c0f13}
+#center{flex:1;min-width:320px;display:flex;flex-direction:column;background:#0c0f13}
 #right{
-  width:var(--right-w);min-width:var(--right-w);background:var(--bg2);
-  border-left:1px solid var(--line);display:flex;flex-direction:column;
+  width:var(--right-w);flex:0 0 var(--right-w);min-width:0;background:var(--bg2);
+  display:flex;flex-direction:column;
 }
 #right.collapsed{display:none}
+
+/* ---- 三栏分界线（可拖拽调整 左 / 中 / 右 宽度，双击恢复默认） ---- */
+.splitter{
+  flex:0 0 6px;width:6px;position:relative;cursor:col-resize;touch-action:none;
+  background:#11161d;z-index:6;
+}
+.splitter::before{
+  content:"";position:absolute;left:2.5px;top:0;bottom:0;width:1px;
+  background:var(--line2);transition:background .12s,box-shadow .12s;
+}
+.splitter::after{
+  content:"";position:absolute;left:2px;top:50%;margin-top:-11px;width:2px;height:22px;
+  border-radius:2px;background:#46515f;transition:background .12s;
+}
+.splitter:hover::before,.splitter.dragging::before{background:var(--acc);box-shadow:0 0 6px rgba(77,163,255,.85)}
+.splitter:hover::after,.splitter.dragging::after{background:var(--acc)}
+.splitter.dragging{background:#0d141c}
+body.col-resizing{cursor:col-resize}
+body.col-resizing #left,body.col-resizing #center,body.col-resizing #right{pointer-events:none}
+/* 横向分界线（图集区 ↔ 底部播放器，上下拖动调整高度） */
+.splitter.h{flex:0 0 6px;width:auto;height:6px;cursor:row-resize}
+.splitter.h::before{left:0;right:0;top:2.5px;bottom:auto;width:auto;height:1px}
+.splitter.h::after{left:50%;top:2px;width:22px;height:2px;margin:0 0 0 -11px;border-radius:2px}
+body.row-resizing{cursor:row-resize}
+body.row-resizing #atlasView,body.row-resizing .atlasMeta,
+body.row-resizing #pane-atlas>.paneBar,body.row-resizing #playerPane{pointer-events:none}
 
 /* ---- 左侧分组 ---- */
 details.group{border-bottom:1px solid var(--line)}
@@ -96,6 +122,7 @@ details.group[open]>summary::before{transform:rotate(90deg);color:var(--acc)}
 details.group>summary:hover{background:#20262f}
 .groupBody{padding:9px 12px 13px;display:flex;flex-direction:column;gap:8px}
 .row{display:flex;align-items:center;gap:8px}
+
 .row>label{flex:0 0 74px;color:var(--fg2);font-size:12px}
 .row>label.w{flex:0 0 92px}
 .row .grow{flex:1;min-width:0}
@@ -110,6 +137,28 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 .hint{color:var(--fg3);font-size:11.5px;line-height:1.5}
 .hint b{color:var(--fg2);font-weight:600}
 .val{color:var(--acc);font-variant-numeric:tabular-nums;font-size:12px;min-width:38px;text-align:right}
+
+/* ---- 悬浮说明角标：.tip[data-tip] 鼠标停留时弹出小窗（替代面板里的长段说明） ---- */
+.tip{
+  display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+  width:15px;height:15px;border-radius:50%;cursor:help;vertical-align:-2px;
+  border:1px solid var(--line2);background:#20262f;color:var(--fg2);
+  font-size:10px;font-weight:700;line-height:1;user-select:none;transition:.12s;
+}
+.tip::before{content:"i";font-family:Georgia,"Times New Roman",serif}
+.tip:hover,.tip.active{border-color:var(--acc);background:#1b2b3c;color:var(--acc);box-shadow:0 0 0 3px rgba(77,163,255,.12)}
+.tip.end{margin-left:auto}
+#tipBox{
+  position:fixed;left:0;top:0;z-index:300;display:none;max-width:340px;
+  padding:8px 11px;border-radius:8px;border:1px solid var(--line2);
+  background:#1c232c;color:var(--fg2);font-size:12px;line-height:1.75;
+  box-shadow:0 12px 30px rgba(0,0,0,.62);pointer-events:none;user-select:none;
+}
+#tipBox.show{display:block;animation:tipIn .12s ease-out}
+#tipBox b{color:var(--fg);font-weight:600}
+#tipBox code{background:#10151b;border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:11.5px;color:#9fc7f5}
+#tipBox kbd{background:#232a33;border:1px solid var(--line2);border-radius:4px;padding:0 4px;font-family:inherit;font-size:11.5px;color:var(--fg2)}
+@keyframes tipIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 .sep{height:1px;background:var(--line);margin:2px 0}
 .badge{display:inline-block;background:#25303d;border:1px solid var(--line2);border-radius:10px;padding:1px 8px;font-size:11.5px;color:var(--fg2)}
 
@@ -210,6 +259,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 .tabPane.active{display:flex}
 .paneScroll{overflow:auto;flex:1;min-height:0}
 .paneBar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px;border-bottom:1px solid var(--line);background:#171c23}
+.paneBar.bottom{border-bottom:0;border-top:1px solid var(--line);padding:6px 9px}
 
 /* 帧网格 */
 #frameGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:7px;padding:8px}
@@ -226,43 +276,51 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 .frameCell.scope .idx{background:rgba(77,163,255,.82);color:#04121f;font-weight:600}
 /* 帧列表范围提示条（跟随视频切片时显示） */
 .scopeBar{
-  display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:6px 9px;
+  display:flex;align-items:center;gap:7px;flex-wrap:nowrap;padding:6px 9px;
   background:#132030;border-bottom:1px solid #23405c;font-size:11.5px;color:var(--fg2);line-height:1.5;
+  white-space:nowrap;overflow:hidden;
 }
+.scopeBar>span:not(.spacer){min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
 .scopeBar b{color:var(--acc);font-weight:600}
 .scopeBar.off{background:#1c1a12;border-bottom-color:#4a3a1d}
 .scopeBar button{margin-left:auto}
+.scopeBar .scopeBtns{display:flex;align-items:center;gap:6px;margin-left:auto;flex:0 0 auto}
+.scopeBar .scopeBtns button{margin-left:0}
 
 /* 图集视图 */
-#atlasView{flex:1;min-height:0;overflow:auto;padding:10px;background:#0a0c0f;display:flex;align-items:flex-start;justify-content:center}
+#atlasView{flex:1;min-height:0;overflow:auto;padding:10px;background:#0a0c0f;display:flex;align-items:center;justify-content:center}
+#atlasView.zoomed{align-items:flex-start;justify-content:flex-start}   /* 放大后贴左上角，滚动范围才完整 */
+#atlasView.can-pan{cursor:grab}
+#atlasView.panning{cursor:grabbing}
+#atlasView.panning *{pointer-events:none}
 #atlasStage{position:relative;line-height:0}
 #atlasViewCanvas{display:block;box-shadow:0 0 0 1px #000}
 #atlasCanvas{display:none}
-.atlasMeta{padding:7px 9px;border-top:1px solid var(--line);font-size:12px;color:var(--fg2);display:flex;gap:12px;flex-wrap:wrap;background:#171c23}
+.atlasMeta{padding:6px 9px;border-top:1px solid var(--line);font-size:12px;color:var(--fg2);
+  display:flex;gap:10px;flex-wrap:nowrap;align-items:center;white-space:nowrap;overflow:hidden;background:#171c23}
+.atlasMeta .mItem{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.atlasMeta .mItem b{color:var(--fg);font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:210px}
+.atlasMeta .atlasMetaTip{margin-left:auto}
 
 /* 播放器 */
 #playerStage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#0a0c0f;padding:10px}
 #playerCanvas{max-width:100%;max-height:100%;background:#1c2027;box-shadow:0 0 0 1px #000;image-rendering:auto}
+/* 图集页底部的播放器（与上方图集区之间可拖拽分界） */
+#playerPane{
+  flex:0 0 var(--player-h);height:var(--player-h);min-height:0;
+  display:flex;flex-direction:column;background:#101419;overflow:hidden;
+}
+#playerPane .paneBar{padding:6px 8px;gap:5px}
+#playerPane #playerStage{padding:6px}
 
-/* 帧列表内的「序列帧图集」区块 */
-details.atlasSection{border-bottom:1px solid var(--line);background:#151a21;flex:0 0 auto}
-details.atlasSection>summary{
-  cursor:pointer;padding:7px 9px;font-size:12.5px;font-weight:600;list-style:none;
-  display:flex;align-items:center;gap:7px;background:#1a2029;
-}
-details.atlasSection>summary::-webkit-details-marker{display:none}
-details.atlasSection>summary::before{content:"▸";color:var(--fg3);transition:.15s;display:inline-block}
-details.atlasSection[open]>summary::before{transform:rotate(90deg);color:var(--acc)}
-details.atlasSection>summary:hover{background:#20262f}
-.atlasBody{padding:8px 9px;display:flex;flex-direction:column;gap:7px;border-top:1px solid var(--line);max-height:44vh;overflow:auto}
-.atlasOwnerList{display:flex;gap:5px;flex-wrap:wrap}
-.atlasChip{
-  background:#11151b;border:1px solid var(--line2);border-radius:20px;padding:2px 10px;font-size:11.5px;
-  color:var(--fg2);cursor:pointer;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-.atlasChip:hover{border-color:#4a5665;color:var(--fg)}
-.atlasChip.active{border-color:var(--acc);color:var(--acc);background:#12202e}
-.atlasChip .st{opacity:.75;margin-left:4px;font-size:10.5px}
+/* 帧列表内的图集参数条：列数 / 行 / 顺序 一行（间隔固定 1px） */
+.atlasParams{padding:8px 9px;border-bottom:1px solid var(--line);background:#151a21;flex:0 0 auto}
+.atlasParams .row{gap:6px;flex-wrap:nowrap}
+.atlasParams .row>label{flex:0 0 auto;color:var(--fg3);font-size:12px}
+.atlasParams .row>input[type=number]{flex:1 1 0;min-width:44px;max-width:84px}
+.atlasParams .row>select{flex:0 0 100px;min-width:0}
+.atlasParams input.over{border-color:var(--err);background:#2a1618}
+.atlasParams .capWarn{margin-top:6px;font-size:11.5px;line-height:1.5;color:var(--err)}
 
 /* ============================================================
    遮罩 / 弹窗 / 进度 / Toast
@@ -286,7 +344,7 @@ details.atlasSection>summary:hover{background:#20262f}
 .toast{
   background:#1c232c;border:1px solid var(--line2);border-left:3px solid var(--acc);
   padding:8px 13px;border-radius:6px;font-size:12.5px;max-width:380px;box-shadow:0 8px 22px rgba(0,0,0,.5);
-  animation:slideIn .18s ease;
+  animation:slideIn .18s ease;max-height:240px;overflow:auto;
 }
 .toast.ok{border-left-color:var(--ok)} .toast.warn{border-left-color:var(--warn)} .toast.err{border-left-color:var(--err)}
 @keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
@@ -297,8 +355,14 @@ details.atlasSection>summary:hover{background:#20262f}
 }
 .restoreBox b{color:var(--ok)}
 .restoreBox .btnRow{align-items:center}
-.helpList{margin:0;padding-left:18px;line-height:1.95}
+.helpList{margin:0;padding-left:18px;line-height:1.8;font-size:12.5px}
 .helpList b{color:var(--acc)}
+.helpList .tip{margin-left:3px}
+.helpFlow{
+  display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px;padding:8px 10px;
+  border:1px solid var(--line);border-radius:7px;background:#11151b;font-size:12px;color:var(--fg);
+}
+.helpFlow .arr{color:var(--fg3)}
 .kbdList{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px}
 .kbdList kbd{background:#232a33;border:1px solid var(--line2);border-radius:4px;padding:1px 6px;justify-self:start}
 .spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--acc);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:6px}
@@ -314,7 +378,6 @@ details.atlasSection>summary:hover{background:#20262f}
     <button class="btn" id="btnPickDir" title="绑定 / 切换项目目录（选择器直接定位到当前项目目录）">📁 项目目录</button>
     <span class="chip" id="projChip"><span class="dot"></span><span id="projChipText">未绑定</span></span>
     <button class="btn primary" id="btnImportVideo">① 导入视频</button>
-    <button class="btn ok" id="btnSaveProject" title="Ctrl+S">保存项目</button>
     <label class="hint" style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="checkbox" id="chkAutoSave" checked> 自动保存</label>
     <button class="btn ghost" id="btnHelp">使用说明</button>
   </div>
@@ -347,21 +410,26 @@ details.atlasSection>summary:hover{background:#20262f}
           <span class="hint" id="lblTime">0.000s</span>
         </div>
         <div class="row"><label>循环</label>
-          <input type="checkbox" id="chkLoop" checked><span class="hint">播放到末尾自动回到起点</span>
+          <input type="checkbox" id="chkLoop" checked><span class="tip" data-tip="勾选后播放到末尾自动回到首帧继续播放。"></span>
         </div>
-        <div class="hint">分辨率：<b id="lblRes">—</b>　估算总帧数 = 时长 × fps</div>
+        <div class="hint">分辨率：<b id="lblRes">—</b><span class="tip" data-tip="总帧数按 <b>时长 × fps</b> 估算；修改帧率会重算总帧数，已建切片的帧号不会自动换算。"></span></div>
       </div>
     </details>
 
     <!-- 裁剪框 -->
     <details class="group" data-group="crop" open>
-      <summary>裁剪框（像素裁剪）</summary>
+      <summary>裁剪框（像素裁剪）<span class="tip end" data-tip="在预览区拖拽裁剪框移动、拖 8 个把手缩放，也可在此输入精确 x / y / w / h。<br>导出时同一批次共用同一矩形，尺寸取整后保持一致。<br><b>复制 / 粘贴裁剪框</b>：把一个切片的裁剪框套用到另一个切片（复制内容记在浏览器本地，跨会话可用）。<br><b>裁剪框跟切片走</b>：每个切片各自保存一套裁剪框（随项目保存），切换切片会自动切到它的裁剪框；未选切片时使用「默认裁剪框」。"></span></summary>
       <div class="groupBody">
+        <div class="btnRow">
+          <button class="btn mini" id="btnCropCopy" title="复制当前裁剪框，可粘贴到其它切片">复制</button>
+          <button class="btn mini" id="btnCropPaste" title="把复制的裁剪框应用到当前切片">粘贴</button>
+        </div>
         <div class="row"><label>x</label><input type="number" id="inpCropX" class="grow" step="1" value="0">
           <label style="flex:0 0 22px;text-align:right">y</label><input type="number" id="inpCropY" class="grow" step="1" value="0"></div>
         <div class="row"><label>宽 w</label><input type="number" id="inpCropW" class="grow" step="1" value="0">
           <label style="flex:0 0 22px;text-align:right">高 h</label><input type="number" id="inpCropH" class="grow" step="1" value="0"></div>
-        <div class="row"><label>锁定比例</label>
+        <div class="row">
+          <label>锁定比例</label>
           <input type="checkbox" id="chkLockRatio">
           <select id="selRatio" class="grow">
             <option value="free">自由</option><option value="1:1">1:1</option>
@@ -373,15 +441,14 @@ details.atlasSection>summary:hover{background:#20262f}
         <div class="btnRow">
           <button class="btn mini" id="btnCropFull">整幅</button>
           <button class="btn mini" id="btnCropCenter">居中 512²</button>
-          <button class="btn mini" id="btnCropAutoFit">自动贴合主体</button>
+          <button class="btn mini" id="btnCropAutoFit" title="分析当前选中切片的帧区间（未选切片则分析全片），自动计算主体包围盒">自动贴合主体</button>
         </div>
-        <div class="hint">预览区可拖拽移动、拖 8 个把手缩放。导出时所有帧使用同一矩形，尺寸取整后保持一致。</div>
       </div>
     </details>
 
     <!-- 绿幕抠除 -->
     <details class="group" data-group="chroma" open>
-      <summary>绿幕抠除（键控）</summary>
+      <summary>绿幕抠除（键控）<span class="tip end" data-tip="算法：YCbCr 色度距离 + alpha 渐变 + 溢色抑制 + 可选透明度收缩（腐蚀）。<br>预览实时刷新，导出始终按原始像素精度抠除。"></span></summary>
       <div class="groupBody">
         <div class="row"><label>键色</label>
           <input type="color" id="inpKeyColor" value="#00ff00">
@@ -393,23 +460,17 @@ details.atlasSection>summary:hover{background:#20262f}
         <div class="row"><label>溢色抑制</label><input type="range" id="rngSpill" min="0" max="100" value="60"><span class="val" id="valSpill">60</span></div>
         <div class="row"><label>透明度收缩</label><input type="range" id="rngShrink" min="0" max="10" value="0"><span class="val" id="valShrink">0</span></div>
         <div class="row"><label>对比显示</label>
-          <input type="checkbox" id="chkPreviewKeyed" checked><span class="hint">右侧显示抠除结果</span></div>
+          <input type="checkbox" id="chkPreviewKeyed" checked><span class="tip" data-tip="勾选后中部右侧显示抠除结果预览（防抖 100ms）；关闭只影响预览，导出仍会抠除。"></span></div>
         <div class="btnRow"><button class="btn mini" id="btnChromaReset">恢复默认参数</button></div>
-        <div class="hint">算法：YCbCr 色度距离 + alpha 渐变 + 溢色抑制 + 可选透明度收缩（腐蚀）。</div>
       </div>
     </details>
 
     <!-- 视频切片（配置） -->
     <details class="group" data-group="clips" open>
-      <summary>视频切片（配置，不切割视频）</summary>
+      <summary>视频切片（配置，不切割视频）<span class="tip end" data-tip="切片只是<b>帧区间配置</b>：不生成 / 不改写任何视频文件，只记录起止帧并保存到项目目录（<code>project.json</code> + <code>clips.json</code>）。<br><b>点击切片条目</b>即可选中并定位到该区段（时间轨范围锁定为该切片），同时切到它的图集。"></span></summary>
       <div class="groupBody">
-        <div class="hint">切片只是<b>帧区间配置</b>：不会生成 / 改写任何视频文件，只记录起止帧并保存到项目目录（project.json + clips.json）。<br><b>点击切片条目</b>即可选中并定位到该区段（时间轨范围锁定为该切片）。</div>
-        <div class="btnRow">
-          <button class="btn mini primary" id="btnAddClip2">用当前范围新建切片</button>
-          <button class="btn mini" id="btnUpdateClip">用当前范围更新所选</button>
-        </div>
         <div id="clipList"></div>
-        <div class="hint" id="lblClipEmpty">暂无切片配置。在时间轨拖出区间后点「保存为切片配置」。</div>
+        <div class="hint" id="lblClipEmpty">暂无切片配置 · 用时间轨「保存为切片配置」新建</div>
         <div class="sep"></div>
         <div class="btnRow">
           <button class="btn mini" id="btnExportActiveClip">导出所选切片帧</button>
@@ -423,14 +484,12 @@ details.atlasSection>summary:hover{background:#20262f}
       <summary>导出帧 → 项目目录（序列帧 PNG）</summary>
       <div class="groupBody">
         <div class="hint">处理范围：<b id="lblRange">全片</b>　<span id="lblRangeFrames2"></span></div>
-        <div class="row"><label>输出子目录</label><input type="text" id="inpFrameOut" value="frames" title="相对项目目录的路径，可用占位符 {clip} 视频片段名 / {video} 源视频名 / {name} 项目名，例如 frames 或 frames/{clip}"></div>
-        <div class="hint">子目录占位符：<code>{clip}</code> 视频片段名（导出切片时=切片名）· <code>{video}</code> 源视频名 · <code>{name}</code> 项目名；例：<code>frames/{clip}</code> → <code>frames/attack</code></div>
-        <div class="row"><label>命名模板</label><input type="text" id="inpNaming" value="frame_{clip}_{index}.png" title="可用占位符：{clip} 视频片段名（切片名，无切片时=源视频名）· {video} 源视频名 · {index} 序列号 · {frame} 源帧号 · {time} 秒 · {name} 项目名"></div>
-        <div class="hint">占位符：<code>{clip}</code> 视频片段名（切片名，无切片时=源视频名）· <code>{video}</code> 源视频名 · <code>{index}</code> 序列号 · <code>{frame}</code> 源帧号 · <code>{time}</code> 秒 · <code>{name}</code> 项目名（序号不足 4 位自动补 0）</div>
+        <div class="row"><label>输出子目录</label><input type="text" id="inpFrameOut" value="frames" title="相对项目目录的路径，可用占位符 {clip} / {video} / {name}"><span class="tip" data-tip="相对项目目录的路径。占位符：<code>{clip}</code> 视频片段名（导出切片时=切片名）· <code>{video}</code> 源视频名 · <code>{name}</code> 项目名。<br>例：<code>frames/{clip}</code> → <code>frames/attack</code>"></span></div>
+        <div class="row"><label>命名模板</label><input type="text" id="inpNaming" value="frame_{clip}_{index}.png" title="可用占位符：{clip} / {video} / {index} / {frame} / {time} / {name}"><span class="tip" data-tip="占位符：<code>{clip}</code> 视频片段名（切片名，无切片时=源视频名）· <code>{video}</code> 源视频名 · <code>{index}</code> 序列号 · <code>{frame}</code> 源帧号 · <code>{time}</code> 秒 · <code>{name}</code> 项目名（序号不足 4 位自动补 0）。"></span></div>
         <div class="hint" id="lblNamingSample"></div>
         <div class="row"><label>缓存上限</label><input type="number" id="inpMaxCache" min="20" max="5000" step="10" value="240">
           <span class="hint">帧</span></div>
-        <div class="hint">PNG 直接写入：<b id="lblFrameOutPath">—</b>（原样保存，不重编码）。<b>导出只写盘，不改动右侧帧列表</b>；需要内存帧列表请点帧列表上的「刷新帧」。</div>
+        <div class="hint">PNG 直接写入：<b id="lblFrameOutPath">—</b><span class="tip" data-tip="PNG 原样保存，不重新编码。<b>导出只写盘，不改动右侧帧列表</b>；要把帧装进内存帧列表做图集拣选，请点帧列表上的「刷新帧」。"></span></div>
         <div class="btnRow">
           <button class="btn primary" id="btnExportFrames" title="按当前处理范围抽帧并写入项目目录；不动右侧帧列表（内存帧列表请用「刷新帧」）">导出帧到项目目录</button>
           <button class="btn" id="btnExportZip" title="按当前处理范围抽帧并打包 ZIP 下载；不动右侧帧列表">导出并打包 ZIP</button>
@@ -443,7 +502,7 @@ details.atlasSection>summary:hover{background:#20262f}
 
     <!-- 项目 -->
     <details class="group" data-group="project" open>
-      <summary>项目（绑定目录）</summary>
+      <summary>项目（绑定目录）<span class="tip end" data-tip="保存内容：<b>project.json</b>（参数 + 切片 + 资源索引 + 界面状态）、<b>clips.json</b>（切片与各切片图集配置），以及尚未落盘的资源（<code>video/</code> · <code>frames/</code> · <code>atlas/</code>）。"></span></summary>
       <div class="groupBody">
         <div class="row"><label>项目名</label><input type="text" id="inpProjectName" value="green_action"></div>
         <div class="row"><label>项目目录</label><span class="chip" id="projChip2"><span class="dot"></span><span id="projChipText2">未绑定</span></span></div>
@@ -457,7 +516,6 @@ details.atlasSection>summary:hover{background:#20262f}
         <div class="btnRow"><button class="btn mini" id="btnCopyVideo">复制源视频到项目目录</button></div>
         <div class="sep"></div>
         <div class="btnRow"><button class="btn primary wide" id="btnSaveProject2">保存项目（写入项目目录）</button></div>
-        <div class="hint">保存内容：<b>project.json</b>（参数 + 切片 + 资源索引）、<b>clips.json</b>（切片配置）、以及尚未落盘的资源（video/ · frames/ · atlas/）。</div>
         <div class="hint" id="lblIOState"></div>
         <div class="hint" id="lblResSummary"></div>
         <div class="hint" id="lblLastDir"></div>
@@ -481,6 +539,9 @@ details.atlasSection>summary:hover{background:#20262f}
     </details>
 
   </aside>
+
+  <!-- 分界线：左栏 ↔ 中栏 -->
+  <div class="splitter" id="splitLeft" data-side="left" title="拖动调整左栏宽度 · 双击恢复默认"></div>
 
   <!-- ===================== 中栏：预览 + 时间轨 ===================== -->
   <section id="center">
@@ -522,11 +583,11 @@ details.atlasSection>summary:hover{background:#20262f}
         <button class="btn mini" id="btnSetStart" title="[">设为起点</button>
         <button class="btn mini" id="btnSetEnd" title="]">设为终点</button>
         <button class="btn mini" id="btnClearSel">清除选区</button>
-        <button class="btn mini" id="btnClipSegment">固定处理区间（仅处理区间）</button>
+        <button class="btn mini" id="btnLoopMatch" title="在当前帧区间内逐帧比对像素相似度（抠像后），找出与首帧最接近的循环点，并把区间末帧调整到该帧">首位循环</button>
         <div class="divider"></div>
         <button class="btn mini primary" id="btnAddClip" title="把当前处理范围存成一条切片配置（不会切割视频文件）">💾 保存为切片配置</button>
         <div class="spacer"></div>
-        <span class="hint">时间轨：点击跳转 · 拖动播放头 · 拖拽选区边界 · 选区可「保存为切片配置」</span>
+        <span class="tip end" data-tip="时间轨：点击跳转 · 拖动播放头 · 拖拽选区左右边界调整范围 · 选区可「保存为切片配置」（<kbd>K</kbd>）。"></span>
       </div>
       <canvas id="timelineCanvas"></canvas>
       <div id="tlInfo">
@@ -539,109 +600,91 @@ details.atlasSection>summary:hover{background:#20262f}
     </div>
   </section>
 
+  <!-- 分界线：中栏 ↔ 右栏 -->
+  <div class="splitter" id="splitRight" data-side="right" title="拖动调整右栏宽度 · 双击恢复默认"></div>
+
   <!-- ===================== 右栏：帧列表 / 图集 / 播放器 ===================== -->
   <aside id="right">
     <div id="rightTabs">
       <div class="tab active" data-tab="frames">帧列表 / 抽帧</div>
-      <div class="tab" data-tab="atlas">图集</div>
-      <div class="tab" data-tab="player">播放器</div>
+      <div class="tab" data-tab="atlas">图集 / 播放</div>
     </div>
 
     <!-- 帧列表 -->
     <div class="tabPane active" id="pane-frames">
-      <!-- 序列帧图集（每个切片一张图集，点选切换） -->
-      <details class="atlasSection" data-group="atlasSection" open>
-        <summary>序列帧图集（按切片）<span class="badge" id="lblAtlasOwner">默认 · 全部帧</span></summary>
-        <div class="atlasBody">
-          <div class="atlasOwnerList" id="atlasOwnerList"></div>
-          <div class="hint">点选上方图集名即可切换（左侧切片列表点选也会同步切换）；每个切片有独立的图集配置与 <code>atlas/&lt;切片名&gt;.png</code>，随切片一起保存到项目。合成时取该切片帧区间内的帧图，<b>默认 · 全部帧</b> 则使用全部帧。<br>下方<b>帧列表</b>同样跟随当前切片：切到哪条切片，网格里就只显示该切片帧区间内的帧。</div>
-          <div class="row"><label>列数 cols</label><input type="number" id="inpCols" class="grow" min="1" max="64" value="6">
-            <label style="flex:0 0 26px;text-align:right">行</label><input type="number" id="inpRows" class="grow" min="1" max="64" value="4"></div>
-          <div class="row"><label>间隔 px</label><input type="number" id="inpGap" class="grow" min="0" max="64" value="1">
-            <label style="flex:0 0 46px;text-align:right">顺序</label>
-            <select id="selOrder" class="grow"><option value="column">列优先（上下→左右）</option><option value="row">行优先（左右→上下）</option></select>
-          </div>
-          <div class="row"><label>仅选中帧</label><input type="checkbox" id="chkAtlasSelectedOnly" checked>
-            <span class="hint">未选中则不参与合成</span></div>
-          <div class="hint">图集尺寸 = cols×w + (cols−1)×gap ／ rows×h + (rows−1)×gap，<b>不缩放</b>。</div>
-          <label class="row hint" style="cursor:pointer"><input type="checkbox" id="chkAtlasAutoWrite" checked> 合成后自动写入项目目录</label>
-          <div class="btnRow">
-            <button class="btn mini primary" id="btnAtlasBuild">合成图集</button>
-            <button class="btn mini" id="btnAtlasExport">写入项目目录</button>
-            <button class="btn mini ghost" id="btnAtlasDownload">下载 PNG</button>
-          </div>
-          <div class="hint" id="lblAtlasSize2">尚未合成</div>
+      <!-- 图集参数：列数 / 行 / 顺序（单元间隔固定 1px） -->
+      <div class="atlasParams">
+        <div class="row">
+          <label>列数</label><input type="number" id="inpCols" class="grow" min="1" max="64" value="6">
+          <label>行</label><input type="number" id="inpRows" class="grow" min="1" max="64" value="4">
+          <label>顺序</label>
+          <select id="selOrder" class="grow" title="列优先：先上→下，再左→右；行优先：先左→右，再上→下"><option value="column">列优先 ↓→</option><option value="row">行优先 →↓</option></select>
+          <span class="tip" data-tip="图集尺寸 = cols×w + (cols−1)×gap ／ rows×h + (rows−1)×gap（单元间隔固定 <b>1px</b>），帧图<b>不缩放</b>。<br>点选左栏切片即切到该切片的图集（再点一次回到「默认 · 全部帧」）。"></span>
         </div>
-      </details>
-      <div class="paneBar">
-        <button class="btn mini" id="btnSelectAll">全选</button>
-        <button class="btn mini" id="btnSelectNone">全不选</button>
-        <button class="btn mini" id="btnInvert">反选</button>
-        <button class="btn mini" id="btnKeepSelected">只保留选中</button>
-        <button class="btn mini" id="btnImportFrames">导入外部 PNG 序列</button>
-        <button class="btn mini" id="btnWriteFrames">写入项目目录</button>
-        <button class="btn mini danger" id="btnClearFrames">清空帧</button>
+        <div class="capWarn" id="atlasCapWarn" style="display:none"></div>
       </div>
       <div class="paneBar">
         <span class="hint">自动抽帧 保留总帧数 N</span>
         <input type="number" id="inpAutoN" value="24" min="2" step="1" style="width:70px">
         <button class="btn mini primary" id="btnAutoSelect">执行抽帧</button>
-        <span class="hint">首尾帧强制保留</span>
-      </div>
-      <div class="paneBar">
-        <span class="badge" id="lblFrameCount">已选 0 / 总 0</span>
-        <span class="badge" id="lblFrameScope">范围：全部帧</span>
-        <label class="hint" style="cursor:pointer" title="开启后帧列表只显示当前选中切片帧区间内的帧；切换切片时会跟着切换"><input type="checkbox" id="chkFrameFollowClip" checked> 帧列表跟随切片</label>
-        <span class="hint" id="lblCacheState"></span>
+        <span class="tip" data-tip="从当前显示范围（跟随切片时为该切片区间）等间隔保留 N 帧，<b>首帧与尾帧始终保留</b>。<br>N 与图集容量联动：<b>N = 列数 × 行数</b>，改列 / 行会自动同步。"></span>
       </div>
       <div class="scopeBar" id="frameScopeBar" style="display:none"></div>
       <div class="paneScroll"><div id="frameGrid"></div>
-        <div class="emptyTip" id="gridTip">还没有帧图<br><span class="hint">在上面「导出帧」分组里点击「导出帧到项目目录」，或导入外部 PNG 序列</span></div>
+        <div class="emptyTip" id="gridTip">还没有帧图<br><span class="hint">点范围条「刷新帧」：按切片区间抽帧到内存（给图集拣选）<br>左栏「导出帧到项目目录」只写盘 · PNG 序列可直接拖入</span></div>
+      </div>
+      <!-- 帧数 / 范围 / 跟随切片 / 缓存状态：常驻面板底部 -->
+      <div class="paneBar bottom">
+        <span class="badge" id="lblFrameCount">已选 0 / 总 0</span>
+        <span class="badge" id="lblFrameScope">范围：全部帧</span>
+        <span class="hint" id="lblCacheState"></span>
       </div>
     </div>
 
     <!-- 图集 -->
     <div class="tabPane" id="pane-atlas">
       <div class="paneBar">
-        <button class="btn mini primary" id="btnAtlasBuild2">合成 / 刷新</button>
-        <button class="btn mini" id="btnAtlasExport2">写入项目目录</button>
+        <button class="btn mini primary" id="btnAtlasExport2" title="把当前图集保存到项目目录 atlas/&lt;切片名&gt;.png">保存</button>
         <button class="btn mini" id="btnAtlasDownload2">下载 PNG</button>
-        <label class="hint"><input type="checkbox" id="chkShowGrid" checked> 网格线</label>
-        <label class="hint"><input type="checkbox" id="chkShowIndex" checked> 帧序号</label>
-        <span class="hint">缩放</span><input type="range" id="rngZoom" min="10" max="400" value="100" style="width:110px">
-        <span class="val" id="valZoom">100%</span>
-        <label class="hint"><input type="checkbox" id="chkCellFit"> 适应窗口</label>
+        <label class="hint" title="同时显示 / 隐藏单元格边框与帧序号"><input type="checkbox" id="chkShowGrid" checked> 网格 / 序号</label>
+        <span class="tip" data-tip="预览默认<b>自适应窗口</b>；<b>滚轮</b>以光标为中心缩放（0.02×–8×），按住左键<b>拖动平移</b>，<b>双击</b>恢复自适应。"></span>
+        <button class="btn mini" id="btnAtlasRefresh" style="margin-left:auto" title="按当前勾选的帧与列 / 行 / 顺序重新合成图集（通常切到本页已自动刷新，可手动强制重合成）">刷新</button>
       </div>
       <div id="atlasView"><div id="atlasStage" style="display:none"><canvas id="atlasViewCanvas"></canvas></div>
-        <div class="emptyTip" id="atlasTip">尚未合成图集<br><span class="hint">先在「帧列表 / 抽帧」里抽帧，再点该标签页上方的「合成图集」</span></div>
+        <div class="emptyTip" id="atlasTip">尚未合成图集<br><span class="hint">先在「帧列表 / 抽帧」里准备帧，切到本页会自动合成</span></div>
       </div>
       <div class="atlasMeta">
-        <span><span class="k">图集</span> <b id="lblAtlasName">—</b></span>
-        <span><span class="k">尺寸</span> <b id="lblAtlasSize">—</b></span>
-        <span><span class="k">单元</span> <b id="lblAtlasCell">—</b></span>
-        <span><span class="k">已排布</span> <b id="lblAtlasCount">—</b></span>
-        <span><span class="k">顺序</span> <b id="lblAtlasOrder">列优先</b></span>
+        <span class="mItem"><span class="k">图集</span> <b id="lblAtlasName">—</b></span>
+        <span class="mItem"><span class="k">尺寸</span> <b id="lblAtlasSize">—</b></span>
+        <span class="mItem"><b id="lblAtlasCount">—</b></span>
+        <span class="mItem"><span class="k">缩放</span> <b id="lblAtlasZoom">自适应</b></span>
+        <span id="lblAtlasCell" hidden></span><span id="lblAtlasOrder" hidden></span>
+        <span class="tip atlasMetaTip" id="tipAtlasMeta" data-tip="尚未合成图集"></span>
       </div>
       <canvas id="atlasCanvas"></canvas>
-    </div>
 
-    <!-- 播放器 -->
-    <div class="tabPane" id="pane-player">
-      <div class="paneBar">
-        <button class="btn mini primary" id="btnPlPlay">▶ 播放</button>
-        <button class="btn mini" id="btnPlPause">⏸ 暂停</button>
-        <button class="btn mini" id="btnPlStop">⏹ 停止</button>
-        <button class="btn mini" id="btnPlPrev">◀ 上一帧</button>
-        <button class="btn mini" id="btnPlNext">下一帧 ▶</button>
-        <label class="hint"><input type="checkbox" id="chkPlLoop" checked> 循环</label>
+      <!-- 分界线：图集区 ↔ 底部播放器（上下拖拽调整高度，双击复位） -->
+      <div class="splitter h" id="splitAtlasPlayer" title="拖动调整播放器高度 · 双击恢复默认"></div>
+
+      <!-- 底部播放器（常驻） -->
+      <div id="playerPane">
+        <div class="paneBar">
+          <button class="btn mini primary" id="btnPlPlay" style="min-width:74px">▶ 播放</button>
+          <button class="btn mini" id="btnPlStop" title="停止并回到第 1 帧">⏹ 停止</button>
+          <button class="btn mini" id="btnPlPrev" title="上一帧">◀|</button>
+          <button class="btn mini" id="btnPlNext" title="下一帧">|▶</button>
+          <label class="hint"><input type="checkbox" id="chkPlLoop" checked> 循环</label>
+          <span class="tip" data-tip="播放顺序遵循图集排布（左上→右下）与「行 / 列优先」设置，未选中的帧自动跳过。"></span>
+        </div>
+        <div class="paneBar">
+          <label class="hint" style="white-space:nowrap">播放速度</label>
+          <input type="range" id="rngPlSpeed" min="0.1" max="10" step="0.1" value="1" style="width:140px">
+          <span class="val" id="valPlSpeed">1.0×</span>
+          <span class="tip" data-tip="<b>1×</b> = 按源视频原速播放（抽帧后整段动画时长不变）；0.1× 慢放、10× 快放，播放中拖动即时生效。"></span>
+          <span class="badge" id="lblPlFrame">0 / 0</span>
+        </div>
+        <div id="playerStage"><canvas id="playerCanvas" width="320" height="240"></canvas></div>
       </div>
-      <div class="paneBar">
-        <span class="hint">总时长</span><input type="number" id="inpPlTotalMs" value="1000" min="30" step="10" style="width:80px"><span class="hint">ms</span>
-        <span class="hint">每帧</span><input type="number" id="inpPlPerFrame" value="42" min="1" step="1" style="width:70px"><span class="hint">ms</span>
-        <span class="badge" id="lblPlFrame">0 / 0</span>
-      </div>
-      <div id="playerStage"><canvas id="playerCanvas" width="320" height="240"></canvas></div>
-      <div class="atlasMeta"><span class="hint">播放顺序遵循图集排布（左上→右下）与「行/列优先」设置，未选中帧自动跳过。</span></div>
     </div>
   </aside>
 </div>
@@ -712,26 +755,28 @@ details.atlasSection>summary:hover{background:#20262f}
   <div class="card" style="max-width:720px">
     <h3>使用说明 · 绿幕动作视频 → 序列帧图集 编辑器</h3>
     <div class="body">
+      <div class="helpFlow">
+        <span class="step">① 绑定目录</span><span class="arr">→</span>
+        <span class="step">② 导入视频</span><span class="arr">→</span>
+        <span class="step">③ 框选区间</span><span class="arr">→</span>
+        <span class="step">④ 保存切片</span><span class="arr">→</span>
+        <span class="step">⑤ 导出帧</span><span class="arr">→</span>
+        <span class="step">⑥ 生成图集</span><span class="arr">→</span>
+        <span class="step">⑦ 播放检查</span>
+      </div>
       <ol class="helpList">
-        <li><b>绑定项目目录</b>：打开工具时先选择项目目录（空目录=新建，含 <code>project.json</code>=继续编辑）。之后所有编辑与资源都写入该目录；切换目录请点顶栏「📁 项目目录」，<b>系统选择器会直接定位到当前项目目录</b>，方便在原目录旁切换 / 新建。</li>
-        <li><b>导入视频</b>：点击「① 导入视频」或把视频拖进窗口。程序解析时长、分辨率，并按 fps 估算总帧数（可点「检测」自动估算 fps）。默认会把源视频复制到项目目录 <code>video/</code>，重新打开项目即可直接还原。</li>
-        <li><b>定位动作</b>：在下方时间轨点击跳转、拖动播放头预览；播放/暂停、逐帧、倍速均可。拖拽选区的左右边界（或点「设为起点/终点」）框出动作区间。</li>
-        <li><b>切片（配置，不切视频）</b>：点时间轨工具条的 <b>保存为切片配置</b>（快捷键 <kbd>K</kbd>）把当前区间记成一条切片，可改名、改起止帧、删除；<b>直接点击切片条目即选中并定位到该区段</b>（时间轨处理范围会锁定为该切片并跳到起始帧），同时<b>切换到该切片的图集</b>。切片配置与其图集配置写入 <code>project.json</code> 与 <code>clips.json</code>，<b>不会生成任何新视频文件</b>。</li>
-        <li><b>框选裁剪区域</b>：在中间预览画面里拖动矩形移动、拖 8 个把手缩放，或直接在左栏输入精确 x/y/w/h；可锁定宽高比。绿幕边缘多余区域请裁掉，导出更省内存。</li>
-        <li><b>调绿幕抠除</b>：设置键色（可用「吸管」从画面取色），拖动相似度/边缘柔化/溢色抑制/透明度收缩，右侧「抠除结果」会即时刷新（防抖 100ms）。</li>
-        <li><b>导出帧 → 项目目录</b>：设置<b>输出子目录</b>（默认 <code>frames</code>，支持占位符 <code>{clip}</code> 视频片段名 / <code>{video}</code> 源视频名 / <code>{name}</code> 项目名，例如 <code>frames/{clip}</code> → <code>frames/attack</code>）与<b>命名模板</b>（默认 <code>frame_{clip}_{index}.png</code>，占位符：<code>{clip}</code> 视频片段名＝切片名（导出全片无切片时为源视频名）· <code>{video}</code> 源视频名 · <code>{index}</code> 序列号 · <code>{frame}</code> 源帧号 · <code>{time}</code> 秒 · <code>{name}</code> 项目名，模板下方有实时示例），点「导出帧到项目目录」，程序逐帧抽帧→裁剪→抠像→把带 Alpha 的 PNG 直接写入项目目录；也可以「导出并打包 ZIP」下载。中途可取消。<b>导出只写盘，完全不动右侧「帧列表」的内存数据</b>（切片的「导出所选 / 全部切片帧」同样只写盘）；要把帧装进内存帧列表做图集拣选，请用帧列表上的<b>「刷新帧」</b>。</li>
-        <li><b>抽帧</b>：右侧「帧列表」中点击缩略图切换选中；或用 <b>自动抽帧</b> 指定保留 N 帧（首尾帧强制保留）。</li>
-        <li><b>刷新帧（按切片）</b>：帧列表上方的提示条里点「刷新帧」，即按<b>当前切片区间</b>（还没建切片时=当前处理范围）从视频<b>重新抽帧到内存帧列表</b>——不写项目目录、不打包，专门用来给图集拣选：抽完就能在网格里勾选帧、合成该切片图集；需要落盘时再点「写入项目目录」（会按 <code>frames/&lt;切片名&gt;/</code> + 命名模板写出 PNG）。刷新只替换该区间内的旧帧（<b>原帧的勾选状态会保留</b>），其他切片的帧不受影响，刷新后按源帧号重排，图集顺序即序列顺序。</li>
-        <li><b>帧列表跟随切片</b>：右侧帧列表（缩略图网格）与左侧「视频切片」<b>一一对应</b>——点选某条切片后，网格只显示<b>该切片帧区间内</b>的帧，网格上方会显示「帧列表已跟随切片 xxx · 帧 a–b · 本切片 N 帧 / 全集 M 帧」，并可一键「显示全部帧」。此时<b>全选 / 全不选 / 反选 / 执行抽帧 / 只保留选中</b>都只作用于当前显示范围（切片外的帧不受影响），避免误删其他切片的帧。不需要跟随可取消勾选「帧列表跟随切片」。</li>
-        <li><b>序列帧图集（每切片一张）</b>：图集配置在右侧「<b>帧列表 / 抽帧</b>」标签页顶部。每条视频切片都有<b>自己独立的一张图集</b>，以<b>切片名</b>命名（<code>atlas/&lt;切片名&gt;.png</code>）；点图集名即可切换，<b>点选左栏切片时也会同步切换到该切片的图集配置</b>。合成时取该切片帧区间内的帧图（「默认 · 全部帧」= 全部帧，再按「仅选中帧」过滤）。设置列数 / 行数 / 间隔 / 行列优先后点「合成图集」；勾选「合成后自动写入项目目录」会立即落盘。切换图集时会自动恢复已合成的画面（内存缓存 / 项目目录里的 PNG）。</li>
-        <li><b>播放器</b>：设置总时长或每帧时长（二者联动），播放/暂停/停止/步进，按图集坐标切割绘制，只播放选中帧。</li>
-        <li><b>界面状态随项目保存</b>：左栏各组（播放 / 裁剪框 / 绿幕抠除 / 视频切片 / 导出帧 / 项目 / 快捷键）与右侧「序列帧图集」的<b>展开 / 折叠状态</b>会记进 <code>project.json</code> 的 <code>ui.groups</code>，下次打开该项目时原样还原（自动保存也会写入）；新建 / 重置项目时回到界面默认（仅「快捷键」默认折叠）。</li>
-        <li><b>保存</b>：勾选「自动保存」后，参数、选区、切片等修改会防抖写入 <code>project.json</code>/<code>clips.json</code>；也可随时点「保存项目」或 <kbd>Ctrl+S</kbd> 立即保存（同时写出尚未落盘的视频、帧、图集资源）。</li>
-        <li><b>记住上次项目目录</b>：绑定目录后会把它记进浏览器本地缓存（目录句柄存 IndexedDB，名称/时间存 localStorage）。<b>下次打开工具会自动打开上次的项目</b>，无需再选目录；若该目录已被删除或移动，程序会自动清除缓存并回到目录选择界面。若浏览器要求重新授权，欢迎页会显示「打开上次项目」按钮，点一下即可。可在左栏「项目（绑定目录）」里点「清除「上次项目目录」缓存」取消记忆。</li>
+        <li><b>绑定项目目录</b>：顶栏「📁 项目目录」选空目录新建，或选已有项目继续；下次打开自动恢复上次项目。<span class="tip" data-tip="目录 = 项目：所有编辑、切片配置、序列帧与图集都写在该目录。切换目录时系统选择器直接定位到当前项目目录；目录被移动 / 删除会自动清除缓存并回到选择界面，浏览器要求重新授权时欢迎页点「打开上次项目」即可。"></span></li>
+        <li><b>导入视频</b>：「① 导入视频」或把视频拖进窗口，默认复制到 <code>video/</code>。<span class="tip" data-tip="自动解析时长与分辨率，按 fps 估算总帧数（可点「检测」自动估算帧率）；重新打开项目会自动还原源视频。"></span></li>
+        <li><b>框选动作区间</b>：在时间轨拖动选区左右边界框出动作（或 <kbd>[</kbd> / <kbd>]</kbd> 设为起止）。<span class="tip" data-tip="点击时间轨跳转、拖动播放头预览；空格播放 / 暂停，← / → 逐帧（Shift 加速 10 帧），Home / End 首尾帧，倍速在左栏「播放」里选。"></span></li>
+        <li><b>保存切片</b>：时间轨点「保存为切片配置」（<kbd>K</kbd>）——切片只是帧区间，不切视频。<span class="tip" data-tip="点击切片条目即选中并定位到该区段（时间轨锁定区间、帧列表只显示该区间），同时切到它的图集；再点一次回到「默认 · 全部帧」。切片与各切片图集配置写入 project.json / clips.json，不会生成新视频文件。<br>改区间：拖出时间轨选区后点该切片的「更新选区」（二次确认），或直接改条目里的起 / 止。"></span></li>
+        <li><b>裁剪 + 抠像</b>：中间预览拖裁剪框，左栏调键色 / 相似度。<span class="tip" data-tip="裁剪框可拖动移动、拖 8 个把手缩放，也可输入精确 x/y/w/h 并锁定比例；键色可用「吸管」取色，相似度 / 边缘柔化 / 溢色抑制 / 透明度收缩实时预览（100ms 防抖），导出始终按原始像素精度抠除。「自动贴合主体」只分析<b>当前选中切片</b>的帧区间（未选切片则分析全片）。<br><b>裁剪框跟切片走</b>：每个切片各自保存一套裁剪框（写入 clips.json / project.json），切换切片自动切换；未选切片时用「默认裁剪框」。"></span></li>
+        <li><b>导出序列帧</b>：左栏「导出帧」设子目录与命名模板 → 点「导出帧到项目目录」。<span class="tip" data-tip="占位符：{clip} 切片名 · {video} 源视频名 · {name} 项目名 · {index} 序号 · {frame} 源帧号 · {time} 秒（模板下方有实时示例）。逐帧抽帧 → 裁剪 → 抠像 → 写入带 Alpha 的 PNG（原样保存、不重编码）；也可「导出并打包 ZIP」。导出只写盘、不动帧列表，中途可取消。"></span></li>
+        <li><b>生成图集</b>：右侧「刷新帧」把帧抽到内存 → 「全选」勾选 → 切到「图集 / 播放」自动合成。<span class="tip" data-tip="每个切片一张图集（atlas/&lt;切片名&gt;.png），只合成已勾选的帧；列数 × 行 = 容量，自动抽帧的 N 会随列 / 行同步。切到图集页时数据没变就直接复用，不重复合成。"></span></li>
+        <li><b>播放检查</b>：图集页底部播放器：播放 / 暂停、逐帧、速度 0.1×–10×。<span class="tip" data-tip="1× = 按源视频原速（抽帧后整段动画时长不变）；不循环时播到末帧停住，再点播放从第 1 帧重来；图集区与播放器之间的分界线可上下拖动调高度，双击复位。"></span></li>
       </ol>
       <div class="hint">
-        目录结构：<code>project.json</code>（项目与参数 + 界面状态 ui.groups）、<code>clips.json</code>（切片配置 + 各切片的图集配置）、<code>video/</code>（源视频副本）、<code>frames/</code>（序列帧 PNG）、<code>atlas/</code>（图集 PNG，每个切片一张 <code>&lt;切片名&gt;.png</code>）。<br>
-        提示：本工具为纯前端单文件实现，处理大视频时请合理设置「缓存上限」；<b>若浏览器不支持 File System Access API</b>（例如 Firefox），项目目录会降级为内存目录（可导出 ZIP 留存），导出与项目保存会自动降级为 ZIP/逐文件下载。
+        记住一点：<b>i</b> 角标＝悬停看细节，保存用 <kbd>Ctrl+S</kbd>。
+        <span class="tip" data-tip="面板分界线可左右拖动调整三栏宽度、图集页内可上下拖动调整播放器高度（双击复位）；左栏各分组的展开状态随项目保存。<br>目录结构：project.json（参数 + 界面状态）、clips.json（切片与图集配置）、video/（源视频）、frames/（序列帧 PNG）、atlas/（图集 PNG）。<br>纯前端单文件实现，处理大视频时请调低「缓存上限」；浏览器不支持 File System Access API（如 Firefox）时，项目目录降级为内存目录，导出与保存自动改为 ZIP / 逐文件下载。"></span>
       </div>
     </div>
     <div class="foot"><button class="btn primary" id="btnHelpClose">开始使用</button></div>
@@ -739,10 +784,10 @@ details.atlasSection>summary:hover{background:#20262f}
 </div>
 
 <div id="toastWrap"></div>
+<div id="tipBox"></div>
 
-<!-- 隐藏的原生输入（降级方案 / 导入外部帧） -->
+<!-- 隐藏的原生输入（降级方案） -->
 <input type="file" id="fileVideo" accept="video/*" style="display:none">
-<input type="file" id="fileImages" accept="image/png,image/*" multiple style="display:none">
 <input type="file" id="fileDir" webkitdirectory directory multiple style="display:none">
 
 <script>
@@ -788,13 +833,14 @@ const state = {
   selection: { active: false, start: 0, end: 0 },
   lockedRange: null,        // 「裁剪出片段」后的固定处理区间
   crop: { x: 0, y: 0, w: 0, h: 0 },
+  cropDefault: null,        // 「无切片」时使用的裁剪框（切回默认图集时恢复）
   cropLock: false, cropRatio: 'free',
   chroma: { key: '#00ff00', keyR: 0, keyG: 255, keyB: 0, similarity: 30, smooth: 18, spill: 60, shrink: 0 },
   frames: [],               // {i, blob, url, thumbUrl, w, h, selected, bitmap, lastUse, file, rel}
   maxCache: 240,
-  atlas: { cols: 6, rows: 4, gap: 1, order: 'column', selectedOnly: true, zoom: 100, showGrid: true, showIndex: true, fit: false, autoWrite: true, rel: null, written: false, ownerId: null },
+  atlas: { cols: 6, rows: 4, gap: 1, order: 'column', selectedOnly: true, zoom: 100, showGrid: true, showIndex: true, fit: true, autoWrite: true, rel: null, written: false, ownerId: null },
   atlasDefault: null,       // 「无切片」时的默认图集配置（惰性创建）
-  play: { totalMs: 1000, perFrame: 42, loop: true },
+  play: { speed: 1, loop: true },   // 序列帧播放器：speed = 相对原速的倍速（0.1–10）
   project: { name: 'green_action', dirName: '', bound: false, kind: null, dirty: false, lastSavedAt: 0, autoSave: true, autoCopyVideo: true },
   clips: [],                // 切片配置：[{id,name,start,end,note,fps,...}]
   clipActive: null,         // 当前选中的切片 id
@@ -1046,7 +1092,7 @@ function syncMetaLabels() {
   const whole = r.start === 0 && r.end === state.totalFrames - 1;
   $('lblRange').textContent = whole ? '全片' : ('帧 ' + r.start + ' – ' + r.end);
   $('lblRangeFrames2').textContent = state.video.loaded ? ('共 ' + (r.end - r.start + 1) + ' 帧') : '';
-  $('lblTlSel').textContent = state.lockedRange ? ('已裁剪 ' + state.lockedRange.start + '–' + state.lockedRange.end)
+  $('lblTlSel').textContent = state.lockedRange ? ('已固定 ' + state.lockedRange.start + '–' + state.lockedRange.end)
     : (state.selection.active ? (state.selection.start + '–' + state.selection.end) : '全片');
   $('lblTlSelCount').textContent = state.video.loaded ? ((r.end - r.start + 1) + ' 帧') : '—';
   $('lblTlFrames').textContent = String(state.frames.length);
@@ -1447,7 +1493,58 @@ function setCrop(x, y, w, h, opts) {
   updateCropBoxDisplay();
   $('lblKeyedInfo').textContent = w + ' × ' + h;
   if (!opts || !opts.noKeyed) schedulePreview();
+  // 裁剪框跟切片走：有选中切片时实时写回该切片（随 clips.json / project.json 保存）
+  const c = clipById(state.clipActive);
+  if (c) c.crop = { x, y, w, h };
   markDirty();
+}
+/** 应用一个裁剪矩形（不回写切片；无视频时只更新状态与输入框） */
+function applyCropRect(r) {
+  if (!r || !(r.w > 0) || !(r.h > 0)) return;
+  const keep = state.clipActive;
+  state.clipActive = null;                 // 应用过程中避免把结果写回切片
+  if (state.video.loaded) {
+    setCrop(r.x, r.y, r.w, r.h, { noKeyed: true });
+    renderPreview(true);
+  } else {
+    state.crop = { x: r.x | 0, y: r.y | 0, w: r.w | 0, h: r.h | 0 };
+    syncCropInputs();
+  }
+  state.clipActive = keep;
+}
+/* ---- 裁剪框复制 / 粘贴（存 localStorage，可跨切片、跨会话使用） ---- */
+const LS_CROP_CLIP = 'gs_crop_clipboard';
+function readCropClipboard() {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_CROP_CLIP) || 'null');
+    if (o && isNum(o.w) && isNum(o.h) && o.w > 0 && o.h > 0) {
+      return { x: Math.round(nf(o.x, 0)), y: Math.round(nf(o.y, 0)), w: Math.round(o.w), h: Math.round(o.h) };
+    }
+  } catch (e) { }
+  return null;
+}
+function writeCropClipboard(r) {
+  try { localStorage.setItem(LS_CROP_CLIP, JSON.stringify(r)); } catch (e) { }
+}
+/** 粘贴按钮可用性 + 提示：标题里显示已复制的尺寸 */
+function updateCropClipUI() {
+  const b = $('btnCropPaste');
+  if (!b) return;
+  const r = readCropClipboard();
+  b.disabled = !r;
+  b.title = r ? ('粘贴已复制的裁剪框：' + r.w + ' × ' + r.h + '（x ' + r.x + ', y ' + r.y + '）')
+    : '还没有复制过裁剪框：先点「复制裁剪框」';
+}
+/** 离开「无切片」状态前，记住当前裁剪框作为默认裁剪框 */
+function rememberDefaultCrop() {
+  if (state.crop && state.crop.w > 0 && state.crop.h > 0) state.cropDefault = { x: state.crop.x, y: state.crop.y, w: state.crop.w, h: state.crop.h };
+}
+/** 按当前切片切换裁剪框：切片有自己的裁剪框；无切片时用「默认裁剪框」 */
+function applyCropForOwner() {
+  const c = clipById(state.clipActive);
+  if (!c) { if (state.cropDefault) applyCropRect(state.cropDefault); return; }
+  if (c.crop && c.crop.w > 0 && c.crop.h > 0) applyCropRect(c.crop);
+  else if (state.crop.w > 0 && state.crop.h > 0) c.crop = { x: state.crop.x, y: state.crop.y, w: state.crop.w, h: state.crop.h };   // 老切片 / 新切片：沿用当前裁剪框
 }
 function syncCropInputs() {
   const c = state.crop;
@@ -1500,19 +1597,49 @@ function bindCropBox() {
       return;
     }
     const hd = cropDrag.mode.slice(7);
+    const VW = state.video.vw, VH = state.video.vh;
     let x = o.x, y = o.y, w = o.w, h = o.h;
-    if (hd.includes('e')) w = o.w + dx;
-    if (hd.includes('s')) h = o.h + dy;
-    if (hd.includes('w')) { w = o.w - dx; x = o.x + dx; }
-    if (hd.includes('n')) { h = o.h - dy; y = o.y + dy; }
-    w = Math.max(8, w); h = Math.max(8, h);
     if (R) {
-      if (hd === 'se') { h = w / R; }
-      else if (hd === 'nw') { h = w / R; x = o.x + o.w - w; y = o.y + o.h - h; }
-      else if (hd === 'ne') { h = w / R; y = o.y + o.h - h; }
-      else if (hd === 'sw') { h = w / R; x = o.x + o.w - w; }
-      else if (hd === 'e' || hd === 'w') { h = w / R; y = o.y + (o.h - h) / 2; }
-      else if (hd === 'n' || hd === 's') { w = h * R; x = o.x + (o.w - w) / 2; }
+      // 等比缩放：拖动对边 / 对角保持不动，同时按画面边界收敛两侧尺寸，
+      // 避免某一维先被 setCrop 单独钳制导致比例失真、到边界后还能继续拖变形
+      if (hd === 'se') {
+        w = Math.min(Math.max(8, o.w + dx), VW - o.x, (VH - o.y) * R);
+        h = w / R; x = o.x; y = o.y;
+      } else if (hd === 'nw') {
+        const rx = o.x + o.w, by = o.y + o.h;
+        w = Math.min(Math.max(8, o.w - dx), rx, by * R);
+        h = w / R; x = rx - w; y = by - h;
+      } else if (hd === 'ne') {
+        const by = o.y + o.h;
+        w = Math.min(Math.max(8, o.w + dx), VW - o.x, by * R);
+        h = w / R; x = o.x; y = by - h;
+      } else if (hd === 'sw') {
+        const rx = o.x + o.w;
+        w = Math.min(Math.max(8, o.w - dx), rx, (VH - o.y) * R);
+        h = w / R; x = rx - w; y = o.y;
+      } else if (hd === 'e' || hd === 'w') {
+        const cy = o.y + o.h / 2;
+        const maxH = 2 * Math.min(cy, VH - cy);          // 上下居中，最多顶到画面上下边界
+        const maxW = hd === 'e' ? (VW - o.x) : (o.x + o.w);
+        w = Math.min(Math.max(8, hd === 'e' ? o.w + dx : o.w - dx), maxW, maxH * R);
+        h = w / R;
+        x = hd === 'e' ? o.x : (o.x + o.w) - w;
+        y = cy - h / 2;
+      } else {                                           // n / s：左右居中，锚点为下 / 上边
+        const cx = o.x + o.w / 2;
+        const maxW = 2 * Math.min(cx, VW - cx);
+        const maxH = hd === 's' ? (VH - o.y) : (o.y + o.h);
+        h = Math.min(Math.max(8, hd === 's' ? o.h + dy : o.h - dy), maxH, maxW / R);
+        w = h * R;
+        y = hd === 's' ? o.y : (o.y + o.h) - h;
+        x = cx - w / 2;
+      }
+    } else {
+      if (hd.includes('e')) w = o.w + dx;
+      if (hd.includes('s')) h = o.h + dy;
+      if (hd.includes('w')) { w = o.w - dx; x = o.x + dx; }
+      if (hd.includes('n')) { h = o.h - dy; y = o.y + dy; }
+      w = Math.max(8, w); h = Math.max(8, h);
     }
     setCrop(x, y, w, h, { noKeyed: true });
     schedulePreview();
@@ -1605,8 +1732,11 @@ function renderKeyed() {
 async function autoFitSubject() {
   if (!state.video.loaded) { toast('请先导入视频', 'warn'); return; }
   const wasFrame = state.frame;
-  const N = clamp(Math.round(state.totalFrames / 12), 4, 12);
-  beginProgress('自动贴合主体包围盒（采样 ' + N + ' 帧）');
+  const clip = clipById(state.clipActive);     // 有选中切片 → 只分析该切片的帧区间
+  const r0 = clip ? { start: clip.start, end: clip.end } : { start: 0, end: Math.max(0, state.totalFrames - 1) };
+  const span = Math.max(1, r0.end - r0.start + 1);
+  const N = Math.max(1, Math.min(span, clamp(Math.round(span / 12), 4, 12)));
+  beginProgress('自动贴合主体包围盒（' + (clip ? '切片「' + clip.name + '」' : '全片') + ' · 采样 ' + N + ' 帧）');
   const sc = Math.min(1, 480 / Math.max(state.video.vw, state.video.vh));
   const w = Math.max(1, Math.round(state.video.vw * sc)), h = Math.max(1, Math.round(state.video.vh * sc));
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1614,7 +1744,7 @@ async function autoFitSubject() {
   let minX = 1e9, minY = 1e9, maxX = -1, maxY = -1;
   for (let i = 0; i < N; i++) {
     if (jobCancelled()) break;
-    const f = Math.round(i * (state.totalFrames - 1) / (N - 1));
+    const f = N > 1 ? Math.round(r0.start + i * (span - 1) / (N - 1)) : r0.start;
     await V.seekFrame(f);
     cx.clearRect(0, 0, w, h);
     cx.drawImage(video, 0, 0, w, h);
@@ -1646,7 +1776,80 @@ async function autoFitSubject() {
   state.cropLock = false; $('chkLockRatio').checked = false;
   setCrop(x, y, ww, hh);
   renderPreview(true);
-  toast('已计算建议裁剪框：' + ww + ' × ' + hh + '（含 4px 边距）', 'ok', 3400);
+  toast('已计算建议裁剪框：' + ww + ' × ' + hh + '（含 4px 边距）· 分析 ' + N + ' 帧' +
+    (clip ? '，范围：切片「' + clip.name + '」帧 ' + r0.start + '–' + r0.end : '（全片）'), 'ok', 4200);
+}
+
+/** 首位循环：在区间内逐帧比对（抠像后的裁剪区域）像素相似度，找出与首帧最接近的循环点并调整末帧 */
+async function autoLoopMatch() {
+  if (!state.video.loaded) { toast('请先导入视频', 'warn'); return; }
+  const r = getRange();
+  const total = r.end - r.start + 1;
+  if (total < 6) { toast('帧区间太短（至少 6 帧）：先框选一段动作再试', 'warn', 3200); return; }
+  const last = Math.max(0, state.totalFrames - 1);
+  const minLen = 4;                                   // 最短循环长度
+  const from = Math.min(r.end, last - 1);             // 候选末帧（它的下一帧要与首帧衔接）
+  const to = Math.max(r.start + minLen - 1, from - 60);
+  const N = from - to + 1;
+  const W = 64, H = 64;
+  const crop = state.crop;
+  const hasCrop = crop.w > 0 && crop.h > 0;
+  const cx = hasCrop ? crop.x : 0, cy = hasCrop ? crop.y : 0;
+  const cw = hasCrop ? crop.w : state.video.vw, ch = hasCrop ? crop.h : state.video.vh;
+  const sc = Math.min(1, 480 / Math.max(cw, ch));
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  const sig = async (f) => {
+    await V.seekFrame(f);
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(video, cx, cy, cw, ch, 0, 0, W, H);
+    const img = ctx.getImageData(0, 0, W, H);
+    const p = chromaParams(sc); p.shrink = 0;         // 抠像后比：背景透明，只比主体
+    chromaProcess(img, p);
+    return img.data;
+  };
+  const wasFrame = state.frame;
+  beginProgress('首位循环匹配（逐帧比对 ' + N + ' 帧）');
+  try {
+    const base = await sig(r.start);
+    let best = { f: -1, sim: 0 };
+    for (let i = 0; i < N; i++) {
+      if (jobCancelled()) break;
+      const e = from - i;                             // 从区间末帧往前找：优先保留较长循环
+      const d = await sig(e + 1);                     // e 的下一帧应与首帧衔接
+      let sum = 0, cnt = 0;
+      for (let k = 0; k < d.length; k += 4) {
+        const a1 = base[k + 3], a2 = d[k + 3];
+        if (a1 <= 32 && a2 <= 32) continue;        // 双方都是透明背景：不参与比较
+        sum += Math.abs(d[k] - base[k]) + Math.abs(d[k + 1] - base[k + 1]) +
+          Math.abs(d[k + 2] - base[k + 2]) + Math.abs(a1 - a2);
+        cnt += 4;
+      }
+      const sim = cnt ? (1 - sum / (cnt * 255)) : 0;
+      setProgress(i + 1, N, '比对帧 ' + (e + 1) + ' ↔ ' + r.start, '相似度 ' + (sim * 100).toFixed(1) + '%');
+      if (sim > best.sim) best = { f: e, sim };
+      await yieldUI();
+      if (sim >= 0.995) break;                        // 几乎完全一致，直接采用
+    }
+    endProgress();
+    await V.seekFrame(wasFrame);
+    if (best.f < 0) { toast('未找到可用的循环点', 'warn'); return; }
+    if (best.sim < 0.95) {
+      toast('相似度偏低（最高 ' + (best.sim * 100).toFixed(1) + '%），未调整区间 · 可换一段更典型的动作再试', 'warn', 4200);
+      return;
+    }
+    const newEnd = best.f;
+    state.selection = { active: true, start: r.start, end: newEnd };
+    if (state.lockedRange) state.lockedRange.end = newEnd;
+    state.frame = clamp(state.frame, r.start, newEnd);
+    syncMetaLabels(); renderTimeline(); markDirty();
+    toast('已按相似度 ' + (best.sim * 100).toFixed(1) + '% 调整循环区间：帧 ' + r.start + '–' + newEnd +
+      '（' + (newEnd - r.start + 1) + ' 帧）', 'ok', 5200);
+  } catch (e) {
+    endProgress();
+    console.error(e);
+    toast('循环匹配失败：' + e.message, 'err', 4200);
+  }
 }
 
 /* ================================================================
@@ -1654,6 +1857,7 @@ async function autoFitSubject() {
  * ================================================================ */
 /** 帧列表变化后使已合成的图集失效（所有切片的图集都要重新合成） */
 function invalidateAtlas() {
+  atlasAutoKey = '';               // 数据变脏 → 允许下次进入图集页自动重合成
   state.atlasBuilt = false;
   state.atlas.written = false;
   state.atlas.rel = null;
@@ -1664,7 +1868,6 @@ function invalidateAtlas() {
   if ($('atlasStage')) {
     $('atlasStage').style.display = 'none';
     $('atlasTip').style.display = '';
-    $('lblAtlasSize2').textContent = '尚未合成';
     $('lblAtlasSize').textContent = '—';
     $('lblAtlasCell').textContent = '—';
     $('lblAtlasCount').textContent = '—';
@@ -1686,7 +1889,7 @@ function clearFrames(silent) {
 /* ---------------- 帧列表显示范围：跟随当前视频切片 ----------------
  * 帧列表（缩略图网格）与左侧「视频切片」对应：切到哪条切片，网格里就只显示
  * 该切片帧区间（c.start–c.end）内的帧；未选中切片（或关闭「跟随切片」）时显示全部帧。
- * 抽帧 / 全选 / 只保留选中 等针对帧列表的操作，作用范围也都是「当前显示的帧」。
+ * 抽帧 / 全选 等针对帧列表的操作，作用范围也都是「当前显示的帧」。
  */
 let frameScopeKey = null;               // 上次渲染网格用的范围键（避免重复重建 DOM）
 /** 当前帧列表跟随的切片（null = 不跟随 / 显示全部帧） */
@@ -1710,6 +1913,33 @@ function refreshFrameScope() {
   if (currentFrameScopeKey() === frameScopeKey) { renderFrameScopeBar(); return; }
   renderFrameGrid();
 }
+/** 当前显示范围内是否已全选（无帧视为未全选） */
+function scopeAllSelected() {
+  const list = frameScopeList();
+  return list.length > 0 && list.every((f) => f.selected);
+}
+/** 全选 / 全不选：同一个按钮的两种状态，作用于当前显示范围 */
+function makeSelectAllBtn() {
+  const all = scopeAllSelected();
+  const scope = frameScopeClip();
+  const where = scope ? ('切片「' + scope.name + '」区间内') : '当前范围';
+  const b = makeEl('button', 'btn mini', all ? '全不选' : '全选');   // 不加 primary：常驻按钮不做高亮
+  b.id = 'btnSelectToggle';
+  b.title = all ? ('取消' + where + '所有帧的勾选') : ('勾选' + where + '的全部帧');
+  b.onclick = () => {
+    const on = !scopeAllSelected();
+    frameScopeList().forEach((f) => (f.selected = on));
+    renderFrameGrid();
+    markDirty();
+  };
+  return b;
+}
+/** 把按钮收进一个组：折行时整组一起走，不会被拆散 */
+function makeScopeBtnGroup(btns) {
+  const g = makeEl('div', 'scopeBtns');
+  for (const b of btns) if (b) g.appendChild(b);
+  return g;
+}
 /** 范围提示条：说明当前帧列表显示的是哪个范围，并提供一键切换 */
 function renderFrameScopeBar() {
   const bar = $('frameScopeBar');
@@ -1720,13 +1950,23 @@ function renderFrameScopeBar() {
   if (!scope) {
     if (!c) {
       // 还没有切片：仍可按当前处理范围刷新帧（默认图集的帧图来源）
-      if (!state.video.loaded) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+      if (!state.video.loaded) {
+        if (!total) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+        bar.className = 'scopeBar off';
+        bar.style.display = '';
+        bar.innerHTML = '';
+        bar.appendChild(makeEl('span', null, '全部 ' + total + ' 帧'));
+        bar.appendChild(makeEl('span', 'spacer'));
+        bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn()]));
+        return;
+      }
       const r0 = getRange();
       bar.className = 'scopeBar off';
       bar.style.display = '';
       bar.innerHTML = '';
       bar.appendChild(makeEl('span', null, '还没有切片：可按当前处理范围 帧 ' + r0.start + '–' + r0.end + ' 刷新帧到内存列表，供「默认图集」拣选'));
-      bar.appendChild(makeRefreshFramesBtn(null));
+      bar.appendChild(makeEl('span', 'spacer'));
+      bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn(), makeRefreshFramesBtn(null)]));
       return;
     }
     bar.className = 'scopeBar off';
@@ -1734,33 +1974,29 @@ function renderFrameScopeBar() {
     const inRange = state.frames.filter((f) => f.i >= c.start && f.i <= c.end).length;
     bar.innerHTML = '';
     bar.appendChild(makeEl('span', null, '未跟随切片：当前显示全部 ' + total + ' 帧；选中切片「' + c.name + '」帧 ' + c.start + '–' + c.end + '（' + inRange + ' 帧）'));
+    bar.appendChild(makeEl('span', 'spacer'));
     const b = makeEl('button', 'btn mini', '只看「' + c.name + '」');
     b.onclick = () => setFrameFollowClip(true);
-    bar.appendChild(b);
-    bar.appendChild(makeRefreshFramesBtn(c));
+    bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn(), b, makeRefreshFramesBtn(c)]));
     return;
   }
-  const n = state.frames.filter((f) => f.i >= scope.start && f.i <= scope.end).length;
   bar.className = 'scopeBar';
   bar.style.display = '';
   bar.innerHTML = '';
   const sp = makeEl('span');
   sp.appendChild(document.createTextNode('帧列表已跟随切片 '));
   sp.appendChild(makeEl('b', null, scope.name));
-  sp.appendChild(document.createTextNode(' · 帧 ' + scope.start + '–' + scope.end + ' · 本切片 ' + n + ' 帧 '));
-  sp.appendChild(makeEl('span', 'hint', '/ 全集 ' + total + ' 帧'));
+  sp.appendChild(document.createTextNode(' · 帧 ' + scope.start + '–' + scope.end));   // 帧数统计在上方计数条里，这里只留范围
   bar.appendChild(sp);
+  bar.appendChild(makeEl('span', 'spacer'));
   const b = makeEl('button', 'btn mini ghost', '显示全部帧');
   b.title = '临时查看全部帧（不改变当前切片与图集归属）';
   b.onclick = () => setFrameFollowClip(false);
-  bar.appendChild(b);
-  bar.appendChild(makeRefreshFramesBtn(scope));   // 刷新帧：按该切片区间抽帧到内存，供图集拣选
+  bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn(), b, makeRefreshFramesBtn(scope)]));   // 刷新帧：按该切片区间抽帧到内存，供图集拣选
 }
 /** 开 / 关「帧列表跟随切片」 */
 function setFrameFollowClip(on) {
-  state.frameFollowClip = !!on;
-  const chk = $('chkFrameFollowClip');
-  if (chk) chk.checked = state.frameFollowClip;
+  state.frameFollowClip = !!on;     // 默认恒为跟随切片；这里只供范围条的「显示全部帧 / 只看切片」临时切换
   renderFrameGrid();
   toast(state.frameFollowClip
     ? ('帧列表已跟随切片：' + atlasOwnerLabel(state.clipActive || null))
@@ -1779,8 +2015,6 @@ function updateFrameCounters() {
     $('lblFrameCount').textContent = '已选 ' + sel + ' / 总 ' + total;
     $('lblFrameScope').textContent = '范围：全部帧';
   }
-  const chk = $('chkFrameFollowClip');
-  if (chk) chk.checked = state.frameFollowClip !== false;
   let cached = 0, bytes = 0;
   for (const f of state.frames) { if (f.bitmap) cached++; bytes += f.blob ? f.blob.size : 0; }
   $('lblCacheState').textContent = total ? ('内存位图 ' + cached + '/' + state.maxCache + ' · PNG 数据 ' + fmtBytes(bytes)) : '';
@@ -1790,18 +2024,21 @@ function updateFrameCounters() {
   else if (total) {
     tip.style.display = '';
     tip.innerHTML = '';
-    tip.appendChild(document.createTextNode('切片「' + scopeClip.name + '」区间内没有帧图（帧 ' + scopeClip.start + '–' + scopeClip.end + '）'));
+    tip.appendChild(document.createTextNode('切片「' + scopeClip.name + '」帧 ' + scopeClip.start + '–' + scopeClip.end + ' 内暂无帧图'));
     tip.appendChild(document.createElement('br'));
-    tip.appendChild(makeEl('span', 'hint', '点上方「刷新帧」按该切片区间抽帧到内存（用于图集拣选），或点「显示全部帧」查看全部 ' + total + ' 帧'));
+    tip.appendChild(makeEl('span', 'hint', '点「刷新帧」抽取该区间 · 点「显示全部帧」查看全部 ' + total + ' 帧'));
   } else {
     tip.style.display = '';
     tip.innerHTML = '';
     tip.appendChild(document.createTextNode('还没有帧图'));
     tip.appendChild(document.createElement('br'));
-    tip.appendChild(makeEl('span', 'hint', '点上方「刷新帧」按当前处理范围抽帧到内存列表（图集拣选用）；「导出帧到项目目录」只把 PNG 写盘、不改动帧列表；也可导入外部 PNG 序列'));
+    tip.appendChild(makeEl('span', 'hint', '点范围条「刷新帧」：按切片区间抽帧到内存（给图集拣选）'));
+    tip.appendChild(document.createElement('br'));
+    tip.appendChild(makeEl('span', 'hint', '左栏「导出帧到项目目录」只写盘 · PNG 序列可直接拖入'));
   }
   renderFrameScopeBar();
-  renderAtlasOwnerList();          // 图集切换条上的帧数跟随帧列表
+  updateAtlasCapacityUI();         // 勾选 / 帧数变化后重新判断是否超出图集容量
+  renderAtlasOwnerList();          // 同步图集归属标签（帧数变化后）
   updateProjectUI();
 }
 /** 命名模板默认值 */
@@ -2034,7 +2271,7 @@ async function exportFrames(opts) {
           i: f, blob, url: URL.createObjectURL(blob), thumbUrl: th.url, thumbBlob: th.blob,
           w: c0.w, h: c0.h, selected: selByI.has(f) ? selByI.get(f) : true, bitmap: null, lastUse: 0, file: name,
           rel: null, written: false,
-          pendingRel: rel      // 仅内存帧：记住打算写入的路径，供「写入项目目录」使用
+          pendingRel: rel      // 仅内存帧：记住打算写入的路径，供保存项目时补写使用
         });
         existing.add(f);
       }
@@ -2074,7 +2311,7 @@ async function exportFrames(opts) {
     toast('已取消：本次完成 ' + okCount + ' 帧' + (memoryOnly ? '（列表保留已生成部分）' : '（已写入/打包的文件保留）'), 'warn', 4600);
   } else {
     setStatus(memoryOnly ? '刷新帧完成（内存）' : '帧导出完成', 'ok');
-    const dest = memoryOnly ? '内存帧列表（点「写入项目目录」可把 PNG 落盘）'
+    const dest = memoryOnly ? '内存帧列表（保存项目时会补写 PNG）'
       : (target ? '项目目录「' + ProjectDir.name + '/' + subdir + '」' : 'ZIP 下载');
     toast(label + '完成：' + okCount + ' 帧 · 耗时 ' + (dt / 1000).toFixed(1) + 's · ' + fmtBytes(bytes) + ' · ' + dest +
       (memoryOnly ? '' : '（未改动帧列表）') +
@@ -2237,6 +2474,27 @@ function downloadBlob(blob, filename) {
 const atlasCanvas = $('atlasCanvas');
 const atlasCtx = atlasCanvas.getContext('2d');
 let atlasMeta = null;   // {cols,rows,gap,order,cellW,cellH,W,H,n,positions,frames}
+let atlasAutoKey = '';  // 自动合成去重键（同一状态只自动尝试一次）
+let atlasSig = '';      // 当前已合成图集对应的「数据签名」，用于判断是否已过期
+const ATLAS_GAP = 1;    // 图集单元间隔（固定 1px，不再提供配置项）
+
+/* 帧对象的稳定标识：帧被重新刷新 / 导入时会生成新对象 → 签名变化 → 图集重合成 */
+const frameSigIds = new WeakMap();
+let frameSigSeq = 0;
+function frameSigId(f) {
+  let id = frameSigIds.get(f);
+  if (!id) { id = ++frameSigSeq; frameSigIds.set(f, id); }
+  return id;
+}
+/** 图集数据签名：归属 + 排布参数 + 参与合成的帧对象顺序 */
+function atlasSignature() {
+  const list = atlasFrameList();
+  return [
+    state.atlas.ownerId || 'default',
+    state.atlas.cols, state.atlas.rows, ATLAS_GAP, state.atlas.order,
+    list.length, list.map(frameSigId).join(',')
+  ].join('|');
+}
 
 /* ================================================================
  * 7.1 图集归属：每个视频切片一张图集（以切片名命名，点选切换）
@@ -2250,7 +2508,7 @@ const ATLAS_CACHE_MAX = 8;
 function newAtlasConfig(o) {
   return Object.assign({
     cols: 6, rows: 4, gap: 1, order: 'column', selectedOnly: true,
-    zoom: 100, showGrid: true, showIndex: true, fit: false,
+    zoom: 100, showGrid: true, showIndex: true, fit: true,
     asset: null, cell: null, count: 0, built: false, written: false
   }, o || {});
 }
@@ -2305,29 +2563,45 @@ function cellPositions(n, cols, rows, order) {
 function syncAtlasParamsFromUI() {
   state.atlas.cols = clamp(Math.round(nf($('inpCols').value, 6)), 1, 128);
   state.atlas.rows = clamp(Math.round(nf($('inpRows').value, 4)), 1, 128);
-  state.atlas.gap = clamp(Math.round(nf($('inpGap').value, 1)), 0, 64);
+  state.atlas.gap = ATLAS_GAP;
   state.atlas.order = $('selOrder').value;
-  state.atlas.selectedOnly = $('chkAtlasSelectedOnly').checked;
-  state.atlas.showGrid = $('chkShowGrid').checked;
-  state.atlas.showIndex = $('chkShowIndex').checked;
-  state.atlas.fit = $('chkCellFit').checked;
-  state.atlas.zoom = clamp(Math.round(nf($('rngZoom').value, 100)), 10, 400);
+  state.atlas.showGrid = $('chkShowGrid').checked;   // 网格线 + 帧序号合并为一个开关
+  state.atlas.showIndex = state.atlas.showGrid;
   $('lblAtlasOrder').textContent = state.atlas.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
+  updateAtlasCapacityUI();
+}
+/** 容量提示：参与合成的帧数 > 列 × 行 时，列 / 行输入框标红并给出提示 */
+function updateAtlasCapacityUI() {
+  const cols = Math.max(1, state.atlas.cols | 0), rows = Math.max(1, state.atlas.rows | 0);
+  const cap = cols * rows;
+  const n = atlasFrameList().length;
+  const over = n > cap;
+  ['inpCols', 'inpRows'].forEach((id) => { const el = $(id); if (el) el.classList.toggle('over', over); });
+  const warn = $('atlasCapWarn');
+  if (!warn) return;
+  warn.style.display = over ? '' : 'none';
+  if (over) {
+    warn.textContent = '帧数超出上限：' + n + ' 帧 > ' + cols + ' × ' + rows + ' = ' + cap + ' 格 · 请增大行数或取消部分勾选';
+  }
 }
 /** 把 state.atlas 的值回填到控件 */
 function syncAtlasUIFromState() {
   $('inpCols').value = state.atlas.cols;
   $('inpRows').value = state.atlas.rows;
-  $('inpGap').value = state.atlas.gap;
   $('selOrder').value = state.atlas.order;
-  $('chkAtlasSelectedOnly').checked = !!state.atlas.selectedOnly;
-  $('chkAtlasAutoWrite').checked = state.atlas.autoWrite !== false;
-  $('rngZoom').value = state.atlas.zoom;
   $('chkShowGrid').checked = state.atlas.showGrid !== false;
-  $('chkShowIndex').checked = state.atlas.showIndex !== false;
-  $('chkCellFit').checked = !!state.atlas.fit;
   $('lblAtlasOrder').textContent = state.atlas.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
+  syncAutoNToCapacity();
+  updateAtlasCapacityUI();
   renderAtlasOwnerList();
+}
+/** 自动抽帧的「保留总帧数 N」与图集容量保持一致：N = 列数 × 行数（至少 2，首尾帧必须保留） */
+function syncAutoNToCapacity() {
+  const inp = $('inpAutoN');
+  if (!inp) return;
+  const cap = Math.max(1, Math.round(state.atlas.cols || 1)) * Math.max(1, Math.round(state.atlas.rows || 1));
+  const n = Math.max(2, cap);
+  if (inp.value !== String(n)) inp.value = String(n);
 }
 /** 当前图集参数 + 成果快照 */
 function atlasConfigSnapshot() {
@@ -2361,12 +2635,13 @@ function commitAtlasToOwner() {
 /** 把某个图集配置装载到编辑器（state.atlas + 控件） */
 function applyAtlasConfig(cfg) {
   const c = newAtlasConfig(cfg || {});
-  state.atlas.cols = c.cols; state.atlas.rows = c.rows; state.atlas.gap = c.gap; state.atlas.order = c.order;
-  state.atlas.selectedOnly = c.selectedOnly !== false;
-  state.atlas.zoom = c.zoom;
+  state.atlas.cols = c.cols; state.atlas.rows = c.rows; state.atlas.gap = ATLAS_GAP; state.atlas.order = c.order;
+  state.atlas.selectedOnly = true;      // 固定为「只合成已勾选的帧」（该开关已从界面移除）
   state.atlas.showGrid = c.showGrid !== false;
-  state.atlas.showIndex = c.showIndex !== false;
-  state.atlas.fit = !!c.fit;
+  state.atlas.showIndex = state.atlas.showGrid;
+  // 预览始终以「自适应窗口」打开（缩放是临时视图状态，不随图集保存）
+  state.atlas.fit = true;
+  state.atlas.zoom = 100;
   state.atlas.rel = c.asset || null;
   state.atlas.written = !!c.written;
   syncAtlasUIFromState();
@@ -2375,16 +2650,17 @@ function applyAtlasConfig(cfg) {
 function clearAtlasCanvas() {
   state.atlasBuilt = false;
   atlasMeta = null;
+  atlasSig = '';
   try { atlasCanvas.width = 1; atlasCanvas.height = 1; } catch (e) { }
   if ($('atlasStage')) {
     $('atlasStage').style.display = 'none';
     $('atlasTip').style.display = '';
-    $('lblAtlasSize2').textContent = '「' + atlasOwnerLabel() + '」尚未合成';
     $('lblAtlasSize').textContent = '—';
     $('lblAtlasCell').textContent = '—';
     $('lblAtlasCount').textContent = '—';
   }
-  $('valZoom').textContent = state.atlas.zoom + '%';
+  if ($('lblAtlasZoom')) $('lblAtlasZoom').textContent = '—';
+  refreshAtlasMetaTip();
 }
 /** 合成结果可见时的标签刷新 */
 function showAtlasResult() {
@@ -2394,9 +2670,27 @@ function showAtlasResult() {
   $('lblAtlasSize').textContent = atlasMeta.W + ' × ' + atlasMeta.H;
   $('lblAtlasCell').textContent = atlasMeta.cellW + ' × ' + atlasMeta.cellH;
   $('lblAtlasCount').textContent = atlasMeta.n + ' 帧';
-  $('lblAtlasSize2').textContent = '「' + atlasOwnerLabel() + '」已合成：' + atlasMeta.W + ' × ' + atlasMeta.H +
-    '（' + atlasMeta.cols + '×' + atlasMeta.rows + '）' +
-    (state.atlas.rel ? ' → ' + shortPath(state.atlas.rel) : ' · 未写入');
+  atlasSig = atlasSignature();      // 记录当前画面与数据的对应关系（帧列表变动后即可判定过期）
+  updateAtlasCapacityUI();          // 合成时可能自动扩展过行数，重新判一次容量
+  refreshAtlasMetaTip();
+}
+/** 图集信息栏：一行摘要放不下的细节 → 悬停角标里展示 */
+function refreshAtlasMetaTip() {
+  const tip = $('tipAtlasMeta');
+  if (!tip) return;
+  if (!atlasMeta) {
+    tip.dataset.tip = '尚未合成图集：切到本页会自动合成（需先在「帧列表 / 抽帧」里准备帧）。';
+    return;
+  }
+  const m = atlasMeta;
+  const orderTxt = m.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
+  const z = $('lblAtlasZoom') ? $('lblAtlasZoom').textContent : '—';
+  tip.dataset.tip = [
+    '图集：<b>' + atlasOwnerLabel() + '</b>' + (state.atlas.rel ? '　<code>' + state.atlas.rel + '</code>' : '　（尚未写入项目目录）'),
+    '尺寸：<b>' + m.W + ' × ' + m.H + '</b>　单元：<b>' + m.cellW + ' × ' + m.cellH + '</b>',
+    '排布：<b>' + m.cols + ' × ' + m.rows + '</b> · 间隔 <b>' + m.gap + 'px</b>　' + orderTxt,
+    '已排布：<b>' + m.n + ' 帧</b>　缩放：<b>' + z + '</b>　滚轮缩放 · 拖动平移 · 双击自适应'
+  ].join('<br>');
 }
 /** 缓存当前画布（切换图集时暂存，来回切换无需重新合成） */
 function stashAtlasBitmap(ownerId) {
@@ -2406,7 +2700,7 @@ function stashAtlasBitmap(ownerId) {
     cv.width = atlasCanvas.width; cv.height = atlasCanvas.height;
     cv.getContext('2d').drawImage(atlasCanvas, 0, 0);
     atlasCache.delete(ownerId);
-    atlasCache.set(ownerId, { canvas: cv, meta: atlasMeta, rel: state.atlas.rel, written: !!state.atlas.written });
+    atlasCache.set(ownerId, { canvas: cv, meta: atlasMeta, rel: state.atlas.rel, written: !!state.atlas.written, sig: atlasSig });
     while (atlasCache.size > ATLAS_CACHE_MAX) atlasCache.delete(atlasCache.keys().next().value);
   } catch (e) { console.warn('缓存图集失败', e); }
 }
@@ -2423,12 +2717,12 @@ function restoreAtlasFromEntry(entry) {
   state.atlas.written = !!entry.written;
   player.idx = 0;
   showAtlasResult();
+  atlasSig = entry.sig || '';      // 缓存画面可能基于旧数据：签名不符时切到图集页会重新合成
 }
 /** 从项目目录读取某张图集 PNG 作为预览 */
 async function loadAtlasAsset(rel) {
   const target = currentTarget();
   if (!target || !rel) return false;
-  $('lblAtlasSize2').textContent = '正在载入图集 ' + shortPath(rel) + ' …';
   try {
     const f = await targetRead(target, rel);
     const bmp = await createImageBitmap(f);
@@ -2467,6 +2761,7 @@ async function switchAtlasOwner(ownerId, opts) {
   opts = opts || {};
   ownerId = ownerId || null;
   if (ownerId && !clipById(ownerId)) ownerId = null;
+  applyCropForOwner();                    // 裁剪框跟随切片：切图集=切切片
   if (!opts.force && state.atlas.ownerId === ownerId) { renderAtlasOwnerList(); return; }
   if (!opts.skipCommit) {
     stashAtlasBitmap(state.atlas.ownerId);
@@ -2482,6 +2777,7 @@ async function switchAtlasOwner(ownerId, opts) {
   else if (cfg.asset && cfg.built && ProjectDir.bound) { await loadAtlasAsset(cfg.asset); }
   else { drawPlayerFrame(0); }
   renderAtlasOwnerList();
+  autoBuildIfAtlasTab();               // 在图集页切换归属后，没有可恢复的画布就自动合成
 }
 /** 切回「默认图集（全部帧）」 */
 async function selectDefaultAtlas() {
@@ -2492,6 +2788,7 @@ async function selectDefaultAtlas() {
 }
 /** 让「当前图集」已合成的画布失效（参数改变 / 帧变化时） */
 function invalidateCurrentAtlasSheet() {
+  atlasAutoKey = '';               // 参数变脏 → 允许下次进入图集页自动重合成
   state.atlasBuilt = false;
   state.atlas.written = false;
   atlasMeta = null;
@@ -2510,41 +2807,19 @@ function onAtlasParamsChanged(what) {
   const had = !!atlasMeta;
   if (had) {
     invalidateCurrentAtlasSheet();
-    toast(what + '已改变：图集「' + atlasOwnerLabel() + '」需重新合成（点「合成图集」）', 'warn', 3200);
+    toast(what + '已改变：切到「图集 / 播放」页会自动按新参数重新合成', 'warn', 3200);
   }
   commitAtlasToOwner();
   markDirty();
   updateProjectUI();
 }
-/** 图集切换条：默认 + 每个切片一个（以切片名命名） */
+/** 同步图集归属标签（切换归属请点左栏切片；图集页顶部已不再放切换条） */
 function renderAtlasOwnerList() {
-  const box = $('atlasOwnerList');
-  if (!box) return;
-  box.innerHTML = '';
-  const inRange = (c) => state.frames.filter((f) => f.i >= c.start && f.i <= c.end).length;
-  const items = [{ id: null, name: '默认 · 全部帧', count: state.frames.length, tip: '默认图集：使用全部帧' }]
-    .concat(state.clips.map((c) => ({
-      id: c.id, name: c.name, count: inRange(c),
-      tip: '切换到切片「' + c.name + '」的图集（帧 ' + c.start + '–' + c.end + '，' + inRange(c) + ' 帧可参与合成）'
-    })));
-  for (const it of items) {
-    const b = makeEl('button', 'atlasChip' + (((state.atlas.ownerId || null) === it.id) ? ' active' : ''));
-    b.appendChild(document.createTextNode(it.name));
-    b.appendChild(makeEl('span', 'st', String(it.count)));
-    b.title = it.tip;
-    const c = clipById(it.id);
-    b.onclick = () => {
-      if (!it.id) { selectDefaultAtlas(); return; }
-      if (state.video.loaded) applyClip(it.id);
-      else { state.clipActive = it.id; renderClips(); switchAtlasOwner(it.id); }
-    };
-    if (c) b.dataset.clipId = c.id;
-    box.appendChild(b);
-  }
   const lbl = $('lblAtlasOwner');
   if (lbl) lbl.textContent = atlasOwnerLabel();
   const lbl2 = $('lblAtlasName');
-  if (lbl2) lbl2.textContent = atlasOwnerLabel() + (state.atlas.rel ? '（' + shortPath(state.atlas.rel) + '）' : '');
+  if (lbl2) lbl2.textContent = atlasOwnerLabel();   // 一行摘要只放名字，路径等信息放到悬停提示里
+  refreshAtlasMetaTip();
 }
 
 
@@ -2556,16 +2831,17 @@ async function buildAtlas() {
   if (!list.length) {
     toast(owner
       ? ('切片「' + owner.name + '」（帧 ' + owner.start + '–' + owner.end + '）内没有可用帧图，请先导出该区间的帧' + (state.atlas.selectedOnly ? '并勾选' : ''))
-      : (state.frames.length ? '没有选中的帧，请先勾选帧或关闭「仅选中帧」' : '还没有帧图，请先导出帧或导入 PNG 序列'), 'warn', 4600);
+      : (state.frames.length ? '没有勾选任何帧，请先用帧列表底部的「全选」勾选要合成的帧' : '还没有帧图，请先导出帧或导入 PNG 序列'), 'warn', 4600);
     return;
   }
   let cols = state.atlas.cols, rows = state.atlas.rows;
-  const gap = state.atlas.gap;
+  const gap = ATLAS_GAP;
   if (list.length > cols * rows) {
     const need = Math.ceil(list.length / cols);
     const ok = await uiConfirm('图集「' + atlasOwnerLabel() + '」帧数 <b>' + list.length + '</b> 超出 <b>' + cols + '×' + rows + '=' + (cols * rows) + '</b> 个单元。<br>是否自动扩展行数到 <b>' + need + '</b>？', '超出图集容量', '自动扩展');
     if (!ok) return;
     rows = need; $('inpRows').value = rows; state.atlas.rows = rows;
+    syncAutoNToCapacity();          // 容量变了，N 同步为 列数 × 行数
   }
   const cellW = list[0].w, cellH = list[0].h;
   const W = cols * cellW + (cols - 1) * gap;
@@ -2602,10 +2878,9 @@ async function buildAtlas() {
   $('atlasStage').style.display = '';
   $('lblAtlasCell').textContent = cellW + ' × ' + cellH;
   $('lblAtlasCount').textContent = drawn + ' / ' + list.length;
-  // 播放器时长联动
-  state.play.perFrame = Math.max(1, Math.round(state.play.totalMs / Math.max(1, list.length)));
-  $('inpPlPerFrame').value = state.play.perFrame;
+  // 播放器：新图集从头播放
   player.idx = 0;
+  playerPause();
   showAtlasResult();
   renderAtlasView();
   drawPlayerFrame(0);
@@ -2617,16 +2892,57 @@ async function buildAtlas() {
   if (state.atlas.autoWrite && ProjectDir.bound) await writeAtlasToProject(true);
 }
 
-/** 图集预览（缩放 + 网格线 + 帧序号） */
+/** 切到「图集 / 播放」页时按需自动合成：数据没变只重绘，脏了（帧勾选 / 帧列表 / 参数变化）重新合成 */
+function maybeAutoBuildAtlas() {
+  const sig = atlasSignature();
+  if (atlasMeta && atlasSig === sig) {                 // 画面与数据一致 → 只重绘
+    renderAtlasView(); drawPlayerFrame(player.idx);
+    return;
+  }
+  if (!state.frames.length || sig === atlasAutoKey) {  // 没帧 / 同一状态已尝试过 → 不重复合成
+    if (atlasMeta) { renderAtlasView(); drawPlayerFrame(player.idx); } else refreshAtlasMetaTip();
+    return;
+  }
+  atlasAutoKey = sig;
+  buildAtlas();
+}
+/** 仅当「图集 / 播放」页可见时才自动合成 */
+function autoBuildIfAtlasTab() {
+  const pane = $('pane-atlas');
+  if (pane && pane.classList.contains('active')) maybeAutoBuildAtlas();
+}
+
+/** 自适应缩放比例（按图集区可见尺寸） */
+function atlasFitZoom() {
+  const m = atlasMeta, view = $('atlasView');
+  if (!m || !view || !view.clientWidth) return 1;
+  return Math.max(0.02, Math.min(1, (view.clientWidth - 26) / m.W, (view.clientHeight - 26) / m.H));
+}
+/** 当前预览缩放系数 */
+function currentAtlasZoom() {
+  return state.atlas.fit ? atlasFitZoom() : clamp(state.atlas.zoom / 100, 0.02, 8);
+}
+/** 仅更新预览尺寸（滚轮缩放 / 拖动 / 窗口变化走这里，不重绘位图） */
+function applyAtlasZoom() {
+  if (!atlasMeta) return;
+  const cv = $('atlasViewCanvas'), view = $('atlasView');
+  const z = currentAtlasZoom();
+  const w = Math.max(8, Math.round(atlasMeta.W * z)), h = Math.max(8, Math.round(atlasMeta.H * z));
+  cv.style.width = w + 'px';
+  cv.style.height = h + 'px';
+  const zoomed = w > view.clientWidth || h > view.clientHeight;
+  view.classList.toggle('zoomed', zoomed);      // 放大后贴左上角，保证滚动范围完整
+  view.classList.toggle('can-pan', zoomed);
+  const lbl = $('lblAtlasZoom');
+  if (lbl) lbl.textContent = state.atlas.fit ? '自适应' : Math.round(z * 100) + '%';
+  refreshAtlasMetaTip();
+}
+/** 图集预览（网格线 + 帧序号，位图按需重绘） */
 function renderAtlasView() {
   if (!atlasMeta) return;
   const m = atlasMeta;
   const cv = $('atlasViewCanvas');
   cv.width = m.W; cv.height = m.H;
-  const view = $('atlasView');
-  const zoom = state.atlas.fit ? Math.max(0.02, Math.min(1, (view.clientWidth - 26) / m.W, (view.clientHeight - 26) / m.H)) : state.atlas.zoom / 100;
-  cv.style.width = Math.max(8, Math.round(m.W * zoom)) + 'px';
-  cv.style.height = Math.max(8, Math.round(m.H * zoom)) + 'px';
   const ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, m.W, m.H);
   ctx.drawImage(atlasCanvas, 0, 0);
@@ -2655,7 +2971,55 @@ function renderAtlasView() {
   $('lblAtlasCell').textContent = m.cellW + ' × ' + m.cellH;
   $('lblAtlasCount').textContent = m.n + ' 帧';
   $('lblAtlasOrder').textContent = m.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
-  $('valZoom').textContent = Math.round(zoom * 100) + '%';
+  applyAtlasZoom();
+}
+
+/** 图集预览交互：滚轮以光标为中心缩放 · 拖拽平移 · 双击恢复自适应 */
+function bindAtlasViewport() {
+  const view = $('atlasView');
+  if (!view) return;
+  view.addEventListener('wheel', (e) => {
+    if (!atlasMeta) return;
+    e.preventDefault();
+    const cv = $('atlasViewCanvas');
+    const r0 = cv.getBoundingClientRect();
+    if (!r0.width || !r0.height) return;
+    const px = (e.clientX - r0.left) / r0.width;       // 光标在图集内的相对位置
+    const py = (e.clientY - r0.top) / r0.height;
+    const oldZ = currentAtlasZoom();
+    const next = clamp(oldZ * Math.exp(-e.deltaY * 0.0018), 0.02, 8);
+    if (Math.abs(next - oldZ) < 1e-4) return;
+    state.atlas.fit = false;
+    state.atlas.zoom = clamp(next * 100, 2, 800);
+    applyAtlasZoom();
+    // 让光标下的那一格保持在光标下
+    const r1 = cv.getBoundingClientRect();
+    view.scrollLeft += (r1.left + px * r1.width) - e.clientX;
+    view.scrollTop += (r1.top + py * r1.height) - e.clientY;
+  }, { passive: false });
+
+  let pan = null;
+  view.addEventListener('mousedown', (e) => {
+    if (!atlasMeta || e.button !== 0 || !view.classList.contains('can-pan')) return;
+    pan = { x: e.clientX, y: e.clientY, l: view.scrollLeft, t: view.scrollTop };
+    view.classList.add('panning');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!pan) return;
+    view.scrollLeft = pan.l - (e.clientX - pan.x);
+    view.scrollTop = pan.t - (e.clientY - pan.y);
+  });
+  window.addEventListener('mouseup', () => {
+    if (!pan) return;
+    pan = null;
+    view.classList.remove('panning');
+  });
+  view.addEventListener('dblclick', () => {
+    if (!atlasMeta) return;
+    state.atlas.fit = true;
+    renderAtlasView();
+  });
 }
 
 /** 把图集 PNG 写入项目目录（透明背景，原样 PNG） */
@@ -2732,10 +3096,33 @@ async function downloadAtlas() {
 
 /* ---------- 播放器 ---------- */
 const player = { playing: false, idx: 0, raf: 0, acc: 0, last: 0 };
-function perFrameMs() {
+const PL_SPEED_MIN = 0.1, PL_SPEED_MAX = 10;
+/** 1× 基准帧时长（ms）：按源视频帧率还原整段动画的时长；抽帧采样时按源帧跨度折算 */
+function basePerFrameMs() {
   const m = atlasMeta;
   const n = m ? Math.max(1, m.n) : 1;
-  return Math.max(1, Math.round(state.play.totalMs / n));
+  const srcMs = 1000 / Math.max(1, nf(state.video.fps, 30));   // 源视频单帧时长
+  let span = n;                                                // 图集覆盖的源帧跨度
+  if (m && m.frames && m.frames.length) {
+    let lo = Infinity, hi = -Infinity;
+    for (const f of m.frames) { if (f.i < lo) lo = f.i; if (f.i > hi) hi = f.i; }
+    if (isFinite(lo) && hi >= lo) span = Math.max(1, hi - lo + 1);
+  }
+  return Math.max(1, srcMs * span / n);
+}
+/** 实际每帧时长 = 基准 ÷ 倍速 */
+function perFrameMs() {
+  const sp = clamp(nf(state.play.speed, 1), PL_SPEED_MIN, PL_SPEED_MAX);
+  return Math.max(1, basePerFrameMs() / sp);
+}
+/** 同步播放按钮文案与倍速滑块显示 */
+function syncPlayerUI() {
+  const b = $('btnPlPlay');
+  if (b) { b.textContent = player.playing ? '⏸ 暂停' : '▶ 播放'; b.classList.toggle('primary', !player.playing); }
+  const r = $('rngPlSpeed'), v = $('valPlSpeed');
+  const sp = clamp(nf(state.play.speed, 1), PL_SPEED_MIN, PL_SPEED_MAX);
+  if (r && Math.abs(Number(r.value) - sp) > 1e-6) r.value = String(sp);
+  if (v) v.textContent = sp.toFixed(1) + '×';
 }
 function playerFramesCount() { return atlasMeta ? atlasMeta.n : 0; }
 function drawPlayerFrame(k) {
@@ -2775,11 +3162,18 @@ function playerTick(ts) {
 function playerPlay() {
   if (!atlasMeta) { toast('请先合成图集', 'warn'); return; }
   if (player.playing) return;
-  player.playing = true; player.last = 0; player.acc = 0;
   state.play.loop = $('chkPlLoop').checked;
+  // 已停在末帧时（尤其是不循环）再次播放从第 1 帧开始，否则「一点就停」
+  if (player.idx >= Math.max(0, atlasMeta.n - 1)) { player.idx = 0; drawPlayerFrame(0); }
+  player.playing = true; player.last = 0; player.acc = 0;
+  syncPlayerUI();
   player.raf = requestAnimationFrame(playerTick);
 }
-function playerPause() { player.playing = false; cancelAnimationFrame(player.raf); }
+function playerPause() {
+  player.playing = false;
+  cancelAnimationFrame(player.raf);
+  syncPlayerUI();
+}
 function playerStop() { playerPause(); player.idx = 0; player.acc = 0; drawPlayerFrame(0); }
 function playerStep(d) {
   if (!atlasMeta) { toast('请先合成图集', 'warn'); return; }
@@ -3141,10 +3535,10 @@ function updateProjectUI() {
     ' · 序列帧 ' + wf + '/' + state.frames.length + ' 已落盘' + (pend ? '（内存 ' + pend + ' 帧待写入）' : '') +
     ' · 图集 ' + (state.atlas.rel ? '✓ 已入目录' : (state.atlasBuilt ? '未写入' : '—'));
   const dis = !bound;
-  ['btnExportFrames', 'btnExportZip', 'btnWriteFrames', 'btnAtlasExport', 'btnAtlasExport2',
-    'btnCopyVideo', 'btnExportAllClips', 'btnExportActiveClip', 'btnAddClip', 'btnAddClip2', 'btnUpdateClip'
+  ['btnExportFrames', 'btnExportZip', 'btnAtlasExport2',
+    'btnCopyVideo', 'btnExportAllClips', 'btnExportActiveClip', 'btnAddClip'
   ].forEach((id) => { const b = $(id); if (b) b.disabled = dis; });
-  ['btnSaveProject', 'btnSaveProject2'].forEach((id) => { const b = $(id); if (b) b.disabled = dis; });
+  ['btnSaveProject2'].forEach((id) => { const b = $(id); if (b) b.disabled = dis; });
 
   // 本地缓存（上次项目目录）状态
   const ld = $('lblLastDir');
@@ -3267,6 +3661,7 @@ function resetProjectState() {
   state.selection = { active: false, start: 0, end: 0 };
   state.lockedRange = null;
   state.clips = []; state.clipActive = null;
+  state.cropDefault = null;             // 新项目：清掉「默认裁剪框」
   state.project.name = ProjectDir.name || 'green_action';
   state.project.dirty = false;
   state.project.lastSavedAt = 0;
@@ -3311,7 +3706,7 @@ function buildProjectData() {
     frames: state.frames.map((f) => ({ i: f.i, file: f.rel || null, selected: !!f.selected, w: f.w, h: f.h })),
     // 默认图集（无切片时使用）；每个切片的图集随 clips 一起保存
     atlas: Object.assign(atlasConfigForSave(defaultAtlasConfig()), { ownerId: state.atlas.ownerId || null }),
-    playback: { totalMs: state.play.totalMs, perFrame: state.play.perFrame, loop: state.play.loop },
+    playback: { speed: state.play.speed, loop: state.play.loop },
     export: { naming: $('inpNaming').value, maxCache: state.maxCache, frameDir: state.frameOut, atlasAutoWrite: state.atlas.autoWrite },
     // 界面状态：各折叠分组（播放 / 裁剪框 / 抠除 / 切片 / 导出 / 项目 / 快捷键 / 图集）的展开状态
     ui: { groups: collectGroupState() },
@@ -3418,46 +3813,6 @@ async function saveProject(opts) {
 function atlasFileName() {
   const rel = currentAtlasRel();
   return rel.split('/').pop() || 'atlas.png';
-}
-
-/** 把内存中的全部帧写入项目目录（补齐 rel） */
-async function writeFramesToProject(silent) {
-  const target = currentTarget();
-  if (!target) { toast('请先绑定项目目录', 'warn'); return false; }
-  if (!state.frames.length) { toast('帧列表为空', 'warn'); return false; }
-  const subdir = resolvedFrameOut();
-  const pend = state.frames.filter((f) => !f.rel || f.written !== true);
-  if (!pend.length) { toast('全部 ' + state.frames.length + ' 帧已在项目目录中', 'ok'); return true; }
-  beginProgress('写入序列帧到项目目录（' + pend.length + ' 帧）');
-  const used = new Set(state.frames.filter((f) => f.rel).map((f) => (f.rel.split('/').pop() || '').toLowerCase()));
-  let k = 0;
-  try {
-    for (const f of pend) {
-      if (jobCancelled()) break;
-      if (!f.rel) {
-        const dir = f.pendingRel ? f.pendingRel.split('/').slice(0, -1).join('/') : subdir;
-        let fn = f.file || buildName($('inpNaming').value, f.i, k + 1, state.frames.length);
-        while (used.has(fn.toLowerCase())) fn = fn.replace(/\.png$/i, '') + '_b.png';
-        used.add(fn.toLowerCase());
-        f.rel = pathJoin(dir, fn);
-      }
-      await targetWrite(target, f.rel, f.blob);
-      f.written = true;
-      k++;
-      setProgress(k, pend.length, '写入 ' + k + '/' + pend.length, f.rel);
-      if (k % 6 === 5) await yieldUI();
-    }
-    endProgress();
-    updateProjectUI();
-    markDirty();
-    if (!silent) toast('已写入 ' + k + ' 帧到「' + ProjectDir.name + '/' + subdir + '」', 'ok', 4200);
-    return true;
-  } catch (e) {
-    endProgress();
-    console.error(e);
-    toast('写入失败：' + e.message, 'err', 6000);
-    return false;
-  }
 }
 
 /** 把源视频复制到项目目录 */
@@ -3619,9 +3974,10 @@ async function applyProjectData(proj, target) {
   // ---- 帧 PNG ----
   const list = [];
   const frameEntries = Array.isArray(proj.frames) ? proj.frames : [];
+  let noRelFrames = 0;                     // 未记录文件路径的帧（内存帧未落盘）→ 汇总成一条提示
   for (let k = 0; k < frameEntries.length; k++) {
     const e = frameEntries[k];
-    if (!e.file) { warn.push('第 ' + (k + 1) + ' 帧未记录文件路径'); continue; }
+    if (!e.file) { noRelFrames++; continue; }
     try {
       const f = await targetRead(target, e.file);
       const th = await makeThumb(f, 112);
@@ -3634,6 +3990,7 @@ async function applyProjectData(proj, target) {
     setProgress(k + 1, frameEntries.length + 1, '载入帧 PNG ' + (k + 1) + '/' + frameEntries.length);
     if (k % 8 === 7) await yieldUI();
   }
+  if (noRelFrames) warn.push(noRelFrames + ' 帧未记录文件路径（未落盘，已跳过；重新导出 / 保存项目可补齐）');
   state.frames = list;
   renderFrameGrid();
 
@@ -3664,7 +4021,13 @@ async function applyProjectData(proj, target) {
   state.cropLock = !!proj.cropLock;
   $('chkLockRatio').checked = state.cropLock;
   if (proj.cropRatio) $('selRatio').value = proj.cropRatio;
-  if (proj.crop && state.video.loaded) setCrop(proj.crop.x, proj.crop.y, proj.crop.w, proj.crop.h, { noKeyed: true });
+  if (proj.crop && state.video.loaded) {
+    const keepClip = state.clipActive;      // 恢复全局裁剪框时不写回切片
+    state.clipActive = null;
+    setCrop(proj.crop.x, proj.crop.y, proj.crop.w, proj.crop.h, { noKeyed: true });
+    state.clipActive = keepClip;
+  }
+  applyCropForOwner();                      // 有选中切片 → 用该切片的裁剪框；老项目沿用全局裁剪框
   if (proj.timeline) {
     if (proj.timeline.selection) {
       state.selection = { active: !!proj.timeline.selection.active, start: proj.timeline.selection.start | 0, end: proj.timeline.selection.end | 0 };
@@ -3673,26 +4036,24 @@ async function applyProjectData(proj, target) {
     state.frame = proj.timeline.currentFrame | 0;
   }
   if (proj.atlas) {
-    $('chkAtlasSelectedOnly').checked = proj.atlas.selectedOnly !== false;
-    $('rngZoom').value = proj.atlas.zoom || 100;
     $('chkShowGrid').checked = proj.atlas.showGrid !== false;
-    $('chkShowIndex').checked = proj.atlas.showIndex !== false;
+    state.atlas.showGrid = $('chkShowGrid').checked;
+    state.atlas.showIndex = state.atlas.showGrid;
+    state.atlas.fit = true;                       // 预览默认「自适应窗口」
   }
   if (proj.playback) {
-    state.play.totalMs = clamp(nf(proj.playback.totalMs, 1000), 30, 600000);
-    state.play.perFrame = clamp(nf(proj.playback.perFrame, 42), 1, 60000);
+    // 老项目里的 totalMs / perFrame 已废弃：1× 即按源视频原速播放
+    state.play.speed = clamp(nf(proj.playback.speed, 1), PL_SPEED_MIN, PL_SPEED_MAX);
     state.play.loop = proj.playback.loop !== false;
-    $('inpPlTotalMs').value = state.play.totalMs;
-    $('inpPlPerFrame').value = state.play.perFrame;
     $('chkPlLoop').checked = state.play.loop;
   }
+  syncPlayerUI();
   if (proj.export) {
     if (proj.export.naming) $('inpNaming').value = proj.export.naming;
     if (proj.export.maxCache) { state.maxCache = proj.export.maxCache; $('inpMaxCache').value = state.maxCache; }
     state.frameOut = pathJoin(proj.export.frameDir || DIR_FRAMES);
     $('inpFrameOut').value = state.frameOut;
     state.atlas.autoWrite = proj.export.atlasAutoWrite !== false;
-    $('chkAtlasAutoWrite').checked = state.atlas.autoWrite;
   }
   if (proj.project && proj.project.name) {
     state.project.name = proj.project.name;
@@ -3734,7 +4095,12 @@ async function applyProjectData(proj, target) {
   if (atlasLoaded) msg += ' · 已保存图集 ' + atlasLoaded + ' 张';
   if (state.video.loaded) msg += ' · 视频已恢复';
   toast(msg, 'ok', 4200);
-  if (warn.length) toast('提示：' + warn.join('；'), 'warn', 7000);
+  if (warn.length) {
+    // 提示最多显示 3 条，其余合并成计数，避免弹出一大段文字
+    const shown = warn.slice(0, 3).join('；');
+    const more = warn.length > 3 ? '；…共 ' + warn.length + ' 项提示' : '';
+    toast('提示：' + shown + more, 'warn', 7000);
+  }
 
   // 源视频缺失时，允许用户手动指定视频文件
   if (missingVideo) {
@@ -3769,6 +4135,7 @@ function clipSerialize(c) {
     id: c.id, name: c.name, start: c.start, end: c.end, frames,
     fps, duration: +(frames / fps).toFixed(4),
     note: c.note || '',
+    crop: (c.crop && c.crop.w > 0 && c.crop.h > 0) ? { x: c.crop.x | 0, y: c.crop.y | 0, w: c.crop.w | 0, h: c.crop.h | 0 } : null,
     atlas: atlasConfigForSave(c.atlas),
     atlasFile: (c.atlas && c.atlas.asset) || atlasRelFor(c.name),
     createdAt: c.createdAt || null, updatedAt: c.updatedAt || null
@@ -3785,6 +4152,9 @@ function clipNormalize(c) {
     id: c.id || newClipId(), name,
     start, end, note: String(c.note == null ? '' : c.note),
     fps: nf(c.fps, state.video.fps || 30),
+    crop: (c.crop && isNum(c.crop.w) && c.crop.w > 0 && isNum(c.crop.h) && c.crop.h > 0)
+      ? { x: Math.round(nf(c.crop.x, 0)), y: Math.round(nf(c.crop.y, 0)), w: Math.round(c.crop.w), h: Math.round(c.crop.h) }
+      : null,
     atlas,
     createdAt: c.createdAt || new Date().toISOString(), updatedAt: c.updatedAt || null
   };
@@ -3820,22 +4190,13 @@ function addClipFromRange(range, name) {
   clip.createdAt = new Date().toISOString();
   state.clips.push(clip);
   sortClips();
+  if (!state.clipActive) rememberDefaultCrop();   // 记住默认裁剪框，新切片从当前裁剪框起步
   state.clipActive = clip.id;
   renderClips();
   switchAtlasOwner(clip.id).catch((e) => console.warn('切换图集失败', e));
   markDirty();
   toast('已保存切片配置「' + clip.name + '」：帧 ' + clip.start + '–' + clip.end + '（' + clipFrames(clip) + ' 帧，未切割视频）· 已切换到它的图集', 'ok', 5200);
   return clip;
-}
-/** 用当前处理范围更新所选切片 */
-function updateClipFromRange(id) {
-  const c = clipById(id || state.clipActive);
-  if (!c) { toast('请先选择一条切片', 'warn'); return; }
-  const r = getRange();
-  c.start = r.start; c.end = r.end; c.fps = state.video.fps; c.updatedAt = new Date().toISOString();
-  clipAtlasInvalidate(c);            // 区间变了，该切片的图集需重新合成
-  sortClips(); renderClips(); markDirty();
-  toast('切片「' + c.name + '」已更新为帧 ' + c.start + '–' + c.end + '（图集需重新合成）', 'ok', 3200);
 }
 /** 让某条切片的图集失效（帧区间 / 帧列表变化时） */
 function clipAtlasInvalidate(c) {
@@ -3857,6 +4218,7 @@ function removeClip(id) {
     atlasCache.delete(id);
     if (state.clipActive === id) state.clipActive = state.clips.length ? state.clips[0].id : null;
     if (state.atlas.ownerId === id) switchAtlasOwner(state.clipActive);
+    applyCropForOwner();               // 裁剪框跟随新的切片归属
     renderClips(); markDirty();
     toast('已删除切片配置', 'ok', 2400);
   });
@@ -3865,8 +4227,14 @@ function removeClip(id) {
 async function applyClip(id) {
   const c = clipById(id);
   if (!c) return;
+  // 再次点击已选中的切片 = 取消选择，回到「默认 · 全部帧」图集
+  if (state.clipActive === id && (state.atlas.ownerId || null) === id) {
+    await selectDefaultAtlas();
+    return;
+  }
   if (!state.video.loaded) {
     // 没有源视频（例如只恢复了帧列表 / 切片）：仍然切到该切片的帧列表范围与图集
+    if (!state.clipActive) rememberDefaultCrop();
     state.clipActive = id;
     renderClips();
     await switchAtlasOwner(id);
@@ -3874,6 +4242,7 @@ async function applyClip(id) {
     return;
   }
   pausePlayback();
+  if (!state.clipActive) rememberDefaultCrop();   // 从「默认」进入切片：记住默认裁剪框
   state.clipActive = id;
   setSelection(c.start, c.end);           // setSelection 会清空 lockedRange
   state.lockedRange = { start: c.start, end: c.end };
@@ -3926,10 +4295,10 @@ function renderClips() {
     row.appendChild(makeEl('label', null, '止'));
     const eInp = makeEl('input'); eInp.type = 'number'; eInp.min = 0; eInp.max = Math.max(0, state.totalFrames - 1); eInp.value = c.end;
     row.appendChild(eInp);
-    const btnEx = makeEl('button', 'btn mini', '导出帧');
-    btnEx.title = '导出该切片的序列帧到项目目录 frames/<切片名>/';
-    btnEx.onclick = (e) => { e.stopPropagation(); exportClipFrames([c]); };
-    row.appendChild(btnEx);
+    const btnUpd = makeEl('button', 'btn mini', '更新选区');
+    btnUpd.title = '把时间轨当前选区更新为该切片的起止帧（会二次确认）';
+    btnUpd.onclick = (e) => { e.stopPropagation(); updateClipFromSelection(c); };
+    row.appendChild(btnUpd);
     item.appendChild(row);
     const apply = () => {
       const last = Math.max(0, state.totalFrames - 1);
@@ -3951,12 +4320,35 @@ function renderClips() {
       '<span>' + fmtTime(c.start / (c.fps || 30)) + ' → ' + fmtTime(c.end / (c.fps || 30)) + '</span>';
     item.appendChild(meta);
     item.onclick = () => applyClip(c.id);
-    item.title = '点击选中并定位到该切片的区段（帧 ' + c.start + '–' + c.end + '，不切割视频文件）；右侧帧列表会同步只显示该区间的帧';
+    item.title = '点击选中并定位到该切片的区段（帧 ' + c.start + '–' + c.end + '，不切割视频文件）；右侧帧列表会同步只显示该区间的帧。再次点击可取消选择（回到默认图集）';
     frag.appendChild(item);
   }
   box.appendChild(frag);
   refreshFrameScope();          // 帧列表（缩略图网格）跟随当前切片
   updateNamingSample();         // 切片变化 → 命名模板里的 {clip} 示例同步
+}
+/** 用时间轨当前选区更新某条切片的起止帧（二次确认） */
+async function updateClipFromSelection(c) {
+  if (!c) return;
+  if (!state.video.loaded) { toast('请先导入视频', 'warn'); return; }
+  const sel = state.selection;
+  if (!sel || !sel.active) { toast('时间轨上还没有选区：先拖出选区再点「更新选区」', 'warn'); return; }
+  const s = Math.min(sel.start, sel.end), e = Math.max(sel.start, sel.end);
+  if (s === c.start && e === c.end) { toast('当前选区与切片「' + c.name + '」区间相同，无需更新', ''); return; }
+  const ok = await uiConfirm(
+    '把切片「<b>' + c.name + '</b>」的区间更新为时间轨当前选区？<br>' +
+    '原区间 <b>' + c.start + '–' + c.end + '</b> → 新区间 <b>' + s + '–' + e + '</b>（' + (e - s + 1) + ' 帧）<br>' +
+    '<span class="hint">已合成的该切片图集会失效，需要重新合成。</span>',
+    '更新切片选区', '更新');
+  if (!ok) return;
+  c.start = s; c.end = e; c.fps = state.video.fps; c.updatedAt = new Date().toISOString();
+  clipAtlasInvalidate(c);                                   // 区间变了 → 该切片的图集作废
+  if (state.clipActive === c.id) {                          // 正在使用该切片：同步时间轨锁定区间
+    state.lockedRange = { start: s, end: e };
+    syncMetaLabels(); renderTimeline();
+  }
+  sortClips(); renderClips(); markDirty();
+  toast('切片「' + c.name + '」已更新为帧 ' + s + '–' + e + '（' + (e - s + 1) + ' 帧）', 'ok', 3600);
 }
 /** 导出指定切片的序列帧（写入「输出子目录」/切片名/；只写盘，不动内存帧列表） */
 async function exportClipFrames(clips) {
@@ -3977,7 +4369,7 @@ async function exportClipFrames(clips) {
 
 /**
  * 刷新帧：按「当前切片区间（无切片时=当前处理范围）」重新抽帧，直接生成到内存帧列表。
- * 不写项目目录、不打包（随后可点「写入项目目录」落盘），用于图集的拣选。
+ * 不写项目目录、不打包（保存项目时会补写落盘），用于图集的拣选。
  * @param {string|null|undefined} clipId 指定切片 id；null = 明确不用切片（按当前处理范围）；undefined = 用当前选中切片
  */
 async function refreshClipFrames(clipId) {
@@ -3988,7 +4380,7 @@ async function refreshClipFrames(clipId) {
   const total = range.end - range.start + 1;
   if (total > 600) {
     const ok = await uiConfirm('本次将刷新 <b>' + total + '</b> 帧（' + (c ? '切片「' + c.name + '」' : '当前处理范围') +
-      '），全部生成在内存帧列表中（可稍后「写入项目目录」保存 PNG）。<br>是否继续？', '刷新帧数较多', '继续刷新');
+      '），全部生成在内存帧列表中（保存项目时会一并写入 PNG）。<br>是否继续？', '刷新帧数较多', '继续刷新');
     if (!ok) return false;
   }
   return exportFrames({
@@ -4005,7 +4397,7 @@ function makeRefreshFramesBtn(clip) {
   b.disabled = !state.video.loaded;
   b.title = clip
     ? ('按切片「' + clip.name + '」区间（帧 ' + clip.start + '–' + clip.end + '）从视频重新抽帧到内存帧列表，' +
-      '不写入项目目录；用于图集拣选，之后可点「写入项目目录」保存 PNG')
+      '不写入项目目录；用于图集拣选，保存项目时会一并写入 PNG')
     : '按当前处理范围从视频重新抽帧到内存帧列表（不写盘），用于图集拣选';
   b.onclick = () => { refreshClipFrames(clip ? clip.id : null); };
   return b;
@@ -4022,39 +4414,13 @@ function syncChromaUI() {
   $('rngShrink').value = c.shrink; $('valShrink').textContent = c.shrink;
   $('inpKeyColor').value = c.key;
 }
-/** 只保留选中帧：作用范围 = 当前帧列表显示范围（跟随切片时只清理该切片内的帧） */
-function keepSelectedFrames() {
-  const scope = frameScopeClip();
-  const list = frameScopeList();          // 范围内 = 会被清理的候选帧
-  const sel = list.filter((f) => f.selected);        // 范围内选中的帧（保留）
-  const drop = list.filter((f) => !f.selected);      // 范围内未选中的帧（删除）
-  if (!list.length) { toast('当前范围内没有帧图', 'warn'); return; }
-  if (!drop.length) { toast(scope ? ('切片「' + scope.name + '」内所有帧都已选中，无需清理') : '所有帧都已选中，无需清理', ''); return; }
-  const where = scope ? ('切片「' + scope.name + '」（帧 ' + scope.start + '–' + scope.end + '）内') : '';
-  uiConfirm('将删除' + where + ' <b>' + drop.length + '</b> 帧未选中的帧图，保留 <b>' + sel.length + '</b> 帧' +
-    (scope ? '；切片范围外的 ' + (state.frames.length - list.length) + ' 帧不受影响' : '') + '，是否继续？',
-    '只保留选中帧', '删除未选中').then((ok) => {
-      if (!ok) return;
-      const dropSet = new Set(drop);
-      for (const f of drop) {
-        if (f.url) { try { URL.revokeObjectURL(f.url); } catch (e) { } }
-        if (f.thumbUrl) { try { URL.revokeObjectURL(f.thumbUrl); } catch (e) { } }
-        if (f.bitmap) { try { f.bitmap.close(); } catch (e) { } }
-      }
-      state.frames = state.frames.filter((f) => !dropSet.has(f));
-      invalidateAtlas();
-      renderFrameGrid();
-      updateFrameCounters();
-      markDirty();
-      toast('已保留 ' + sel.length + ' 帧' + (scope ? '（' + where.slice(0, -1) + '）' : '') + '，图集需重新合成', 'ok');
-    });
-}
 
 function switchTab(name) {
   document.querySelectorAll('#rightTabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.tabPane').forEach((p) => p.classList.toggle('active', p.id === 'pane-' + name));
-  if (name === 'atlas' && atlasMeta) renderAtlasView();
-  if (name === 'player' && atlasMeta) drawPlayerFrame(player.idx);
+  if (name !== 'atlas') return;
+  applyPlayerHeight();                 // 标签页显示后再按实际高度收敛一次
+  maybeAutoBuildAtlas();               // 数据脏了（帧勾选 / 帧列表 / 参数变化）自动重合成，否则只重绘
 }
 
 /** 载入视频的统一入口
@@ -4167,6 +4533,183 @@ function initGroupState() {
   });
 }
 
+/* ================================================================
+ * 9.2 分界线拖拽
+ * ----------------------------------------------------------------
+ * · 竖向分界线（#layout）：左栏 / 中栏 / 右栏 宽度
+ * · 横向分界线（图集页内）：上方图集区 ↔ 底部播放器 高度
+ * 双击分界线恢复默认，尺寸记在浏览器本地缓存（localStorage）。
+ * ================================================================ */
+const LS_PANEL_W = 'gs_panel_widths';
+const SPLITTER_W = 6;                                    // 与 .splitter 的宽度一致
+const PANEL_DEF = { left: 322, right: 400, player: 300 }; // 与 CSS 变量默认值一致
+const PANEL_MIN = { left: 240, right: 300, player: 140 };
+const CENTER_MIN = 320;                                  // 与 #center 的 min-width 一致
+const ATLAS_MIN_H = 200;                                 // 拖播放器高度时上方图集至少保留的高度
+const panelW = { left: PANEL_DEF.left, right: PANEL_DEF.right };
+let playerH = PANEL_DEF.player;                          // 底部播放器高度
+
+function readPanelWidths() {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_PANEL_W) || 'null');
+    if (o && isFinite(o.left)) panelW.left = Number(o.left);
+    if (o && isFinite(o.right)) panelW.right = Number(o.right);
+    if (o && isFinite(o.player)) playerH = Number(o.player);
+  } catch (e) { }
+}
+function writePanelWidths() {
+  try {
+    localStorage.setItem(LS_PANEL_W, JSON.stringify({
+      left: Math.round(panelW.left), right: Math.round(panelW.right), player: Math.round(playerH)
+    }));
+  } catch (e) { }
+}
+function applyPanelWidths() {
+  const st = document.documentElement.style;
+  st.setProperty('--left-w', Math.round(panelW.left) + 'px');
+  st.setProperty('--right-w', Math.round(panelW.right) + 'px');
+}
+/** 依据窗口宽度收敛两侧宽度，保证中间预览区不小于 CENTER_MIN */
+function fitPanelWidths() {
+  const total = ($('layout') && $('layout').clientWidth) || window.innerWidth;
+  const budget = Math.max(PANEL_MIN.left + PANEL_MIN.right, total - SPLITTER_W * 2 - CENTER_MIN);
+  panelW.left = clamp(panelW.left, PANEL_MIN.left, Math.max(PANEL_MIN.left, budget - PANEL_MIN.right));
+  panelW.right = clamp(panelW.right, PANEL_MIN.right, Math.max(PANEL_MIN.right, budget - panelW.left));
+  applyPanelWidths();
+  applyPlayerHeight();
+}
+/** 设置单侧宽度（拖拽用）：另一侧固定，上限由窗口宽度与中间最小宽度推导 */
+function setPanelWidth(side, w) {
+  const total = ($('layout') && $('layout').clientWidth) || window.innerWidth;
+  const other = side === 'left' ? panelW.right : panelW.left;
+  const max = Math.max(PANEL_MIN[side], total - SPLITTER_W * 2 - CENTER_MIN - other);
+  panelW[side] = clamp(w, PANEL_MIN[side], max);
+  applyPanelWidths();
+}
+/** 播放器高度上限：标签页隐藏时不做约束 */
+function maxPlayerHeight() {
+  const host = $('pane-atlas');
+  if (!host || host.clientHeight < 140) return 900;
+  return Math.max(PANEL_MIN.player, host.clientHeight - ATLAS_MIN_H);
+}
+/** 应用并收敛底部播放器高度 */
+function applyPlayerHeight() {
+  playerH = clamp(playerH, PANEL_MIN.player, maxPlayerHeight());
+  document.documentElement.style.setProperty('--player-h', Math.round(playerH) + 'px');
+}
+function setPlayerHeight(h) {
+  playerH = clamp(h, PANEL_MIN.player, maxPlayerHeight());
+  applyPlayerHeight();
+}
+/** 绑定分界线拖拽 / 双击复位 / 窗口尺寸变化收敛 */
+function bindSplitLayout() {
+  readPanelWidths();
+  fitPanelWidths();
+  let drag = null;                       // { sp, axis, side, pos, size }
+  const stopDrag = () => {
+    if (!drag) return;
+    drag.sp.classList.remove('dragging');
+    drag = null;
+    document.body.classList.remove('col-resizing', 'row-resizing');
+    writePanelWidths();
+  };
+  const onMove = (e) => {
+    if (!drag) return;
+    if (drag.axis === 'x') {
+      const dx = e.clientX - drag.pos;
+      setPanelWidth(drag.side, drag.side === 'left' ? drag.size + dx : drag.size - dx);
+    } else {
+      setPlayerHeight(drag.size - (e.clientY - drag.pos));
+    }
+  };
+  document.querySelectorAll('#layout > .splitter, #pane-atlas > .splitter').forEach((sp) => {
+    const axis = sp.classList.contains('h') ? 'y' : 'x';
+    const side = sp.dataset.side || null;
+    sp.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      drag = {
+        sp, axis, side,
+        pos: axis === 'x' ? e.clientX : e.clientY,
+        size: axis === 'x' ? panelW[side] : playerH
+      };
+      sp.classList.add('dragging');
+      document.body.classList.add(axis === 'x' ? 'col-resizing' : 'row-resizing');
+      try { sp.setPointerCapture(e.pointerId); } catch (err) { }
+      e.preventDefault();
+    });
+    sp.addEventListener('dblclick', () => {
+      if (axis === 'x') {
+        panelW[side] = PANEL_DEF[side];
+        fitPanelWidths();
+        toast('已恢复默认' + (side === 'left' ? '左栏' : '右栏') + '宽度', 'ok');
+      } else {
+        playerH = PANEL_DEF.player;
+        applyPlayerHeight();
+        toast('已恢复默认播放器高度', 'ok');
+      }
+      writePanelWidths();
+    });
+  });
+  window.addEventListener('pointermove', onMove, { passive: true });
+  window.addEventListener('pointerup', stopDrag);
+  window.addEventListener('pointercancel', stopDrag);
+  window.addEventListener('blur', stopDrag);
+  let rt = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(rt);
+    rt = setTimeout(fitPanelWidths, 120);
+  });
+}
+
+/* ================================================================
+ * 9.3 悬浮说明小窗（.tip[data-tip]）
+ * ----------------------------------------------------------------
+ * 面板里的长段说明改由角标承载：鼠标停在角标上，弹出小窗显示说明文本
+ * （支持 <b> / <code> / <kbd> 等简单富文本），移开即收起。
+ * ================================================================ */
+function initTips() {
+  const box = $('tipBox');
+  if (!box) return;
+  let timer = 0, cur = null;
+  const hide = () => {
+    clearTimeout(timer);
+    box.classList.remove('show');
+    if (cur) cur.classList.remove('active');
+    cur = null;
+  };
+  const place = (el) => {
+    const r = el.getBoundingClientRect();
+    const bw = box.offsetWidth, bh = box.offsetHeight;
+    const left = clamp(r.left + r.width / 2 - bw / 2, 8, Math.max(8, window.innerWidth - bw - 8));
+    let top = r.top - bh - 9;
+    if (top < 8) top = Math.min(window.innerHeight - bh - 8, r.bottom + 9);
+    box.style.left = Math.round(left) + 'px';
+    box.style.top = Math.round(Math.max(8, top)) + 'px';
+  };
+  const show = (el) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      cur = el;
+      box.innerHTML = el.dataset.tip || '';
+      box.classList.add('show');       // 先显示才能量出宽高
+      place(el);
+      el.classList.add('active');
+    }, 120);
+  };
+  document.querySelectorAll('.tip[data-tip]').forEach((el) => {
+    el.addEventListener('mouseenter', () => show(el));
+    el.addEventListener('mouseleave', hide);
+  });
+  // 点角标不触发折叠分组等默认动作
+  document.addEventListener('click', (e) => {
+    const t = e.target && e.target.closest && e.target.closest('.tip');
+    if (t) { e.preventDefault(); e.stopPropagation(); hide(); }
+  }, true);
+  document.addEventListener('mousedown', hide, true);
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+}
+
 /* ---------- 事件绑定 ---------- */
 function bindUI() {
   // 顶栏
@@ -4174,7 +4717,6 @@ function bindUI() {
     const files = await pickFilesViaInput($('fileVideo'));
     if (files && files[0]) importVideoFile(files[0]);
   };
-  $('btnSaveProject').onclick = () => saveProject({});
   $('btnSaveProject2').onclick = () => saveProject({});
   $('btnPickDir').onclick = pickProjectDir;
   $('btnPickDir2').onclick = pickProjectDir;
@@ -4236,7 +4778,8 @@ function bindUI() {
     } else { setStatus('帧率检测失败，请手动填写', 'warn'); toast('无法自动检测帧率，请手动输入', 'warn'); }
   };
   $('inpCurFrame').onchange = () => gotoFrame(nf($('inpCurFrame').value, 0));
-  $('chkLoop').onchange = () => { state.play.loop = $('chkLoop').checked; };
+  // 视频循环：只影响视频预览，不要动序列帧播放器的循环状态
+  $('chkLoop').onchange = () => { if (!state.selection.active) video.loop = $('chkLoop').checked; };
 
   // 裁剪框
   const cropInput = () => setCrop(nf($('inpCropX').value, 0), nf($('inpCropY').value, 0), nf($('inpCropW').value, 8), nf($('inpCropH').value, 8));
@@ -4251,6 +4794,23 @@ function bindUI() {
     renderPreview(true);
   };
   $('btnCropAutoFit').onclick = autoFitSubject;
+  $('btnCropCopy').onclick = () => {
+    const c = state.crop;
+    if (!(c.w > 0 && c.h > 0)) { toast('当前没有可复制的裁剪框', 'warn'); return; }
+    writeCropClipboard({ x: c.x, y: c.y, w: c.w, h: c.h });
+    updateCropClipUI();
+    toast('已复制裁剪框：' + c.w + ' × ' + c.h + '（x ' + c.x + ', y ' + c.y + '）· 可切换切片后粘贴', 'ok', 3000);
+  };
+  $('btnCropPaste').onclick = () => {
+    const r = readCropClipboard();
+    if (!r) { toast('还没有复制过裁剪框：先点「复制裁剪框」', 'warn', 3000); return; }
+    if (!state.video.loaded) { toast('请先导入视频', 'warn'); return; }
+    setCrop(r.x, r.y, r.w, r.h);
+    renderPreview(true);
+    toast('已粘贴裁剪框：' + state.crop.w + ' × ' + state.crop.h +
+      (state.clipActive ? '（已写入切片「' + atlasOwnerLabel(state.clipActive) + '」）' : '（未选切片，仅当前预览）'), 'ok', 3000);
+  };
+  updateCropClipUI();
 
   // 绿幕
   $('inpKeyColor').oninput = () => setKeyColor($('inpKeyColor').value);
@@ -4278,7 +4838,6 @@ function bindUI() {
     forceZipExport = true;
     try { await exportFrames({}); } finally { forceZipExport = false; }
   };
-  $('btnWriteFrames').onclick = () => writeFramesToProject(false);
   $('btnCancelExport').onclick = cancelJob;
   $('btnProgCancel').onclick = cancelJob;
   $('inpFrameOut').onchange = () => {
@@ -4292,8 +4851,6 @@ function bindUI() {
 
   // 切片配置（只记录帧区间，不切割视频）
   $('btnAddClip').onclick = () => addClipFromRange();
-  $('btnAddClip2').onclick = () => addClipFromRange();
-  $('btnUpdateClip').onclick = () => updateClipFromRange(state.clipActive);
   $('btnExportActiveClip').onclick = () => {
     const c = clipById(state.clipActive) || state.clips[0];
     if (!c) { toast('还没有切片配置，请先「保存为切片配置」', 'warn'); return; }
@@ -4324,6 +4881,7 @@ function bindUI() {
     setSelection(s, state.frame);
     toast('终点 = 帧 ' + state.frame, '', 1800);
   };
+  $('btnLoopMatch').onclick = autoLoopMatch;      // 首位循环：像素相似度找循环点
   $('btnClearSel').onclick = async () => {
     if (!state.selection.active && !state.lockedRange) { toast('当前没有选区', ''); return; }
     const ok = await uiConfirm('确定<b>清除选区</b>并恢复全片处理范围？', '清除选区');
@@ -4332,75 +4890,39 @@ function bindUI() {
     setSelection(null);
     toast('已清除选区，处理范围为全片', 'ok');
   };
-  $('btnClipSegment').onclick = async () => {
-    const r = getRange();
-    if (r.start === 0 && r.end === state.totalFrames - 1) { toast('当前已是全片，无需裁剪', 'warn'); return; }
-    const ok = await uiConfirm('将处理范围固定为 <b>帧 ' + r.start + ' – ' + r.end + '</b>（共 ' + (r.end - r.start + 1) + ' 帧）。<br>后续导出帧、图集均只处理该区间，是否继续？', '裁剪出片段', '固定区间');
-    if (!ok) return;
-    state.lockedRange = { start: r.start, end: r.end };
-    syncMetaLabels(); renderTimeline(); markDirty();
-    toast('已固定处理区间：帧 ' + r.start + ' – ' + r.end + '（可再「保存为切片配置」持久化）', 'ok', 4200);
-  };
 
-  // 帧列表（全选 / 反选等作用于当前显示范围：跟随切片时 = 该切片区间内的帧）
-  $('btnSelectAll').onclick = () => { frameScopeList().forEach((f) => (f.selected = true)); renderFrameGrid(); markDirty(); };
-  $('btnSelectNone').onclick = () => { frameScopeList().forEach((f) => (f.selected = false)); renderFrameGrid(); markDirty(); };
-  $('btnInvert').onclick = () => { frameScopeList().forEach((f) => (f.selected = !f.selected)); renderFrameGrid(); markDirty(); };
-  $('btnKeepSelected').onclick = keepSelectedFrames;
-  $('chkFrameFollowClip').checked = state.frameFollowClip !== false;
-  $('chkFrameFollowClip').onchange = () => setFrameFollowClip($('chkFrameFollowClip').checked);
-  $('btnImportFrames').onclick = async () => {
-    const files = await pickFilesViaInput($('fileImages'));
-    if (files && files.length) importExternalFrames(files);
-  };
-  $('btnClearFrames').onclick = async () => {
-    if (!state.frames.length) { toast('帧列表已为空', ''); return; }
-    const ok = await uiConfirm('确定<b>清空全部 ' + state.frames.length + ' 帧</b>？<br><span class="hint">项目目录中已写入的 PNG 文件不会被删除。</span>', '清空帧列表', '清空');
-    if (!ok) return;
-    clearFrames();
-    renderTimeline();
-    markDirty();
-    toast('帧列表已清空', 'ok');
-  };
+  // 帧列表（全选 / 全不选 二合一按钮在范围提示条里，作用于当前显示范围：跟随切片时 = 该切片区间内的帧）
   $('btnAutoSelect').onclick = () => autoSelectFrames(nf($('inpAutoN').value, 24));
 
-  // 图集
-  $('btnAtlasBuild').onclick = buildAtlas;
-  $('btnAtlasBuild2').onclick = buildAtlas;
-  $('btnAtlasExport').onclick = () => writeAtlasToProject(false);
+  // 图集（合成 / 写入 / 下载 都在「图集 / 播放」页，切到该页会自动合成）
+  $('btnAtlasRefresh').onclick = () => { atlasAutoKey = ''; buildAtlas(); };   // 手动强制重合成
   $('btnAtlasExport2').onclick = () => writeAtlasToProject(false);
-  $('btnAtlasDownload').onclick = downloadAtlas;
   $('btnAtlasDownload2').onclick = downloadAtlas;
-  $('chkAtlasAutoWrite').onchange = () => { state.atlas.autoWrite = $('chkAtlasAutoWrite').checked; markDirty(); };
-  ['inpCols', 'inpRows', 'inpGap'].forEach((id) => { $(id).onchange = () => onAtlasParamsChanged('图集参数'); });
+  // 列 / 行 改变：同步「保留总帧数 N = 列数 × 行数」
+  const onCapacityChanged = () => {
+    onAtlasParamsChanged('图集参数');
+    $('inpCols').value = state.atlas.cols;      // 回写取整后的值
+    $('inpRows').value = state.atlas.rows;
+    syncAutoNToCapacity();
+  };
+  ['inpCols', 'inpRows'].forEach((id) => { $(id).onchange = onCapacityChanged; });
   $('selOrder').onchange = () => onAtlasParamsChanged('排布顺序');
-  $('chkAtlasSelectedOnly').onchange = () => onAtlasParamsChanged('帧选择方式');
   const atlasViewOnly = () => { syncAtlasParamsFromUI(); if (atlasMeta) renderAtlasView(); commitAtlasToOwner(); markDirty(); };
-  $('chkShowGrid').onchange = atlasViewOnly;
-  $('chkShowIndex').onchange = atlasViewOnly;
-  $('chkCellFit').onchange = atlasViewOnly;
-  $('rngZoom').oninput = () => { $('chkCellFit').checked = false; syncAtlasParamsFromUI(); if (atlasMeta) renderAtlasView(); };
-  $('rngZoom').onchange = () => { commitAtlasToOwner(); markDirty(); };
+  $('chkShowGrid').onchange = atlasViewOnly;   // 网格线 + 帧序号 合并开关
+  bindAtlasViewport();                          // 图集预览：滚轮缩放 / 拖动平移 / 双击自适应
 
   // 播放器
-  $('btnPlPlay').onclick = playerPlay;
-  $('btnPlPause').onclick = playerPause;
+  $('btnPlPlay').onclick = () => { player.playing ? playerPause() : playerPlay(); };
   $('btnPlStop').onclick = playerStop;
   $('btnPlPrev').onclick = () => playerStep(-1);
   $('btnPlNext').onclick = () => playerStep(1);
   $('chkPlLoop').onchange = () => { state.play.loop = $('chkPlLoop').checked; markDirty(); };
-  $('inpPlTotalMs').onchange = () => {
-    state.play.totalMs = clamp(nf($('inpPlTotalMs').value, 1000), 30, 600000);
-    state.play.perFrame = Math.max(1, Math.round(state.play.totalMs / Math.max(1, playerFramesCount())));
-    $('inpPlPerFrame').value = state.play.perFrame;
-    markDirty();
+  $('rngPlSpeed').oninput = () => {
+    state.play.speed = clamp(nf($('rngPlSpeed').value, 1), PL_SPEED_MIN, PL_SPEED_MAX);
+    syncPlayerUI();
   };
-  $('inpPlPerFrame').onchange = () => {
-    state.play.perFrame = clamp(nf($('inpPlPerFrame').value, 42), 1, 60000);
-    state.play.totalMs = state.play.perFrame * Math.max(1, playerFramesCount());
-    $('inpPlTotalMs').value = state.play.totalMs;
-    markDirty();
-  };
+  $('rngPlSpeed').onchange = () => markDirty();
+  syncPlayerUI();
 
   // 右侧标签
   document.querySelectorAll('#rightTabs .tab').forEach((t) => { t.onclick = () => switchTab(t.dataset.tab); });
@@ -4455,6 +4977,9 @@ function bindUI() {
   ro.observe($('center'));
   const ro2 = new ResizeObserver(() => { if (state.video.loaded) renderPreview(false); });
   ro2.observe($('stage'));
+  // 图集预览区尺寸变化（右栏宽度 / 播放器分界线 / 窗口）→ 重新贴合并刷新平移状态
+  const ro3 = new ResizeObserver(() => { if (atlasMeta) applyAtlasZoom(); });
+  ro3.observe($('atlasView'));
 
   // 视频播放结束
   video.addEventListener('ended', () => { if (!state.playing) return; });
@@ -4478,6 +5003,8 @@ async function boot() {
   const cached = readLastDirMeta();
   if (cached && cached.handle && window.showDirectoryPicker) $('ovWelcome').classList.add('hidden');
   initGroupState();             // 记录折叠分组默认值并绑定 toggle → 写入 project.json
+  bindSplitLayout();            // 三栏分界线：拖拽调整 左 / 中 / 右 宽度
+  initTips();                   // 悬浮说明角标（.tip[data-tip]）
   bindUI();
   bindTimeline();
   bindCropBox();
@@ -4492,10 +5019,10 @@ async function boot() {
     ? '未绑定项目目录。点击「绑定 / 切换目录」选择目录；保存会直接写入该目录。'
     : '当前浏览器不支持 File System Access API：项目目录将使用内存目录（可「导出项目 ZIP」留存）。';
   $('lblAtlasOrder').textContent = '列优先（上→下，左→右）';
+  refreshAtlasMetaTip();
   $('inpFrameOut').value = state.frameOut;
   $('chkAutoSave').checked = state.project.autoSave;
   $('chkAutoCopyVideo').checked = state.project.autoCopyVideo;
-  $('chkAtlasAutoWrite').checked = state.atlas.autoWrite;
   state.atlas.ownerId = null;
   syncAtlasUIFromState();
   setStatus('就绪 · 请先绑定项目目录（顶栏「📁 项目目录」）', '');
