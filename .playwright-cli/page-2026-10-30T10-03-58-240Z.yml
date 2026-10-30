@@ -1,0 +1,259 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🎬 绿幕动作视频 → 序列帧图集 编辑器Green Screen → Sprite Sheet
+    - generic [ref=e4]:
+      - button "📁 项目目录" [ref=e5] [cursor=pointer]
+      - generic "尚未绑定项目目录，点击顶栏「📁 项目目录」" [ref=e6]: 未绑定
+      - button "① 导入视频" [ref=e9] [cursor=pointer]
+      - generic [ref=e10]:
+        - checkbox "自动保存" [checked] [ref=e11]
+        - text: 自动保存
+      - button "使用说明" [ref=e12] [cursor=pointer]
+    - generic [ref=e13]: 就绪 · 请先绑定项目目录（顶栏「📁 项目目录」）
+  - generic [ref=e14]:
+    - complementary [ref=e15]:
+      - group [ref=e16]:
+        - generic "▸ 播放" [ref=e17] [cursor=pointer]
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - generic [ref=e20]: 倍速
+            - combobox [ref=e21]:
+              - option "0.25x"
+              - option "0.5x"
+              - option "1x" [selected]
+              - option "1.5x"
+              - option "2x"
+          - generic [ref=e22]:
+            - generic [ref=e23]: 帧率 fps
+            - spinbutton [ref=e24]: "30"
+            - button "检测" [ref=e25] [cursor=pointer]
+          - generic [ref=e26]:
+            - generic [ref=e27]: 总帧数
+            - generic [ref=e28]: —
+            - generic [ref=e29]: 时长 —
+          - generic [ref=e30]:
+            - generic [ref=e31]: 当前帧
+            - spinbutton [ref=e32]: "0"
+            - generic [ref=e33]: 0.000s
+          - generic [ref=e34]:
+            - generic [ref=e35]: 循环
+            - checkbox [checked] [ref=e36]
+            - generic [ref=e37]: i
+          - generic [ref=e38]:
+            - text: 分辨率：—
+            - generic [ref=e39]: i
+      - group [ref=e40]:
+        - generic "▸ 裁剪框（像素裁剪） i" [ref=e41] [cursor=pointer]:
+          - text: ▸ 裁剪框（像素裁剪）
+          - generic [ref=e42]: i
+        - generic [ref=e43]:
+          - generic [ref=e44]:
+            - button "复制" [ref=e45] [cursor=pointer]
+            - button "粘贴" [disabled] [ref=e46]
+          - generic [ref=e47]:
+            - generic [ref=e48]: x
+            - spinbutton [ref=e49]: "0"
+            - generic [ref=e50]: "y"
+            - spinbutton [ref=e51]: "0"
+          - generic [ref=e52]:
+            - generic [ref=e53]: 宽 w
+            - spinbutton [ref=e54]: "0"
+            - generic [ref=e55]: 高 h
+            - spinbutton [ref=e56]: "0"
+          - generic [ref=e57]:
+            - generic [ref=e58]: 锁定比例
+            - checkbox [ref=e59]
+            - combobox [ref=e60]:
+              - option "自由" [selected]
+              - option "1:1"
+              - option "16:9"
+              - option "9:16"
+              - option "4:3"
+              - option "3:4"
+              - option "2:1"
+              - option "1:2"
+          - generic [ref=e61]:
+            - button "整幅" [ref=e62] [cursor=pointer]
+            - button "居中 512²" [ref=e63] [cursor=pointer]
+            - button "自动贴合主体" [ref=e64] [cursor=pointer]
+      - group [ref=e65]:
+        - generic "▸ 绿幕抠除（键控） i" [ref=e66] [cursor=pointer]:
+          - text: ▸ 绿幕抠除（键控）
+          - generic [ref=e67]: i
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - generic [ref=e70]: 键色
+            - textbox [ref=e71]: "#00ff00"
+            - button "吸管" [ref=e72] [cursor=pointer]
+            - button "重置色" [ref=e73] [cursor=pointer]
+          - generic [ref=e74]:
+            - generic [ref=e75]: 相似度
+            - slider [ref=e76]: "30"
+            - generic [ref=e77]: "30"
+          - generic [ref=e78]:
+            - generic [ref=e79]: 边缘柔化
+            - slider [ref=e80]: "18"
+            - generic [ref=e81]: "18"
+          - generic [ref=e82]:
+            - generic [ref=e83]: 溢色抑制
+            - slider [ref=e84]: "60"
+            - generic [ref=e85]: "60"
+          - generic [ref=e86]:
+            - generic [ref=e87]: 透明度收缩
+            - slider [ref=e88]: "0"
+            - generic [ref=e89]: "0"
+          - generic [ref=e90]:
+            - generic [ref=e91]: 对比显示
+            - checkbox [checked] [ref=e92]
+            - generic [ref=e93]: i
+          - button "恢复默认参数" [ref=e95] [cursor=pointer]
+      - group [ref=e96]:
+        - generic "▸ 视频切片（配置，不切割视频） i" [ref=e97] [cursor=pointer]:
+          - text: ▸ 视频切片（配置，不切割视频）
+          - generic [ref=e98]: i
+        - generic [ref=e99]:
+          - generic [ref=e100]: 暂无切片配置 · 用时间轨「保存为切片配置」新建
+          - generic [ref=e102]:
+            - button "导出所选切片帧" [disabled] [ref=e103]
+            - button "导出全部切片帧" [disabled] [ref=e104]
+      - group [ref=e105]:
+        - generic "▸ 导出帧 → 项目目录（序列帧 PNG）" [ref=e106] [cursor=pointer]
+        - generic [ref=e107]:
+          - generic [ref=e108]: 处理范围：帧 0 – 0
+          - generic [ref=e109]:
+            - generic [ref=e110]: 输出子目录
+            - 'textbox "相对项目目录的路径，可用占位符 {clip} / {video} / {name}" [ref=e111]': frames
+            - generic [ref=e112]: i
+          - generic [ref=e113]:
+            - generic [ref=e114]: 命名模板
+            - 'textbox "可用占位符：{clip} / {video} / {index} / {frame} / {time} / {name}" [ref=e115]': "frame_{clip}_{index}.png"
+            - generic [ref=e116]: i
+          - generic [ref=e117]:
+            - text: 示例（当前范围）：
+            - code [ref=e118]: frame_green_action_0001.png
+            - text: "{clip} = green_action（项目名，导入视频后为源视频名）"
+          - generic [ref=e119]:
+            - generic [ref=e120]: 缓存上限
+            - spinbutton [ref=e121]: "240"
+            - generic [ref=e122]: 帧
+          - generic [ref=e123]:
+            - text: PNG 直接写入：（需先绑定项目目录）
+            - generic [ref=e124]: i
+          - generic [ref=e125]:
+            - button "导出帧到项目目录" [disabled] [ref=e126]
+            - button "导出并打包 ZIP" [disabled] [ref=e127]
+          - button "取消当前任务" [disabled] [ref=e129]
+      - group [ref=e130]:
+        - generic "▸ 项目（绑定目录） i" [ref=e131] [cursor=pointer]:
+          - text: ▸ 项目（绑定目录）
+          - generic [ref=e132]: i
+        - generic [ref=e133]:
+          - generic [ref=e134]:
+            - generic [ref=e135]: 项目名
+            - textbox [ref=e136]: green_action
+          - generic [ref=e137]:
+            - generic [ref=e138]: 项目目录
+            - generic "尚未绑定项目目录，点击顶栏「📁 项目目录」" [ref=e139]: 未绑定
+          - generic [ref=e142]:
+            - button "绑定 / 切换目录" [ref=e143] [cursor=pointer]
+            - button "从目录重新读取" [ref=e144] [cursor=pointer]
+            - button "导出项目 ZIP" [ref=e145] [cursor=pointer]
+          - generic [ref=e146]:
+            - generic [ref=e147]: 源视频
+            - generic [ref=e148]: 未导入
+          - generic [ref=e149] [cursor=pointer]:
+            - checkbox "导入视频时复制到项目目录" [checked] [ref=e150]
+            - text: 导入视频时复制到项目目录
+          - button "复制源视频到项目目录" [disabled] [ref=e152]
+          - button "保存项目（写入项目目录）" [disabled] [ref=e155]
+          - generic [ref=e156]: 未绑定项目目录。点击「绑定 / 切换目录」选择目录；保存会直接写入该目录。
+          - generic [ref=e157]: 资源：视频 — · 序列帧 0/0 已落盘 · 图集 —
+          - generic [ref=e158]: 本地缓存：暂无「上次项目目录」记录，下次打开会弹出目录选择。
+          - button "清除「上次项目目录」缓存" [disabled] [ref=e160]
+      - group [ref=e161]:
+        - generic "▸ 快捷键" [ref=e162] [cursor=pointer]
+    - generic "拖动调整左栏宽度 · 双击恢复默认" [ref=e163]
+    - generic [ref=e164]:
+      - generic [ref=e165]:
+        - generic [ref=e166]:
+          - generic [ref=e167]:
+            - generic [ref=e168]: 原始帧 · 裁剪框
+            - generic [ref=e169]: —
+          - generic [ref=e171]:
+            - text: 尚未导入视频
+            - generic [ref=e172]: 先在顶栏绑定项目目录，再点左上角 ① 导入视频，或把视频文件拖到本窗口
+        - generic [ref=e174]:
+          - generic [ref=e175]: 抠除结果（裁剪区域）
+          - generic [ref=e176]: —
+      - generic [ref=e179]:
+        - generic [ref=e180]:
+          - button "⏮" [ref=e181] [cursor=pointer]
+          - button "◀|" [ref=e182] [cursor=pointer]
+          - button "▶ 播放" [ref=e183] [cursor=pointer]
+          - button "|▶" [ref=e184] [cursor=pointer]
+          - button "⏭" [ref=e185] [cursor=pointer]
+          - button "设为起点" [ref=e187] [cursor=pointer]
+          - button "设为终点" [ref=e188] [cursor=pointer]
+          - button "清除选区" [ref=e189] [cursor=pointer]
+          - button "首位循环" [ref=e190] [cursor=pointer]
+          - button "💾 保存为切片配置" [disabled] [ref=e192]
+          - generic [ref=e193]: i
+        - generic [ref=e195]:
+          - generic [ref=e196]: 当前帧 —
+          - generic [ref=e197]: 时间 —
+          - generic [ref=e198]: 选区 全片
+          - generic [ref=e199]: 区间帧数 —
+          - generic [ref=e200]: 已抽帧 0
+    - generic "拖动调整右栏宽度 · 双击恢复默认" [ref=e201]
+    - complementary [ref=e202]:
+      - generic [ref=e203]:
+        - generic [ref=e204] [cursor=pointer]: 帧列表 / 抽帧
+        - generic [ref=e205] [cursor=pointer]: 图集 / 播放
+      - generic [ref=e206]:
+        - generic [ref=e208]:
+          - generic [ref=e209]: 列数
+          - spinbutton [ref=e210]: "6"
+          - generic [ref=e211]: 行
+          - spinbutton [ref=e212]: "4"
+          - generic [ref=e213]: 顺序
+          - combobox "列优先：先上→下，再左→右；行优先：先左→右，再上→下" [ref=e214]:
+            - option "列优先 ↓→" [selected]
+            - option "行优先 →↓"
+          - generic [ref=e215]: i
+        - generic [ref=e216]:
+          - generic [ref=e217]: 自动抽帧 保留总帧数 N
+          - spinbutton [ref=e218]: "24"
+          - button "执行抽帧" [ref=e219] [cursor=pointer]
+          - generic [ref=e220]: i
+        - generic [ref=e221]: 还没有帧图点范围条「刷新帧」：按切片区间抽帧到内存（给图集拣选）左栏「导出帧到项目目录」只写盘 · PNG 序列可直接拖入
+        - generic [ref=e224]:
+          - generic [ref=e225]: 已选 0 / 总 0
+          - generic [ref=e226]: 范围：全部帧
+      - text: i i i i
+  - generic [ref=e228]:
+    - heading "📁 第一步 · 绑定项目目录" [level=3] [ref=e229]
+    - generic [ref=e230]:
+      - generic [ref=e231]: 本工具以目录为项目：所有编辑、切片配置、序列帧与图集资源都保存在该目录中。 请选择一个空目录新建项目，或选择已保存过的项目目录继续编辑。
+      - list [ref=e232]:
+        - listitem [ref=e233]:
+          - text: 选择目录 → 自动读取其中的
+          - code [ref=e234]: project.json
+          - text: /
+          - code [ref=e235]: clips.json
+          - text: ；若不存在则新建项目。
+        - listitem [ref=e236]:
+          - text: 导入视频（可选自动复制到
+          - code [ref=e237]: video/
+          - text: ），在时间轨拖出区间。
+        - listitem [ref=e238]: 「保存为切片配置」把区间记成切片（不切割视频文件），随项目持久化。
+        - listitem [ref=e239]:
+          - text: 导出序列帧写入
+          - code [ref=e240]: frames/
+          - text: ，图集写入
+          - code [ref=e241]: atlas/
+          - text: ，全部落在项目目录里。
+      - generic [ref=e242]: ✅ 当前浏览器支持 File System Access API：项目目录可被直接读写，并可记住上次项目目录，下次打开自动恢复。
+    - generic [ref=e243]:
+      - button "稍后绑定（功能受限）" [ref=e244] [cursor=pointer]
+      - button "选择 / 新建项目目录" [ref=e245] [cursor=pointer]
+  - text: i i i i i i i i i

@@ -303,15 +303,17 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 .atlasMeta .atlasMetaTip{margin-left:auto}
 
 /* 播放器 */
-#playerStage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#0a0c0f;padding:10px}
-#playerCanvas{max-width:100%;max-height:100%;background:#1c2027;box-shadow:0 0 0 1px #000;image-rendering:auto}
+#playerStage{flex:1;min-height:0;position:relative;overflow:hidden;background:#0a0c0f}
+#playerStage.can-pan{cursor:grab}
+#playerStage.dragging{cursor:grabbing}
+#playerCanvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#1c2027;box-shadow:0 0 0 1px #000;image-rendering:auto;user-select:none;-webkit-user-drag:none}
 /* 图集页底部的播放器（与上方图集区之间可拖拽分界） */
 #playerPane{
   flex:0 0 var(--player-h);height:var(--player-h);min-height:0;
   display:flex;flex-direction:column;background:#101419;overflow:hidden;
 }
 #playerPane .paneBar{padding:6px 8px;gap:5px}
-#playerPane #playerStage{padding:6px}
+#playerPane #playerStage{padding:0}
 
 /* 帧列表内的图集参数条：列数 / 行 / 顺序 一行（间隔固定 1px） */
 .atlasParams{padding:8px 9px;border-bottom:1px solid var(--line);background:#151a21;flex:0 0 auto}
@@ -319,7 +321,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 .atlasParams .row>label{flex:0 0 auto;color:var(--fg3);font-size:12px}
 .atlasParams .row>input[type=number]{flex:1 1 0;min-width:44px;max-width:84px}
 .atlasParams .row>select{flex:0 0 100px;min-width:0}
-/* 图集页工具栏的分辨率下拉（原生 / x256–x4096） */
+/* 图集页工具栏的帧分辨率下拉（原生 / x16–x512） */
 #selAtlasRes{width:auto;flex:0 0 auto}
 .atlasParams input.over{border-color:var(--err);background:#2a1618}
 .atlasParams .capWarn{margin-top:6px;font-size:11.5px;line-height:1.5;color:var(--err)}
@@ -342,13 +344,17 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 .card .foot{padding:11px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:#171c23;border-radius:0 0 10px 10px}
 .progressOuter{height:10px;background:#0c0f13;border:1px solid var(--line2);border-radius:6px;overflow:hidden}
 .progressInner{height:100%;width:0;background:linear-gradient(90deg,#3f8fe0,#57d18a);transition:width .12s}
+/* Toast：同一时间只显示 1 条，其余排队 */
 #toastWrap{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:8px;z-index:90;pointer-events:none}
 .toast{
   background:#1c232c;border:1px solid var(--line2);border-left:3px solid var(--acc);
   padding:8px 13px;border-radius:6px;font-size:12.5px;max-width:380px;box-shadow:0 8px 22px rgba(0,0,0,.5);
-  animation:slideIn .18s ease;max-height:240px;overflow:auto;
+  animation:slideIn .16s ease;max-height:240px;overflow:auto;
+  pointer-events:auto;cursor:pointer;
+  transition:opacity .16s ease,transform .16s ease;
 }
 .toast.ok{border-left-color:var(--ok)} .toast.warn{border-left-color:var(--warn)} .toast.err{border-left-color:var(--err)}
+.toast.out{opacity:0;transform:translateX(12px)}
 @keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
 /* 欢迎页：上次项目目录一键恢复 */
 .restoreBox{
@@ -621,7 +627,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
           <label>行</label><input type="number" id="inpRows" class="grow" min="1" max="64" value="4">
           <label>顺序</label>
           <select id="selOrder" class="grow" title="列优先：先上→下，再左→右；行优先：先左→右，再上→下"><option value="column">列优先 ↓→</option><option value="row">行优先 →↓</option></select>
-          <span class="tip" data-tip="图集尺寸 = cols×w + (cols−1)×gap ／ rows×h + (rows−1)×gap（单元间隔固定 <b>1px</b>）。帧图默认按原始像素排布；可在「图集 / 播放」页选<b>分辨率上限</b>压缩纹理（原生 / x256–x4096：整张图集纹理宽或高超出时整体等比缩小）。<br>点选左栏切片即切到该切片的图集（再点一次回到「默认 · 全部帧」）。"></span>
+          <span class="tip" data-tip="图集尺寸 = cols×w + (cols−1)×gap ／ rows×h + (rows−1)×gap（单元间隔固定 <b>1px</b>）。帧图默认按原始像素排布；可在「图集 / 播放」页选<b>帧分辨率</b>压缩像素（原生 / x16–x512：单帧宽或高超出时该帧等比缩小，图集尺寸随之变小）。<br>点选左栏切片即切到该切片的图集（再点一次回到「默认 · 全部帧」）。"></span>
         </div>
         <div class="capWarn" id="atlasCapWarn" style="display:none"></div>
       </div>
@@ -650,13 +656,14 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
         <button class="btn mini" id="btnAtlasDownload2">下载 PNG</button>
         <label class="hint" title="同时显示 / 隐藏单元格边框与帧序号"><input type="checkbox" id="chkShowGrid" checked> 网格 / 序号</label>
         <span class="tip" data-tip="预览默认<b>自适应窗口</b>；<b>滚轮</b>以光标为中心缩放（0.02×–8×），按住左键<b>拖动平移</b>，<b>双击</b>恢复自适应。"></span>
-        <select id="selAtlasRes" title="整张图集纹理的分辨率上限：图集宽或高超出所选分辨率时整体等比缩小，否则不处理（原生 = 不压缩）。选项跟随切片保存；修改后立即重合成图集，保存 / 下载 PNG 同步生效。">
-          <option value="0">分辨率 原生</option>
-          <option value="256">分辨率 x256</option>
-          <option value="512">分辨率 x512</option>
-          <option value="1024">分辨率 x1024</option>
-          <option value="2048">分辨率 x2048</option>
-          <option value="4096">分辨率 x4096</option>
+        <select id="selAtlasRes" title="单帧像素分辨率上限：单帧宽或高超出所选值时该帧等比缩小到上限内，整张图集按缩小后的帧尺寸排布（原生 = 不缩放）。选项跟随切片保存；修改后立即重合成图集，保存 / 下载 PNG 同步生效。">
+          <option value="0">帧分辨率 原生</option>
+          <option value="16">帧分辨率 x16</option>
+          <option value="32">帧分辨率 x32</option>
+          <option value="64">帧分辨率 x64</option>
+          <option value="128">帧分辨率 x128</option>
+          <option value="256">帧分辨率 x256</option>
+          <option value="512">帧分辨率 x512</option>
         </select>
         <button class="btn mini" id="btnAtlasRefresh" style="margin-left:auto" title="按当前勾选的帧与列 / 行 / 顺序 / 分辨率重新合成图集（通常切到本页已自动刷新，可手动强制重合成）">刷新</button>
       </div>
@@ -692,6 +699,8 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
           <span class="val" id="valPlSpeed">1.0×</span>
           <span class="tip" data-tip="<b>1×</b> = 按源视频原速播放（抽帧后整段动画时长不变）；0.1× 慢放、10× 快放，播放中拖动即时生效。"></span>
           <span class="badge" id="lblPlFrame">0 / 0</span>
+          <span class="badge" id="lblPlRes" title="当前单帧像素分辨率（= 图集单元尺寸，随「帧分辨率」变化）">—</span>
+          <span class="tip" data-tip="播放预览：<b>滚轮</b>以光标为中心缩放（5%–1600%），按住左键<b>拖动平移</b>，<b>双击</b>恢复自适应。"></span>
         </div>
         <div id="playerStage"><canvas id="playerCanvas" width="320" height="240"></canvas></div>
       </div>
@@ -908,10 +917,61 @@ function shortPath(p) { return p ? String(p).split('/').slice(-2).join('/') : '�
 function setStatus(txt, cls) {
   const el = $('statusBar'); el.textContent = txt; el.className = cls || '';
 }
+/* Toast 队列：同一时间只显示 1 条，其余按先后顺序排队；展示时间被压缩到 [500, 1400]ms */
+const TOAST_MIN_MS = 500, TOAST_MAX_MS = 1400, TOAST_QUEUE_MAX = 12;
+const toastQueue = [];
+let toastCur = null;       // 当前展示的条目
+let toastLeaving = false;  // 当前条目是否正在淡出（淡出期间不再插入新条目）
+let toastTimer = 0, toastOutTimer = 0;
+
 function toast(msg, type, ms) {
-  const t = makeEl('div', 'toast ' + (type || ''), msg);
+  const item = { msg: String(msg == null ? '' : msg), type: type || '', ms: ms };
+  // 相邻重复消息（含正在展示的）直接忽略，避免同一提示刷屏
+  if (toastCur && toastCur.msg === item.msg && toastCur.type === item.type) return;
+  const last = toastQueue[toastQueue.length - 1];
+  if (last && last.msg === item.msg && last.type === item.type) return;
+  toastQueue.push(item);
+  // 队列过长时丢弃最早的普通提示，错误提示优先保留
+  while (toastQueue.length > TOAST_QUEUE_MAX) {
+    const i = toastQueue.findIndex((x) => x.type !== 'err');
+    toastQueue.splice(i < 0 ? 0 : i, 1);
+  }
+  showNextToast();
+}
+
+function toastDuration(item) {
+  const want = item.ms || (item.type === 'err' ? 1200 : 800);
+  return Math.max(TOAST_MIN_MS, Math.min(TOAST_MAX_MS, want));
+}
+
+/** 淡出当前提示；next=true 时淡出结束后继续展示队列中的下一条（保证同时最多 1 条） */
+function hideCurToast(next) {
+  const cur = toastCur;
+  toastCur = null;
+  clearTimeout(toastTimer);
+  if (cur && cur.el) {
+    cur.el.classList.add('out');
+    toastLeaving = true;
+    clearTimeout(toastOutTimer);
+    toastOutTimer = setTimeout(() => {
+      cur.el.remove();
+      toastLeaving = false;
+      if (next) showNextToast();
+    }, 180);
+  } else if (next) showNextToast();
+}
+
+function showNextToast() {
+  if (toastCur || toastLeaving) return;   // 已有提示在展示/淡出：保持最多 1 条
+  const item = toastQueue.shift();
+  if (!item) return;
+  const t = makeEl('div', 'toast ' + item.type, item.msg);
+  item.el = t;
+  t.title = '点击关闭';
+  t.onclick = () => { if (toastCur === item) hideCurToast(true); };
   $('toastWrap').appendChild(t);
-  setTimeout(() => { t.style.transition = '.25s'; t.style.opacity = '0'; t.style.transform = 'translateX(14px)'; setTimeout(() => t.remove(), 260); }, ms || 3200);
+  toastCur = item;
+  toastTimer = setTimeout(() => hideCurToast(true), toastDuration(item));
 }
 
 /* ---------- 确认弹窗（Promise 化） ---------- */
@@ -2483,11 +2543,12 @@ function downloadBlob(blob, filename) {
  * ================================================================ */
 const atlasCanvas = $('atlasCanvas');
 const atlasCtx = atlasCanvas.getContext('2d');
-let atlasMeta = null;   // {cols,rows,gap,order,res,scale,cellW,cellH,W,H,nativeW,nativeH,n,positions,frames}
+let atlasMeta = null;   // {cols,rows,gap,order,res,scale,cellW,cellH,W,H,frameW,frameH,n,positions,frames}
+                        // res = 单帧像素分辨率上限（0 = 原生）；frameW/frameH = 单帧原始像素
 let atlasAutoKey = '';  // 自动合成去重键（同一状态只自动尝试一次）
 let atlasSig = '';      // 当前已合成图集对应的「数据签名」，用于判断是否已过期
 const ATLAS_GAP = 1;    // 图集单元间隔（固定 1px，不再提供配置项）
-const ATLAS_RES_OPTIONS = [0, 256, 512, 1024, 2048, 4096];   // 纹理分辨率上限可选项（0 = 原生不压缩）
+const ATLAS_RES_OPTIONS = [0, 16, 32, 64, 128, 256, 512];   // 单帧像素分辨率上限可选项（0 = 原生不缩放）
 
 /* 帧对象的稳定标识：帧被重新刷新 / 导入时会生成新对象 → 签名变化 → 图集重合成 */
 const frameSigIds = new WeakMap();
@@ -2515,7 +2576,7 @@ function atlasSignature() {
  * ================================================================ */
 const atlasCache = new Map();          // ownerId → {canvas, meta, rel, written}
 const ATLAS_CACHE_MAX = 8;
-/** 一个图集配置的默认值（res = 纹理分辨率上限：0 = 原生不压缩，否则为 256–4096） */
+/** 一个图集配置的默认值（res = 单帧像素分辨率上限：0 = 原生不缩放，否则为 16–512） */
 function newAtlasConfig(o) {
   return Object.assign({
     cols: 6, rows: 4, gap: 1, order: 'column', res: 0, selectedOnly: true,
@@ -2571,9 +2632,9 @@ function cellPositions(n, cols, rows, order) {
   }
   return pos;
 }
-/* ---------- 图集纹理分辨率上限（res：0 = 原生不压缩，否则 256–4096） ---------- */
-/** 整张图集纹理的等比缩放系数：原生尺寸（宽或高）大于上限 → 整张缩小到上限；小于等于 → 不处理 */
-function atlasResScale(w, h, res) {
+/* ---------- 单帧像素分辨率上限（res：0 = 原生不缩放，否则 16–512） ---------- */
+/** 单帧的等比缩放系数：单帧宽或高大于上限 → 该帧缩小到上限内；小于等于 → 不处理 */
+function frameResScale(w, h, res) {
   const m = Math.max(w, h);
   if (!res || m <= res || m <= 0) return 1;
   return res / m;
@@ -2583,7 +2644,8 @@ function syncAtlasParamsFromUI() {
   state.atlas.rows = clamp(Math.round(nf($('inpRows').value, 4)), 1, 128);
   state.atlas.gap = ATLAS_GAP;
   state.atlas.order = $('selOrder').value;
-  state.atlas.res = Math.max(0, Math.round(nf($('selAtlasRes').value, 0)));   // 0 = 原生（不压缩）
+  const resV = Math.round(nf($('selAtlasRes').value, 0));
+  state.atlas.res = ATLAS_RES_OPTIONS.indexOf(resV) >= 0 ? resV : 0;   // 0 = 原生（不缩放）
   state.atlas.showGrid = $('chkShowGrid').checked;   // 网格线 + 帧序号合并为一个开关
   state.atlas.showIndex = state.atlas.showGrid;
   $('lblAtlasOrder').textContent = state.atlas.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
@@ -2608,7 +2670,7 @@ function syncAtlasUIFromState() {
   $('inpCols').value = state.atlas.cols;
   $('inpRows').value = state.atlas.rows;
   $('selOrder').value = state.atlas.order;
-  $('selAtlasRes').value = String(state.atlas.res | 0);
+  $('selAtlasRes').value = String(ATLAS_RES_OPTIONS.indexOf(state.atlas.res | 0) >= 0 ? (state.atlas.res | 0) : 0);
   $('chkShowGrid').checked = state.atlas.showGrid !== false;
   $('lblAtlasOrder').textContent = state.atlas.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
   syncAutoNToCapacity();
@@ -2632,7 +2694,7 @@ function atlasConfigSnapshot() {
     showGrid: !!state.atlas.showGrid, showIndex: !!state.atlas.showIndex, fit: !!state.atlas.fit,
     asset: state.atlas.rel || null,
     cell: atlasMeta ? { w: atlasMeta.cellW, h: atlasMeta.cellH, gap: atlasMeta.gap } : null,
-    native: atlasMeta ? { w: atlasMeta.nativeW, h: atlasMeta.nativeH } : null,
+    native: atlasMeta ? { w: atlasMeta.frameW, h: atlasMeta.frameH } : null,   // 单帧原始像素
     count: atlasMeta ? atlasMeta.n : 0,
     built: !!state.atlasBuilt,
     written: !!state.atlasBuilt && !!state.atlas.written
@@ -2658,7 +2720,7 @@ function commitAtlasToOwner() {
 function applyAtlasConfig(cfg) {
   const c = newAtlasConfig(cfg || {});
   state.atlas.cols = c.cols; state.atlas.rows = c.rows; state.atlas.gap = ATLAS_GAP; state.atlas.order = c.order;
-  state.atlas.res = ATLAS_RES_OPTIONS.indexOf(c.res | 0) >= 0 ? (c.res | 0) : 0;   // 纹理分辨率上限跟随切片 / 默认图集切换（非法值回退原生）
+  state.atlas.res = ATLAS_RES_OPTIONS.indexOf(c.res | 0) >= 0 ? (c.res | 0) : 0;   // 帧分辨率跟随切片 / 默认图集切换（非法值回退原生）
   state.atlas.selectedOnly = true;      // 固定为「只合成已勾选的帧」（该开关已从界面移除）
   state.atlas.showGrid = c.showGrid !== false;
   state.atlas.showIndex = state.atlas.showGrid;
@@ -2683,6 +2745,7 @@ function clearAtlasCanvas() {
     $('lblAtlasCount').textContent = '—';
   }
   if ($('lblAtlasZoom')) $('lblAtlasZoom').textContent = '—';
+  if ($('lblPlRes')) $('lblPlRes').textContent = '—';   // 播放器的单帧分辨率一并清空
   refreshAtlasMetaTip();
 }
 /** 合成结果可见时的标签刷新 */
@@ -2712,7 +2775,9 @@ function refreshAtlasMetaTip() {
     '图集：<b>' + atlasOwnerLabel() + '</b>' + (state.atlas.rel ? '　<code>' + state.atlas.rel + '</code>' : '　（尚未写入项目目录）'),
     '尺寸：<b>' + m.W + ' × ' + m.H + '</b>　单元：<b>' + Math.round(m.cellW) + ' × ' + Math.round(m.cellH) + '</b>',
     '排布：<b>' + m.cols + ' × ' + m.rows + '</b> · 间隔 <b>' + (m.gap >= 1 ? Math.round(m.gap) : (+m.gap).toFixed(2)) + 'px</b>　' + orderTxt,
-    '分辨率：<b>' + (m.res ? 'x' + m.res : '原生') + '</b>　' + (m.nativeW && m.nativeW !== m.W ? '（整张纹理已从 <b>' + m.nativeW + '×' + m.nativeH + '</b> 等比缩小）' : '（整张纹理未压缩）'),
+    '帧分辨率：<b>' + (m.res ? 'x' + m.res : '原生') + '</b>　' + (m.frameW && (m.frameW !== Math.round(m.cellW) || m.frameH !== Math.round(m.cellH))
+      ? '（单帧已从 <b>' + m.frameW + '×' + m.frameH + '</b> 等比缩小为 <b>' + Math.round(m.cellW) + '×' + Math.round(m.cellH) + '</b>）'
+      : '（单帧为原始像素）'),
     '已排布：<b>' + m.n + ' 帧</b>　缩放：<b>' + z + '</b>　滚轮缩放 · 拖动平移 · 双击自适应'
   ].join('<br>');
 }
@@ -2764,7 +2829,7 @@ async function loadAtlasAsset(rel) {
     atlasMeta = {
       cols, rows, gap: gapCfg, order: cfg.order || 'column', res: (cfg.res | 0),
       cellW: cell.w, cellH: cell.h, W: atlasCanvas.width, H: atlasCanvas.height,
-      nativeW: nat ? nat.w : null, nativeH: nat ? nat.h : null,
+      frameW: nat ? nat.w : Math.round(cell.w), frameH: nat ? nat.h : Math.round(cell.h),
       n: count, positions: cellPositions(count, cols, Math.max(rows, Math.ceil(count / cols)), cfg.order || 'column'),
       frames: list
     };
@@ -2870,17 +2935,16 @@ async function buildAtlas() {
     rows = need; $('inpRows').value = rows; state.atlas.rows = rows;
     syncAutoNToCapacity();          // 容量变了，N 同步为 列数 × 行数
   }
-  const res = state.atlas.res | 0;                    // 纹理分辨率上限（0 = 原生）
+  const res = state.atlas.res | 0;                    // 单帧像素分辨率上限（0 = 原生）
   const cellWn = list[0].w, cellHn = list[0].h;       // 原生单元 = 帧图原始像素
-  const Wn = cols * cellWn + (cols - 1) * gap;        // 原生图集纹理尺寸
-  const Hn = rows * cellHn + (rows - 1) * gap;
-  // 分辨率上限作用于「整张图集纹理」：原生宽或高大于上限 → 整张等比缩小到上限；否则不处理
-  const s = atlasResScale(Wn, Hn, res);
-  const W = Math.max(1, Math.round(Wn * s));
-  const H = Math.max(1, Math.round(Hn * s));
-  const cellW = cellWn * s, cellH = cellHn * s, gapS = gap * s;   // 缩放后的单元 / 间隔（取景用，可含小数）
+  // 限制作用于「单帧」：单帧宽或高大于上限 → 该帧等比缩小到上限内（取整像素，避免图集接缝）
+  const s = frameResScale(cellWn, cellHn, res);
+  const cellW = Math.max(1, Math.round(cellWn * s)), cellH = Math.max(1, Math.round(cellHn * s));
+  const gapS = gap;
+  const W = Math.max(1, cols * cellW + (cols - 1) * gapS);   // 图集尺寸 = 缩小后的帧尺寸 × 行列 + 间隔
+  const H = Math.max(1, rows * cellH + (rows - 1) * gapS);
   if (W > 16384 || H > 16384) {
-    const ok = await uiConfirm('图集尺寸 <b>' + W + '×' + H + '</b> 超过浏览器画布上限（16384），可能合成失败。<br>建议减小列数或先缩小裁剪区域，是否仍要继续？', '图集过大', '继续');
+    const ok = await uiConfirm('图集尺寸 <b>' + W + '×' + H + '</b> 超过浏览器画布上限（16384），可能合成失败。<br>建议减小列数或调低<b>帧分辨率</b>，是否仍要继续？', '图集过大', '继续');
     if (!ok) return;
   }
   const positions = cellPositions(list.length, cols, rows, state.atlas.order);
@@ -2895,19 +2959,18 @@ async function buildAtlas() {
     const f = list[k], p = positions[k];
     try {
       const bmp = await getFrameBitmap(f);
-      const x = p.col * (cellWn + gap) * s, y = p.row * (cellHn + gap) * s;
-      const dw = cellWn * s, dh = cellHn * s;
-      atlasCtx.clearRect(x, y, dw, dh);
-      atlasCtx.drawImage(bmp, 0, 0, bmp.width, bmp.height, x, y, dw, dh);
+      const x = p.col * (cellW + gapS), y = p.row * (cellH + gapS);
+      atlasCtx.clearRect(x, y, cellW, cellH);
+      atlasCtx.drawImage(bmp, 0, 0, bmp.width, bmp.height, x, y, cellW, cellH);
       drawn++;
     } catch (e) { console.warn('合成失败', k, e); }
-    setProgress(k + 1, list.length, '排布第 ' + (k + 1) + '/' + list.length + ' 帧', '单元 ' + Math.round(cellW) + '×' + Math.round(cellH) + ' · 间隔 ' + gap + 'px');
+    setProgress(k + 1, list.length, '排布第 ' + (k + 1) + '/' + list.length + ' 帧', '单元 ' + cellW + '×' + cellH + ' · 间隔 ' + gapS + 'px');
     if (k % 8 === 7) await yieldUI();
   }
   endProgress();
   atlasMeta = {
     cols, rows, gap: gapS, order: state.atlas.order, res, scale: s,
-    cellW, cellH, W, H, nativeW: Wn, nativeH: Hn,
+    cellW, cellH, W, H, frameW: cellWn, frameH: cellHn,
     n: list.length, positions, frames: list
   };
   state.atlasBuilt = true;
@@ -2926,7 +2989,7 @@ async function buildAtlas() {
   drawPlayerFrame(0);
   commitAtlasToOwner();              // 把「已合成 + 参数」写回所属切片
   toast('图集「' + atlasOwnerLabel() + '」合成完成：' + W + '×' + H + ' · ' + cols + '×' + rows
-    + (s < 1 ? ' · 纹理已按分辨率 x' + res + ' 等比缩小（原生 ' + Wn + '×' + Hn + '）' : ' · 原生纹理'),
+    + (s < 1 ? ' · 单帧已按帧分辨率 x' + res + ' 缩小为 ' + cellW + '×' + cellH + '（原生 ' + cellWn + '×' + cellHn + '）' : ' · 单帧原始像素'),
     'ok', 4200);
   updateProjectUI();
   markDirty();
@@ -3139,6 +3202,9 @@ async function downloadAtlas() {
 /* ---------- 播放器 ---------- */
 const player = { playing: false, idx: 0, raf: 0, acc: 0, last: 0 };
 const PL_SPEED_MIN = 0.1, PL_SPEED_MAX = 10;
+/* 播放预览视图：fit = 自适应（默认，最大 1:1）；否则按 zoom（相对原始像素的百分比）缩放 + pan 平移 */
+const playerView = { fit: true, zoom: 100, panX: 0, panY: 0 };
+const PL_ZOOM_MIN = 0.05, PL_ZOOM_MAX = 16;
 /** 1× 基准帧时长（ms）：按源视频帧率还原整段动画的时长；抽帧采样时按源帧跨度折算 */
 function basePerFrameMs() {
   const m = atlasMeta;
@@ -3166,14 +3232,103 @@ function syncPlayerUI() {
   if (r && Math.abs(Number(r.value) - sp) > 1e-6) r.value = String(sp);
   if (v) v.textContent = sp.toFixed(1) + '×';
 }
+/** 播放预览的自适应缩放：画布原始像素 → 显示尺寸（最大 1:1，不放大） */
+function playerFitZoom() {
+  const stage = $('playerStage'), pc = $('playerCanvas');
+  if (!stage || !pc || !pc.width) return 1;
+  const sw = stage.clientWidth, sh = stage.clientHeight;
+  if (!sw || !sh) return 1;                      // 播放器隐藏时不做收敛
+  return Math.max(0.02, Math.min(1, (sw - 16) / pc.width, (sh - 16) / pc.height));
+}
+/** 当前播放预览缩放系数 */
+function currentPlayerZoom() {
+  return playerView.fit ? playerFitZoom() : clamp(playerView.zoom / 100, PL_ZOOM_MIN, PL_ZOOM_MAX);
+}
+/** 仅更新播放画布的显示尺寸 / 平移（不重绘位图） */
+function applyPlayerZoom() {
+  const pc = $('playerCanvas'), stage = $('playerStage');
+  if (!pc || !stage) return;
+  if (!stage.clientWidth || !stage.clientHeight) return;   // 隐藏时不收敛，避免被压到最小
+  const z = currentPlayerZoom();
+  const w = Math.max(1, Math.round(pc.width * z)), h = Math.max(1, Math.round(pc.height * z));
+  pc.style.width = w + 'px';
+  pc.style.height = h + 'px';
+  const px = playerView.fit ? 0 : playerView.panX, py = playerView.fit ? 0 : playerView.panY;
+  pc.style.transform = 'translate(-50%,-50%) translate(' + Math.round(px) + 'px,' + Math.round(py) + 'px)';
+  pc.style.imageRendering = 'auto';   // 放大时用双线性（平滑）采样，不做邻近取样
+  stage.classList.toggle('can-pan', w > stage.clientWidth || h > stage.clientHeight);
+}
+/** 恢复自适应（双击 / 图集重合成后） */
+function resetPlayerZoom() {
+  playerView.fit = true; playerView.zoom = 100; playerView.panX = 0; playerView.panY = 0;
+  applyPlayerZoom();
+}
+/** 播放预览交互：滚轮以光标为中心缩放 · 拖动平移 · 双击恢复自适应 */
+function bindPlayerViewport() {
+  const stage = $('playerStage'), pc = $('playerCanvas');
+  if (!stage || !pc) return;
+  stage.addEventListener('wheel', (e) => {
+    if (!atlasMeta) return;
+    e.preventDefault();
+    const sr = stage.getBoundingClientRect();
+    const oldZ = currentPlayerZoom();
+    const next = clamp(oldZ * Math.exp(-e.deltaY * 0.0018), PL_ZOOM_MIN, PL_ZOOM_MAX);
+    if (Math.abs(next - oldZ) < 1e-4) return;
+    const cx = sr.left + sr.width / 2 + (playerView.fit ? 0 : playerView.panX);   // 画布中心（屏幕坐标）
+    const cy = sr.top + sr.height / 2 + (playerView.fit ? 0 : playerView.panY);
+    const k = next / oldZ;
+    playerView.fit = false;
+    playerView.zoom = next * 100;
+    // 让光标下的那一点保持在光标下
+    playerView.panX = cx + (e.clientX - cx) * k - (sr.left + sr.width / 2);
+    playerView.panY = cy + (e.clientY - cy) * k - (sr.top + sr.height / 2);
+    applyPlayerZoom();
+  }, { passive: false });
+  let drag = null;
+  stage.addEventListener('pointerdown', (e) => {
+    if (!atlasMeta || e.button !== 0) return;
+    drag = {
+      x: e.clientX, y: e.clientY,
+      px: playerView.fit ? 0 : playerView.panX, py: playerView.fit ? 0 : playerView.panY,
+      zoom: currentPlayerZoom() * 100, moved: false
+    };
+    try { stage.setPointerCapture(e.pointerId); } catch (err) { }
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 3) return;   // 忽略手抖，避免误触
+    drag.moved = true;
+    playerView.fit = false;                 // 拖动即退出自适应（以当前显示比例为基准）
+    playerView.zoom = drag.zoom;
+    playerView.panX = drag.px + dx;
+    playerView.panY = drag.py + dy;
+    stage.classList.add('dragging');
+    applyPlayerZoom();
+  });
+  const stopDrag = (e) => {
+    if (drag) {
+      try { stage.releasePointerCapture(e.pointerId); } catch (err) { }
+      drag = null;
+    }
+    stage.classList.remove('dragging');
+  };
+  stage.addEventListener('pointerup', stopDrag);
+  stage.addEventListener('pointercancel', stopDrag);
+  stage.addEventListener('dblclick', () => { if (atlasMeta) resetPlayerZoom(); });
+}
 function playerFramesCount() { return atlasMeta ? atlasMeta.n : 0; }
 function drawPlayerFrame(k) {
   const m = atlasMeta;
   const pc = $('playerCanvas');
-  if (!m) { $('lblPlFrame').textContent = '0 / 0'; return; }
+  if (!m) {
+    $('lblPlFrame').textContent = '0 / 0';
+    $('lblPlRes').textContent = '—';
+    return;
+  }
   k = clamp(k, 0, m.n - 1);
   const cw = Math.max(1, Math.round(m.cellW)), ch = Math.max(1, Math.round(m.cellH));
-  if (pc.width !== cw || pc.height !== ch) { pc.width = cw; pc.height = ch; }
+  if (pc.width !== cw || pc.height !== ch) { pc.width = cw; pc.height = ch; resetPlayerZoom(); }   // 单帧尺寸变化 → 回到自适应
   const ctx = pc.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.clearRect(0, 0, cw, ch);
@@ -3182,6 +3337,8 @@ function drawPlayerFrame(k) {
   const sx = p.col * (m.cellW + m.gap), sy = p.row * (m.cellH + m.gap);
   try { ctx.drawImage(atlasCanvas, sx, sy, m.cellW, m.cellH, 0, 0, cw, ch); } catch (e) { }
   $('lblPlFrame').textContent = (k + 1) + ' / ' + m.n;
+  const resTxt = cw + '×' + ch;
+  if ($('lblPlRes').textContent !== resTxt) $('lblPlRes').textContent = resTxt;   // 当前单帧像素分辨率
 }
 function playerTick(ts) {
   if (!player.playing) return;
@@ -4640,6 +4797,7 @@ function maxPlayerHeight() {
 function applyPlayerHeight() {
   playerH = clamp(playerH, PANEL_MIN.player, maxPlayerHeight());
   document.documentElement.style.setProperty('--player-h', Math.round(playerH) + 'px');
+  applyPlayerZoom();                 // 高度变化后重新收敛播放预览的自适应缩放
 }
 function setPlayerHeight(h) {
   playerH = clamp(h, PANEL_MIN.player, maxPlayerHeight());
@@ -4701,7 +4859,7 @@ function bindSplitLayout() {
   let rt = 0;
   window.addEventListener('resize', () => {
     clearTimeout(rt);
-    rt = setTimeout(fitPanelWidths, 120);
+    rt = setTimeout(() => { fitPanelWidths(); applyPlayerZoom(); }, 120);
   });
 }
 
@@ -4951,7 +5109,7 @@ function bindUI() {
   };
   ['inpCols', 'inpRows'].forEach((id) => { $(id).onchange = onCapacityChanged; });
   $('selOrder').onchange = () => onAtlasParamsChanged('排布顺序');
-  // 分辨率上限改变：已有合成结果时立即按新上限重合成（预览 / 播放 / 保存 / 下载 PNG 随之更新）
+  // 帧分辨率改变：已有合成结果时立即按新上限重合成（预览 / 播放 / 保存 / 下载 PNG 随之更新）
   $('selAtlasRes').onchange = () => {
     syncAtlasParamsFromUI();
     commitAtlasToOwner();               // 选项跟随切片 / 默认图集保存
@@ -4968,6 +5126,7 @@ function bindUI() {
   $('btnPlPrev').onclick = () => playerStep(-1);
   $('btnPlNext').onclick = () => playerStep(1);
   $('chkPlLoop').onchange = () => { state.play.loop = $('chkPlLoop').checked; markDirty(); };
+  bindPlayerViewport();                         // 播放预览：滚轮缩放 / 拖动平移 / 双击自适应
   $('rngPlSpeed').oninput = () => {
     state.play.speed = clamp(nf($('rngPlSpeed').value, 1), PL_SPEED_MIN, PL_SPEED_MAX);
     syncPlayerUI();
