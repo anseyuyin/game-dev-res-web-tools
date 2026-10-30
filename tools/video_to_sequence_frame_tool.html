@@ -319,6 +319,8 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 .atlasParams .row>label{flex:0 0 auto;color:var(--fg3);font-size:12px}
 .atlasParams .row>input[type=number]{flex:1 1 0;min-width:44px;max-width:84px}
 .atlasParams .row>select{flex:0 0 100px;min-width:0}
+/* 图集页工具栏的分辨率下拉（原生 / x256–x4096） */
+#selAtlasRes{width:auto;flex:0 0 auto}
 .atlasParams input.over{border-color:var(--err);background:#2a1618}
 .atlasParams .capWarn{margin-top:6px;font-size:11.5px;line-height:1.5;color:var(--err)}
 
@@ -619,7 +621,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
           <label>行</label><input type="number" id="inpRows" class="grow" min="1" max="64" value="4">
           <label>顺序</label>
           <select id="selOrder" class="grow" title="列优先：先上→下，再左→右；行优先：先左→右，再上→下"><option value="column">列优先 ↓→</option><option value="row">行优先 →↓</option></select>
-          <span class="tip" data-tip="图集尺寸 = cols×w + (cols−1)×gap ／ rows×h + (rows−1)×gap（单元间隔固定 <b>1px</b>），帧图<b>不缩放</b>。<br>点选左栏切片即切到该切片的图集（再点一次回到「默认 · 全部帧」）。"></span>
+          <span class="tip" data-tip="图集尺寸 = cols×w + (cols−1)×gap ／ rows×h + (rows−1)×gap（单元间隔固定 <b>1px</b>）。帧图默认按原始像素排布；可在「图集 / 播放」页选<b>分辨率上限</b>压缩纹理（原生 / x256–x4096：整张图集纹理宽或高超出时整体等比缩小）。<br>点选左栏切片即切到该切片的图集（再点一次回到「默认 · 全部帧」）。"></span>
         </div>
         <div class="capWarn" id="atlasCapWarn" style="display:none"></div>
       </div>
@@ -648,7 +650,15 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
         <button class="btn mini" id="btnAtlasDownload2">下载 PNG</button>
         <label class="hint" title="同时显示 / 隐藏单元格边框与帧序号"><input type="checkbox" id="chkShowGrid" checked> 网格 / 序号</label>
         <span class="tip" data-tip="预览默认<b>自适应窗口</b>；<b>滚轮</b>以光标为中心缩放（0.02×–8×），按住左键<b>拖动平移</b>，<b>双击</b>恢复自适应。"></span>
-        <button class="btn mini" id="btnAtlasRefresh" style="margin-left:auto" title="按当前勾选的帧与列 / 行 / 顺序重新合成图集（通常切到本页已自动刷新，可手动强制重合成）">刷新</button>
+        <select id="selAtlasRes" title="整张图集纹理的分辨率上限：图集宽或高超出所选分辨率时整体等比缩小，否则不处理（原生 = 不压缩）。选项跟随切片保存；修改后立即重合成图集，保存 / 下载 PNG 同步生效。">
+          <option value="0">分辨率 原生</option>
+          <option value="256">分辨率 x256</option>
+          <option value="512">分辨率 x512</option>
+          <option value="1024">分辨率 x1024</option>
+          <option value="2048">分辨率 x2048</option>
+          <option value="4096">分辨率 x4096</option>
+        </select>
+        <button class="btn mini" id="btnAtlasRefresh" style="margin-left:auto" title="按当前勾选的帧与列 / 行 / 顺序 / 分辨率重新合成图集（通常切到本页已自动刷新，可手动强制重合成）">刷新</button>
       </div>
       <div id="atlasView"><div id="atlasStage" style="display:none"><canvas id="atlasViewCanvas"></canvas></div>
         <div class="emptyTip" id="atlasTip">尚未合成图集<br><span class="hint">先在「帧列表 / 抽帧」里准备帧，切到本页会自动合成</span></div>
@@ -838,7 +848,7 @@ const state = {
   chroma: { key: '#00ff00', keyR: 0, keyG: 255, keyB: 0, similarity: 30, smooth: 18, spill: 60, shrink: 0 },
   frames: [],               // {i, blob, url, thumbUrl, w, h, selected, bitmap, lastUse, file, rel}
   maxCache: 240,
-  atlas: { cols: 6, rows: 4, gap: 1, order: 'column', selectedOnly: true, zoom: 100, showGrid: true, showIndex: true, fit: true, autoWrite: true, rel: null, written: false, ownerId: null },
+  atlas: { cols: 6, rows: 4, gap: 1, order: 'column', res: 0, selectedOnly: true, zoom: 100, showGrid: true, showIndex: true, fit: true, autoWrite: true, rel: null, written: false, ownerId: null },
   atlasDefault: null,       // 「无切片」时的默认图集配置（惰性创建）
   play: { speed: 1, loop: true },   // 序列帧播放器：speed = 相对原速的倍速（0.1–10）
   project: { name: 'green_action', dirName: '', bound: false, kind: null, dirty: false, lastSavedAt: 0, autoSave: true, autoCopyVideo: true },
@@ -2473,10 +2483,11 @@ function downloadBlob(blob, filename) {
  * ================================================================ */
 const atlasCanvas = $('atlasCanvas');
 const atlasCtx = atlasCanvas.getContext('2d');
-let atlasMeta = null;   // {cols,rows,gap,order,cellW,cellH,W,H,n,positions,frames}
+let atlasMeta = null;   // {cols,rows,gap,order,res,scale,cellW,cellH,W,H,nativeW,nativeH,n,positions,frames}
 let atlasAutoKey = '';  // 自动合成去重键（同一状态只自动尝试一次）
 let atlasSig = '';      // 当前已合成图集对应的「数据签名」，用于判断是否已过期
 const ATLAS_GAP = 1;    // 图集单元间隔（固定 1px，不再提供配置项）
+const ATLAS_RES_OPTIONS = [0, 256, 512, 1024, 2048, 4096];   // 纹理分辨率上限可选项（0 = 原生不压缩）
 
 /* 帧对象的稳定标识：帧被重新刷新 / 导入时会生成新对象 → 签名变化 → 图集重合成 */
 const frameSigIds = new WeakMap();
@@ -2491,7 +2502,7 @@ function atlasSignature() {
   const list = atlasFrameList();
   return [
     state.atlas.ownerId || 'default',
-    state.atlas.cols, state.atlas.rows, ATLAS_GAP, state.atlas.order,
+    state.atlas.cols, state.atlas.rows, ATLAS_GAP, state.atlas.order, state.atlas.res | 0,
     list.length, list.map(frameSigId).join(',')
   ].join('|');
 }
@@ -2499,17 +2510,17 @@ function atlasSignature() {
 /* ================================================================
  * 7.1 图集归属：每个视频切片一张图集（以切片名命名，点选切换）
  *     · state.atlas.ownerId = 切片 id（null = 默认图集，使用全部帧）
- *     · 每个切片上挂 c.atlas = {cols,rows,gap,order,selectedOnly,asset,cell,count,built}
+ *     · 每个切片上挂 c.atlas = {cols,rows,gap,order,res,selectedOnly,asset,cell,count,built}
  *     · 已合成的画布按 ownerId 缓存在内存（atlasCache），随项目写入 atlas/<切片名>.png
  * ================================================================ */
 const atlasCache = new Map();          // ownerId → {canvas, meta, rel, written}
 const ATLAS_CACHE_MAX = 8;
-/** 一个图集配置的默认值 */
+/** 一个图集配置的默认值（res = 纹理分辨率上限：0 = 原生不压缩，否则为 256–4096） */
 function newAtlasConfig(o) {
   return Object.assign({
-    cols: 6, rows: 4, gap: 1, order: 'column', selectedOnly: true,
+    cols: 6, rows: 4, gap: 1, order: 'column', res: 0, selectedOnly: true,
     zoom: 100, showGrid: true, showIndex: true, fit: true,
-    asset: null, cell: null, count: 0, built: false, written: false
+    asset: null, cell: null, native: null, count: 0, built: false, written: false
   }, o || {});
 }
 function defaultAtlasConfig() {
@@ -2543,9 +2554,9 @@ function atlasFrameList(ownerId) {
 function atlasConfigForSave(cfg) {
   const c = newAtlasConfig(cfg || {});
   return {
-    cols: c.cols, rows: c.rows, gap: c.gap, order: c.order, selectedOnly: c.selectedOnly !== false,
+    cols: c.cols, rows: c.rows, gap: c.gap, order: c.order, res: c.res | 0, selectedOnly: c.selectedOnly !== false,
     zoom: c.zoom, showGrid: c.showGrid !== false, showIndex: c.showIndex !== false, fit: !!c.fit,
-    asset: c.asset || null, cell: c.cell || null, count: c.count || 0,
+    asset: c.asset || null, cell: c.cell || null, native: c.native || null, count: c.count || 0,
     built: !!c.built, written: !!c.written
   };
 }
@@ -2560,11 +2571,19 @@ function cellPositions(n, cols, rows, order) {
   }
   return pos;
 }
+/* ---------- 图集纹理分辨率上限（res：0 = 原生不压缩，否则 256–4096） ---------- */
+/** 整张图集纹理的等比缩放系数：原生尺寸（宽或高）大于上限 → 整张缩小到上限；小于等于 → 不处理 */
+function atlasResScale(w, h, res) {
+  const m = Math.max(w, h);
+  if (!res || m <= res || m <= 0) return 1;
+  return res / m;
+}
 function syncAtlasParamsFromUI() {
   state.atlas.cols = clamp(Math.round(nf($('inpCols').value, 6)), 1, 128);
   state.atlas.rows = clamp(Math.round(nf($('inpRows').value, 4)), 1, 128);
   state.atlas.gap = ATLAS_GAP;
   state.atlas.order = $('selOrder').value;
+  state.atlas.res = Math.max(0, Math.round(nf($('selAtlasRes').value, 0)));   // 0 = 原生（不压缩）
   state.atlas.showGrid = $('chkShowGrid').checked;   // 网格线 + 帧序号合并为一个开关
   state.atlas.showIndex = state.atlas.showGrid;
   $('lblAtlasOrder').textContent = state.atlas.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
@@ -2589,6 +2608,7 @@ function syncAtlasUIFromState() {
   $('inpCols').value = state.atlas.cols;
   $('inpRows').value = state.atlas.rows;
   $('selOrder').value = state.atlas.order;
+  $('selAtlasRes').value = String(state.atlas.res | 0);
   $('chkShowGrid').checked = state.atlas.showGrid !== false;
   $('lblAtlasOrder').textContent = state.atlas.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
   syncAutoNToCapacity();
@@ -2607,10 +2627,12 @@ function syncAutoNToCapacity() {
 function atlasConfigSnapshot() {
   return {
     cols: state.atlas.cols, rows: state.atlas.rows, gap: state.atlas.gap, order: state.atlas.order,
+    res: state.atlas.res | 0,
     selectedOnly: !!state.atlas.selectedOnly, zoom: state.atlas.zoom,
     showGrid: !!state.atlas.showGrid, showIndex: !!state.atlas.showIndex, fit: !!state.atlas.fit,
     asset: state.atlas.rel || null,
-    cell: atlasMeta ? { w: atlasMeta.cellW, h: atlasMeta.cellH } : null,
+    cell: atlasMeta ? { w: atlasMeta.cellW, h: atlasMeta.cellH, gap: atlasMeta.gap } : null,
+    native: atlasMeta ? { w: atlasMeta.nativeW, h: atlasMeta.nativeH } : null,
     count: atlasMeta ? atlasMeta.n : 0,
     built: !!state.atlasBuilt,
     written: !!state.atlasBuilt && !!state.atlas.written
@@ -2623,7 +2645,7 @@ function commitAtlasToOwner() {
   const prev = c ? (c.atlas || {}) : defaultAtlasConfig();
   const snap = atlasConfigSnapshot();
   if (!snap.asset) snap.asset = prev.asset || null;             // 合成后未落盘：保留原文件路径
-  if (!snap.built) { snap.cell = prev.cell || null; snap.count = prev.count || 0; }
+  if (!snap.built) { snap.cell = prev.cell || null; snap.count = prev.count || 0; snap.native = prev.native || null; }
   if (c) {
     c.atlas = Object.assign(newAtlasConfig(), c.atlas || {}, snap);
     if (!c.atlas.asset) c.atlas.asset = atlasRelFor(c.name);
@@ -2636,6 +2658,7 @@ function commitAtlasToOwner() {
 function applyAtlasConfig(cfg) {
   const c = newAtlasConfig(cfg || {});
   state.atlas.cols = c.cols; state.atlas.rows = c.rows; state.atlas.gap = ATLAS_GAP; state.atlas.order = c.order;
+  state.atlas.res = ATLAS_RES_OPTIONS.indexOf(c.res | 0) >= 0 ? (c.res | 0) : 0;   // 纹理分辨率上限跟随切片 / 默认图集切换（非法值回退原生）
   state.atlas.selectedOnly = true;      // 固定为「只合成已勾选的帧」（该开关已从界面移除）
   state.atlas.showGrid = c.showGrid !== false;
   state.atlas.showIndex = state.atlas.showGrid;
@@ -2668,7 +2691,7 @@ function showAtlasResult() {
   $('atlasTip').style.display = 'none';
   $('atlasStage').style.display = '';
   $('lblAtlasSize').textContent = atlasMeta.W + ' × ' + atlasMeta.H;
-  $('lblAtlasCell').textContent = atlasMeta.cellW + ' × ' + atlasMeta.cellH;
+  $('lblAtlasCell').textContent = Math.round(atlasMeta.cellW) + ' × ' + Math.round(atlasMeta.cellH);
   $('lblAtlasCount').textContent = atlasMeta.n + ' 帧';
   atlasSig = atlasSignature();      // 记录当前画面与数据的对应关系（帧列表变动后即可判定过期）
   updateAtlasCapacityUI();          // 合成时可能自动扩展过行数，重新判一次容量
@@ -2687,8 +2710,9 @@ function refreshAtlasMetaTip() {
   const z = $('lblAtlasZoom') ? $('lblAtlasZoom').textContent : '—';
   tip.dataset.tip = [
     '图集：<b>' + atlasOwnerLabel() + '</b>' + (state.atlas.rel ? '　<code>' + state.atlas.rel + '</code>' : '　（尚未写入项目目录）'),
-    '尺寸：<b>' + m.W + ' × ' + m.H + '</b>　单元：<b>' + m.cellW + ' × ' + m.cellH + '</b>',
-    '排布：<b>' + m.cols + ' × ' + m.rows + '</b> · 间隔 <b>' + m.gap + 'px</b>　' + orderTxt,
+    '尺寸：<b>' + m.W + ' × ' + m.H + '</b>　单元：<b>' + Math.round(m.cellW) + ' × ' + Math.round(m.cellH) + '</b>',
+    '排布：<b>' + m.cols + ' × ' + m.rows + '</b> · 间隔 <b>' + (m.gap >= 1 ? Math.round(m.gap) : (+m.gap).toFixed(2)) + 'px</b>　' + orderTxt,
+    '分辨率：<b>' + (m.res ? 'x' + m.res : '原生') + '</b>　' + (m.nativeW && m.nativeW !== m.W ? '（整张纹理已从 <b>' + m.nativeW + '×' + m.nativeH + '</b> 等比缩小）' : '（整张纹理未压缩）'),
     '已排布：<b>' + m.n + ' 帧</b>　缩放：<b>' + z + '</b>　滚轮缩放 · 拖动平移 · 双击自适应'
   ].join('<br>');
 }
@@ -2733,11 +2757,14 @@ async function loadAtlasAsset(rel) {
     const cfg = (currentAtlasClip() && currentAtlasClip().atlas) || defaultAtlasConfig();
     const list = atlasFrameList();
     const cell = (cfg.cell && cfg.cell.w) ? cfg.cell : { w: list[0] ? list[0].w : atlasCanvas.width, h: list[0] ? list[0].h : atlasCanvas.height };
+    const gapCfg = (cfg.cell && isNum(cfg.cell.gap)) ? cfg.cell.gap : (cfg.gap | 0);   // 缩放后的实际间隔
+    const nat = cfg.native || null;
     const count = cfg.count || list.length || 1;
     const cols = cfg.cols || 1, rows = cfg.rows || 1;
     atlasMeta = {
-      cols, rows, gap: cfg.gap | 0, order: cfg.order || 'column',
+      cols, rows, gap: gapCfg, order: cfg.order || 'column', res: (cfg.res | 0),
       cellW: cell.w, cellH: cell.h, W: atlasCanvas.width, H: atlasCanvas.height,
+      nativeW: nat ? nat.w : null, nativeH: nat ? nat.h : null,
       n: count, positions: cellPositions(count, cols, Math.max(rows, Math.ceil(count / cols)), cfg.order || 'column'),
       frames: list
     };
@@ -2843,9 +2870,15 @@ async function buildAtlas() {
     rows = need; $('inpRows').value = rows; state.atlas.rows = rows;
     syncAutoNToCapacity();          // 容量变了，N 同步为 列数 × 行数
   }
-  const cellW = list[0].w, cellH = list[0].h;
-  const W = cols * cellW + (cols - 1) * gap;
-  const H = rows * cellH + (rows - 1) * gap;
+  const res = state.atlas.res | 0;                    // 纹理分辨率上限（0 = 原生）
+  const cellWn = list[0].w, cellHn = list[0].h;       // 原生单元 = 帧图原始像素
+  const Wn = cols * cellWn + (cols - 1) * gap;        // 原生图集纹理尺寸
+  const Hn = rows * cellHn + (rows - 1) * gap;
+  // 分辨率上限作用于「整张图集纹理」：原生宽或高大于上限 → 整张等比缩小到上限；否则不处理
+  const s = atlasResScale(Wn, Hn, res);
+  const W = Math.max(1, Math.round(Wn * s));
+  const H = Math.max(1, Math.round(Hn * s));
+  const cellW = cellWn * s, cellH = cellHn * s, gapS = gap * s;   // 缩放后的单元 / 间隔（取景用，可含小数）
   if (W > 16384 || H > 16384) {
     const ok = await uiConfirm('图集尺寸 <b>' + W + '×' + H + '</b> 超过浏览器画布上限（16384），可能合成失败。<br>建议减小列数或先缩小裁剪区域，是否仍要继续？', '图集过大', '继续');
     if (!ok) return;
@@ -2853,6 +2886,8 @@ async function buildAtlas() {
   const positions = cellPositions(list.length, cols, rows, state.atlas.order);
   atlasCanvas.width = W; atlasCanvas.height = H;
   atlasCtx.clearRect(0, 0, W, H);
+  atlasCtx.imageSmoothingEnabled = true;         // 整体缩小时保持平滑
+  atlasCtx.imageSmoothingQuality = 'high';
   beginProgress('合成图集「' + atlasOwnerLabel() + '」（' + list.length + ' 帧）');
   let drawn = 0;
   for (let k = 0; k < list.length; k++) {
@@ -2860,23 +2895,28 @@ async function buildAtlas() {
     const f = list[k], p = positions[k];
     try {
       const bmp = await getFrameBitmap(f);
-      const x = p.col * (cellW + gap), y = p.row * (cellH + gap);
-      atlasCtx.clearRect(x, y, cellW, cellH);
-      atlasCtx.drawImage(bmp, 0, 0, bmp.width, bmp.height, x, y, cellW, cellH);
+      const x = p.col * (cellWn + gap) * s, y = p.row * (cellHn + gap) * s;
+      const dw = cellWn * s, dh = cellHn * s;
+      atlasCtx.clearRect(x, y, dw, dh);
+      atlasCtx.drawImage(bmp, 0, 0, bmp.width, bmp.height, x, y, dw, dh);
       drawn++;
     } catch (e) { console.warn('合成失败', k, e); }
-    setProgress(k + 1, list.length, '排布第 ' + (k + 1) + '/' + list.length + ' 帧', '单元 ' + cellW + '×' + cellH + ' · 间隔 ' + gap + 'px');
+    setProgress(k + 1, list.length, '排布第 ' + (k + 1) + '/' + list.length + ' 帧', '单元 ' + Math.round(cellW) + '×' + Math.round(cellH) + ' · 间隔 ' + gap + 'px');
     if (k % 8 === 7) await yieldUI();
   }
   endProgress();
-  atlasMeta = { cols, rows, gap, order: state.atlas.order, cellW, cellH, W, H, n: list.length, positions, frames: list };
+  atlasMeta = {
+    cols, rows, gap: gapS, order: state.atlas.order, res, scale: s,
+    cellW, cellH, W, H, nativeW: Wn, nativeH: Hn,
+    n: list.length, positions, frames: list
+  };
   state.atlasBuilt = true;
   state.atlas.rel = null;            // 重新合成后需要再次写入项目目录
   state.atlas.written = false;
   if (state.atlas.ownerId) atlasCache.delete(state.atlas.ownerId);
   $('atlasTip').style.display = 'none';
   $('atlasStage').style.display = '';
-  $('lblAtlasCell').textContent = cellW + ' × ' + cellH;
+  $('lblAtlasCell').textContent = Math.round(cellW) + ' × ' + Math.round(cellH);
   $('lblAtlasCount').textContent = drawn + ' / ' + list.length;
   // 播放器：新图集从头播放
   player.idx = 0;
@@ -2885,7 +2925,9 @@ async function buildAtlas() {
   renderAtlasView();
   drawPlayerFrame(0);
   commitAtlasToOwner();              // 把「已合成 + 参数」写回所属切片
-  toast('图集「' + atlasOwnerLabel() + '」合成完成：' + W + '×' + H + ' · ' + cols + '×' + rows + ' · 间隔 ' + gap + 'px', 'ok', 4200);
+  toast('图集「' + atlasOwnerLabel() + '」合成完成：' + W + '×' + H + ' · ' + cols + '×' + rows
+    + (s < 1 ? ' · 纹理已按分辨率 x' + res + ' 等比缩小（原生 ' + Wn + '×' + Hn + '）' : ' · 原生纹理'),
+    'ok', 4200);
   updateProjectUI();
   markDirty();
   // 自动写入项目目录
@@ -2968,7 +3010,7 @@ function renderAtlasView() {
   ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.lineWidth = 2;
   ctx.strokeRect(1, 1, m.W - 2, m.H - 2);
   $('lblAtlasSize').textContent = m.W + ' × ' + m.H;
-  $('lblAtlasCell').textContent = m.cellW + ' × ' + m.cellH;
+  $('lblAtlasCell').textContent = Math.round(m.cellW) + ' × ' + Math.round(m.cellH);
   $('lblAtlasCount').textContent = m.n + ' 帧';
   $('lblAtlasOrder').textContent = m.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
   applyAtlasZoom();
@@ -3130,13 +3172,15 @@ function drawPlayerFrame(k) {
   const pc = $('playerCanvas');
   if (!m) { $('lblPlFrame').textContent = '0 / 0'; return; }
   k = clamp(k, 0, m.n - 1);
-  if (pc.width !== m.cellW || pc.height !== m.cellH) { pc.width = m.cellW; pc.height = m.cellH; }
+  const cw = Math.max(1, Math.round(m.cellW)), ch = Math.max(1, Math.round(m.cellH));
+  if (pc.width !== cw || pc.height !== ch) { pc.width = cw; pc.height = ch; }
   const ctx = pc.getContext('2d');
-  ctx.clearRect(0, 0, m.cellW, m.cellH);
+  ctx.imageSmoothingEnabled = true;
+  ctx.clearRect(0, 0, cw, ch);
   const p = m.positions[k];
   if (!p) return;
   const sx = p.col * (m.cellW + m.gap), sy = p.row * (m.cellH + m.gap);
-  try { ctx.drawImage(atlasCanvas, sx, sy, m.cellW, m.cellH, 0, 0, m.cellW, m.cellH); } catch (e) { }
+  try { ctx.drawImage(atlasCanvas, sx, sy, m.cellW, m.cellH, 0, 0, cw, ch); } catch (e) { }
   $('lblPlFrame').textContent = (k + 1) + ' / ' + m.n;
 }
 function playerTick(ts) {
@@ -4126,7 +4170,7 @@ async function applyProjectData(proj, target) {
 const clipSeq = { n: 0 };
 function newClipId() { return 'clip' + Date.now().toString(36) + (++clipSeq.n); }
 /** 切片 → 可序列化对象（写入 clips.json）
- *  每个切片带一份自己的图集配置：atlas = {cols,rows,gap,order,selectedOnly,asset,cell,count,built}
+ *  每个切片带一份自己的图集配置：atlas = {cols,rows,gap,order,res,selectedOnly,asset,cell,count,built}
  */
 function clipSerialize(c) {
   const frames = c.end - c.start + 1;
@@ -4907,6 +4951,13 @@ function bindUI() {
   };
   ['inpCols', 'inpRows'].forEach((id) => { $(id).onchange = onCapacityChanged; });
   $('selOrder').onchange = () => onAtlasParamsChanged('排布顺序');
+  // 分辨率上限改变：已有合成结果时立即按新上限重合成（预览 / 播放 / 保存 / 下载 PNG 随之更新）
+  $('selAtlasRes').onchange = () => {
+    syncAtlasParamsFromUI();
+    commitAtlasToOwner();               // 选项跟随切片 / 默认图集保存
+    markDirty();
+    if (atlasMeta || state.atlasBuilt) buildAtlas();
+  };
   const atlasViewOnly = () => { syncAtlasParamsFromUI(); if (atlasMeta) renderAtlasView(); commitAtlasToOwner(); markDirty(); };
   $('chkShowGrid').onchange = atlasViewOnly;   // 网格线 + 帧序号 合并开关
   bindAtlasViewport();                          // 图集预览：滚轮缩放 / 拖动平移 / 双击自适应
