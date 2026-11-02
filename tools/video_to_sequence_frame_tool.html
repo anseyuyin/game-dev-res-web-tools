@@ -418,7 +418,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
           <span class="hint" id="lblTime">0.000s</span>
         </div>
         <div class="row"><label>循环</label>
-          <input type="checkbox" id="chkLoop" checked><span class="tip" data-tip="勾选后播放到末尾自动回到首帧继续播放。"></span>
+          <input type="checkbox" id="chkLoop" checked><span class="tip" data-tip="勾选后播放到末尾自动回到首帧继续播放；<b>有选区时</b>在选区内循环（回到选区首帧）。"></span>
         </div>
         <div class="hint">分辨率：<b id="lblRes">—</b><span class="tip" data-tip="总帧数按 <b>时长 × fps</b> 估算；修改帧率会重算总帧数，已建切片的帧号不会自动换算。"></span></div>
       </div>
@@ -537,7 +537,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
         <div class="kbdList">
           <kbd>空格</kbd><span>播放 / 暂停</span>
           <kbd>← / →</kbd><span>上一帧 / 下一帧（Shift 加速 10 帧）</span>
-          <kbd>Home / End</kbd><span>跳到首帧 / 尾帧</span>
+          <kbd>Home / End</kbd><span>跳到选区首帧 / 尾帧（无选区时为全片首尾）</span>
           <kbd>[ / ]</kbd><span>设为起点 / 设为终点</span>
           <kbd>Ctrl + S</kbd><span>保存项目到已绑定目录</span>
           <kbd>K</kbd><span>把当前范围保存为切片配置</span>
@@ -582,11 +582,11 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 
     <div id="timelineArea">
       <div id="tlToolbar">
-        <button class="btn mini" id="btnTlFirst" title="首帧 (Home)">⏮</button>
+        <button class="btn mini" id="btnTlFirst" title="选区首帧 (Home)：跳到当前选区 / 切片的起始帧（无选区时为全片首帧）">⏮</button>
         <button class="btn mini" id="btnTlPrev" title="上一帧 (←)">◀|</button>
         <button class="btn primary" id="btnTlPlay" style="min-width:74px" title="播放/暂停 (空格)">▶ 播放</button>
         <button class="btn mini" id="btnTlNext" title="下一帧 (→)">|▶</button>
-        <button class="btn mini" id="btnTlLast" title="尾帧 (End)">⏭</button>
+        <button class="btn mini" id="btnTlLast" title="选区尾帧 (End)：跳到当前选区 / 切片的结束帧（无选区时为全片尾帧）">⏭</button>
         <div class="divider"></div>
         <button class="btn mini" id="btnSetStart" title="[">设为起点</button>
         <button class="btn mini" id="btnSetEnd" title="]">设为终点</button>
@@ -595,7 +595,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
         <div class="divider"></div>
         <button class="btn mini primary" id="btnAddClip" title="把当前处理范围存成一条切片配置（不会切割视频文件）">💾 保存为切片配置</button>
         <div class="spacer"></div>
-        <span class="tip end" data-tip="时间轨：点击跳转 · 拖动播放头 · 拖拽选区左右边界调整范围 · 选区可「保存为切片配置」（<kbd>K</kbd>）。"></span>
+        <span class="tip end" data-tip="时间轨：点击跳转 · 拖动播放头 · 拖拽选区左右边界调整范围 · 选区可「保存为切片配置」（<kbd>K</kbd>）。<br><b>⏮ / ⏭</b> 跳到<b>当前区间</b>（选区 / 跟随的切片 / 全片）的首帧 / 尾帧，快捷键 <kbd>Home</kbd> / <kbd>End</kbd>。"></span>
       </div>
       <canvas id="timelineCanvas"></canvas>
       <div id="tlInfo">
@@ -786,7 +786,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
       <ol class="helpList">
         <li><b>绑定项目目录</b>：顶栏「📁 项目目录」选空目录新建，或选已有项目继续；下次打开自动恢复上次项目。<span class="tip" data-tip="目录 = 项目：所有编辑、切片配置、序列帧与图集都写在该目录。切换目录时系统选择器直接定位到当前项目目录；目录被移动 / 删除会自动清除缓存并回到选择界面，浏览器要求重新授权时欢迎页点「打开上次项目」即可。"></span></li>
         <li><b>导入视频</b>：「① 导入视频」或把视频拖进窗口，默认复制到 <code>video/</code>。<span class="tip" data-tip="自动解析时长与分辨率，按 fps 估算总帧数（可点「检测」自动估算帧率）；重新打开项目会自动还原源视频。"></span></li>
-        <li><b>框选动作区间</b>：在时间轨拖动选区左右边界框出动作（或 <kbd>[</kbd> / <kbd>]</kbd> 设为起止）。<span class="tip" data-tip="点击时间轨跳转、拖动播放头预览；空格播放 / 暂停，← / → 逐帧（Shift 加速 10 帧），Home / End 首尾帧，倍速在左栏「播放」里选。"></span></li>
+        <li><b>框选动作区间</b>：在时间轨拖动选区左右边界框出动作（或 <kbd>[</kbd> / <kbd>]</kbd> 设为起止）。<span class="tip" data-tip="点击时间轨跳转、拖动播放头预览；空格播放 / 暂停，← / → 逐帧（Shift 加速 10 帧），Home / End 跳到选区首 / 尾帧（无选区时为全片首尾），倍速在左栏「播放」里选。"></span></li>
         <li><b>保存切片</b>：时间轨点「保存为切片配置」（<kbd>K</kbd>）——切片只是帧区间，不切视频。<span class="tip" data-tip="点击切片条目即选中并定位到该区段（时间轨锁定区间、帧列表只显示该区间），同时切到它的图集；再点一次回到「默认 · 全部帧」。切片与各切片图集配置写入 project.json / clips.json，不会生成新视频文件。<br>改区间：拖出时间轨选区后点该切片的「更新选区」（二次确认），或直接改条目里的起 / 止。"></span></li>
         <li><b>裁剪 + 抠像</b>：中间预览拖裁剪框，左栏调键色 / 相似度。<span class="tip" data-tip="裁剪框可拖动移动、拖 8 个把手缩放，也可输入精确 x/y/w/h 并锁定比例；键色可用「吸管」取色，相似度 / 边缘柔化 / 溢色抑制 / 透明度收缩实时预览（100ms 防抖），导出始终按原始像素精度抠除。「自动贴合主体」只分析<b>当前选中切片</b>的帧区间（未选切片则分析全片）。<br><b>裁剪框跟切片走</b>：每个切片各自保存一套裁剪框（写入 clips.json / project.json），切换切片自动切换；未选切片时用「默认裁剪框」。"></span></li>
         <li><b>导出序列帧</b>：左栏「导出帧」设子目录与命名模板 → 点「导出帧到项目目录」。<span class="tip" data-tip="占位符：{clip} 切片名 · {video} 源视频名 · {name} 项目名 · {index} 序号 · {frame} 源帧号 · {time} 秒（模板下方有实时示例）。逐帧抽帧 → 裁剪 → 抠像 → 写入带 Alpha 的 PNG（原样保存、不重编码）；也可「导出并打包 ZIP」。导出只写盘、不动帧列表，中途可取消。"></span></li>
@@ -5065,9 +5065,9 @@ function bindUI() {
     if (ok) exportClipFrames(state.clips);
   };
 
-  // 时间轨
-  $('btnTlFirst').onclick = () => { pausePlayback(); gotoFrame(0); };
-  $('btnTlLast').onclick = () => { pausePlayback(); gotoFrame(state.totalFrames - 1); };
+  // 时间轨：首帧 / 尾帧 = 当前处理范围（选区 / 锁定区间 / 全片）的首尾
+  $('btnTlFirst').onclick = () => { pausePlayback(); gotoFrame(getRange().start); };
+  $('btnTlLast').onclick = () => { pausePlayback(); gotoFrame(getRange().end); };
   $('btnTlPrev').onclick = () => { pausePlayback(); gotoFrame(state.frame - 1); };
   $('btnTlNext').onclick = () => { pausePlayback(); gotoFrame(state.frame + 1); };
   $('btnTlPlay').onclick = togglePlay;
@@ -5172,8 +5172,8 @@ function bindUI() {
     if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); pausePlayback(); gotoFrame(state.frame - step); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); pausePlayback(); gotoFrame(state.frame + step); }
-    else if (e.key === 'Home') { e.preventDefault(); pausePlayback(); gotoFrame(0); }
-    else if (e.key === 'End') { e.preventDefault(); pausePlayback(); gotoFrame(state.totalFrames - 1); }
+    else if (e.key === 'Home') { e.preventDefault(); pausePlayback(); gotoFrame(getRange().start); }
+    else if (e.key === 'End') { e.preventDefault(); pausePlayback(); gotoFrame(getRange().end); }
     else if (e.key === '[') { $('btnSetStart').click(); }
     else if (e.key === ']') { $('btnSetEnd').click(); }
     else if (e.key === 'k' || e.key === 'K') { e.preventDefault(); addClipFromRange(); }
