@@ -357,6 +357,14 @@
  * ========================================================================= */
 const TOOLS = [
   {
+    id: "frame-sequence-character-assembler",
+    name: "序列帧动画角色组装器",
+    desc: "以目录为项目：把「一张图 = 一个动画」的角色序列帧图导入同一场景，自动识别行列切帧，用 Gizmo 调位移 / 缩放对齐各动画原点，配置循环与「播完 → 回退动画」的关系，保存成 xxx.fca.json；右侧合成预览可切换动作试播。全程本地运行。",
+    file: "frame-sequence-character-assembler.html",
+    icon: "🎭",
+    tags: ["序列帧", "动画", "对齐", "配置", "预览"]
+  },
+  {
     id: "spine-previewer",
     name: "Spine 动画预览与调试器",
     desc: "以目录为项目：绑定本地文件夹后递归扫描其中所有 Spine 资源（JSON / 二进制 .skel + .atlas + 贴图），双击即可加载预览；支持滚轮缩放、播放 / 暂停 / 时间轴停留、部件层级 / 网格 / 骨骼显示与拖拽调试，检查器里可直接调 IK 约束参数（mix / softness / 弯曲方向 / 压缩 / 拉伸），WebGL2 渲染。",

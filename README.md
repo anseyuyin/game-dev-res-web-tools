@@ -56,7 +56,8 @@ game-dev-res-web-tools/
 │  ├─ 开发规范.md                 # 新增工具的开发规范与步骤
 │  └─ tools/                     # 每个工具一份详细文档，文件名 = 索引 id
 │     ├─ spine-previewer.md
-│     └─ video_to_sequence_frame_tool.md
+│     ├─ video_to_sequence_frame_tool.md
+│     └─ frame-sequence-character-assembler.md
 └─ tools/                        # 所有工具（每个工具一个 .html）
    ├─ tools_index.html           # 工具索引页（搜索 + 收藏筛选）
    └─ <your-tool>.html           # 你的工具（以 _ 开头的文件不登记进索引）
@@ -68,14 +69,15 @@ game-dev-res-web-tools/
 
 工具清单维护在 [docs/工具索引.md](docs/工具索引.md) 中，与索引页的 `TOOLS` 数组保持一致；每个工具的详细说明（功能、工作流、限制、快捷键）各自成文，放在 [`docs/tools/`](docs/tools/) 下。
 
-当前工具数量：**2**
+当前工具数量：**3**
 
 | 工具 | 说明 | 标签 |
 | --- | --- | --- |
 | 🦴 [Spine 动画预览与调试器](tools/spine-previewer.html) | 绑定本地目录后扫描其中全部 Spine 资源（JSON / 二进制 + 图集 + 贴图），双击加载预览；滚轮缩放、播放 / 暂停 / 时间轴停留、部件层级 / 网格 / 骨骼显示与拖拽调试，WebGL2 渲染 | `Spine` `动画` `骨骼` `预览` `调试` |
 | 🎬 [绿幕动作视频 → 序列帧图集](tools/video_to_sequence_frame_tool.html) | 把游戏单位的绿幕动作视频抽帧、抠像、裁剪，导出带 Alpha 的序列帧 PNG 或单张图集，并可在页面内试播动作 | `视频` `序列帧` `抠像` `图集` |
+| 🎭 [序列帧动画角色组装器](tools/frame-sequence-character-assembler.html) | 把「一张图 = 一个动画」的序列帧图导入同一场景，自动识别行列切帧，用 Gizmo 调位移 / 缩放对齐各动画原点，配置「播完 → 回退动画」关系，保存成 `xxx.fca.json`，右侧合成预览可切换动作试播 | `序列帧` `动画` `对齐` `配置` |
 
-详细用法、工作流与限制各自见对应文档：[Spine 动画预览与调试器](docs/tools/spine-previewer.md)、[绿幕动作视频 → 序列帧图集](docs/tools/video_to_sequence_frame_tool.md)。
+详细用法、工作流与限制各自见对应文档：[Spine 动画预览与调试器](docs/tools/spine-previewer.md)、[绿幕动作视频 → 序列帧图集](docs/tools/video_to_sequence_frame_tool.md)、[序列帧动画角色组装器](docs/tools/frame-sequence-character-assembler.md)。
 
 ---
 
