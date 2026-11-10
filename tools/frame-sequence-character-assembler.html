@@ -63,6 +63,25 @@
     padding:3px 10px;font-size:11px;color:var(--text-dim);white-space:nowrap;
   }
   .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex:0 0 auto;}
+  #pathChip{cursor:pointer;max-width:220px;}
+  #pathChip .p{direction:ltr;max-width:180px;}
+  #pathChip:hover{border-color:var(--accent);}
+  #pathChip.warn{animation:pathPulse 1.8s ease-in-out infinite;}
+  @keyframes pathPulse{
+    0%,100%{border-color:var(--border-soft);box-shadow:none;}
+    50%{border-color:rgba(255,209,102,.85);box-shadow:0 0 0 3px rgba(255,209,102,.12);}
+  }
+  .authModal{width:min(520px,94vw);}
+  .authPath{
+    margin:10px 0 8px;padding:9px 11px;background:#0a0e14;border:1px solid var(--border);
+    border-radius:8px;font-family:ui-monospace,Consolas,monospace;font-size:12px;
+    color:var(--accent);word-break:break-all;line-height:1.5;
+  }
+  .authSteps{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0 4px;}
+  .authSteps span{
+    flex:1 1 120px;text-align:center;background:var(--bg-card);border:1px solid var(--border-soft);
+    border-radius:7px;padding:5px 6px;font-size:10.5px;color:var(--text-faint);
+  }
   .chip.on .dot{background:var(--ok);}
   .chip.err .dot{background:var(--err);}
   .chip.warn .dot{background:var(--warn);}
@@ -256,6 +275,28 @@
   .modal ul{margin:4px 0;padding-left:18px;}
   .modal .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
   .modal .hint{color:var(--text-faint);font-size:11px;}
+  /* 使用说明：三步概览 + 折叠的详细说明（❓ 可点开） */
+  .helpModal{width:min(620px,94vw);}
+  .helpSteps{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 2px;}
+  .helpSteps > div{
+    flex:1 1 150px;min-width:0;display:flex;flex-direction:column;gap:1px;
+    background:var(--bg-card);border:1px solid var(--border-soft);border-radius:9px;padding:7px 10px;
+  }
+  .helpSteps b{font-size:11.5px;font-weight:600;color:var(--accent);}
+  .helpSteps span{font-size:10.5px;color:var(--text-faint);}
+  .helpBrief{margin:2px 0;}
+  .helpKeys{line-height:2.05;}
+  .helpDetail{margin-top:8px;border:1px solid var(--border-soft);border-radius:8px;background:rgba(255,255,255,.015);padding:0 10px;}
+  .helpDetail > summary{cursor:pointer;list-style:none;padding:7px 0;font-size:12px;color:var(--text-dim);}
+  .helpDetail > summary::-webkit-details-marker{display:none;}
+  .helpDetail > summary::before{content:'▸';display:inline-block;width:14px;color:var(--text-faint);transition:transform .15s;}
+  .helpDetail[open] > summary::before{transform:rotate(90deg);}
+  .helpDetail > summary:hover{color:var(--text);}
+  .helpDetail ul{margin:0 0 8px;padding-left:18px;}
+  .helpModal .foot{
+    position:sticky;bottom:-18px;margin-top:14px;padding:10px 0 2px;
+    background:linear-gradient(180deg,rgba(22,27,34,0),var(--bg-soft) 34%);
+  }
   .pickItem{
     display:flex;align-items:center;gap:8px;width:100%;text-align:left;
     background:var(--bg-card);border:1px solid var(--border);border-radius:8px;
@@ -281,9 +322,10 @@
   <div class="brand">🎭 <span>序列帧角色组装器</span><span class="sub">FCA</span></div>
   <button id="btnDir" class="btn">📁 绑定目录</button>
   <span id="dirChip" class="chip"><i class="dot"></i><span class="p">未绑定</span></span>
+  <span id="pathChip" class="chip hidden" title=""><i class="dot"></i><span class="p"></span></span>
   <button id="btnRestore" class="btn hidden">恢复上次目录</button>
   <button id="btnOpen" class="btn hidden" disabled>切换配置</button>
-  <label class="proj">工程名 <input id="inpProjName" type="text" value="hero" spellcheck="false"></label>
+  <label class="proj" title="工程名同时是配置文件名；修改后下一次保存会重命名 .fca.json">工程名 <input id="inpProjName" type="text" value="hero" spellcheck="false"></label>
   <button id="btnSave" class="btn primary">💾 保存</button>
   <span class="spacer"></span>
   <span id="saveState" class="chip"><i class="dot"></i><span>未保存</span></span>
@@ -384,32 +426,87 @@
 <div id="dropMask">松开以导入序列帧图</div>
 
 <div id="ovHelp" class="ov hidden">
-  <div class="modal">
+  <div class="modal helpModal">
     <h2>🎭 序列帧动画角色组装器</h2>
-    <p>把「一张图 = 一个动画」的序列帧图在同一个坐标系里对齐原点，配好播完后的回退关系，保存成 <code>xxx.fca.json</code>。</p>
-    <h3>工作流</h3>
-    <ul>
-      <li><b>绑定目录</b>：选择一个本地目录，配置存为 <code>&lt;工程名&gt;.fca.json</code>，导入的图片复制进 <code>sprites/</code>。</li>
-      <li><b>导入图片</b>：点「＋ 导入图片」或直接把图片拖进窗口；每张图自动识别行列，识别不准就手动改。</li>
-      <li><b>切分顺序</b>：默认<b>列优先</b>（从上到下取满一列再换下一列），也可切成<b>行优先</b>（从左到右再换行）；切分预览里的帧号、时间轴缩略图与播放取帧都按当前顺序计算。</li>
-      <li><b>目录同步</b>：绑定目录或加载配置后会自动扫描 <code>sprites/</code>，还没有动画的图片自动补建成动画（默认 12fps / 循环 / 自动识别行列）；也可点动画栏的 <b>⟳</b> 手动同步。</li>
-      <li><b>命名</b>：动画名严格等于图片文件名（去扩展名），界面不提供单独改名；改图片文件名请重新导入。</li>
-      <li><b>重名图片</b>：导入同名图片会询问「有重名图，是否覆盖」；确认后直接覆盖目录中的文件，若该图已被动画使用，则沿用该动画的行列 / 播放 / 对齐配置，只替换图片。</li>
-      <li><b>对齐</b>：在视口里拖 Gizmo 调位移 / 缩放，其它动画以半透明幽灵叠放作参考；<kbd>Shift</kbd> 吸附整数像素。</li>
-      <li><b>状态</b>：给非循环动画设置「结束后 → 某个动画」，死亡这类动作设为「停在末帧」。</li>
-      <li><b>删除</b>：删除动画会同时删除 <code>sprites/</code> 里对应的图片（图片被其它动画共用时保留文件）；删除不可撤销，请确认后再点「删除」。</li>
-      <li><b>预览</b>：右侧预览切换动作试播，播完会按配置自动回退。</li>
-      <li><b>保存</b>：<kbd>Ctrl</kbd>+<kbd>S</kbd>；未绑定目录时下载 JSON，需自行把图片放到配置里的相对路径。</li>
+    <p>把「一张图 = 一个动画」的序列帧图对齐原点，配好播完后的回退，保存成 <code>xxx.fca.json</code>。</p>
+
+    <div class="helpSteps">
+      <div><b>1 · 绑定目录</b><span>图片和配置都放这里</span></div>
+      <div><b>2 · 导入 / 同步</b><span>一张图 = 一个动画</span></div>
+      <div><b>3 · 对齐并保存</b><span>拖 Gizmo，<kbd>Ctrl</kbd>+<kbd>S</kbd></span></div>
+    </div>
+
+    <h3>常用操作</h3>
+    <ul class="helpBrief">
+      <li><b>切分</b>：行 / 列 / 顺序 / 帧数，识别不准就手动改。</li>
+      <li><b>对齐</b>：<kbd>W</kbd> 位移、<kbd>E</kbd> 等比缩放，<kbd>Shift</kbd> 吸附。</li>
+      <li><b>状态</b>：单次动作设「结束后」目标，循环动作不触发。</li>
+      <li><b>预览</b>：右栏切动作试播，播完按配置自动回退。</li>
     </ul>
+
     <h3>快捷键</h3>
-    <p>
-      <kbd>空格</kbd> 播放/暂停 · <kbd>←</kbd>/<kbd>→</kbd> 逐帧（<kbd>Shift</kbd> 10 帧）· <kbd>Home</kbd>/<kbd>End</kbd> 首/末帧 ·
+    <p class="helpKeys">
+      <kbd>空格</kbd> 播放 · <kbd>←</kbd>/<kbd>→</kbd> 逐帧 · <kbd>Home</kbd>/<kbd>End</kbd> 首/末帧 ·
       <kbd>W</kbd>/<kbd>E</kbd> 位移/缩放 · <kbd>F</kbd> 聚焦 · <kbd>0</kbd> 复位 · <kbd>G</kbd> 网格 ·
-      <kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤销 · <kbd>Delete</kbd> 删除动画
+      <kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤销 · <kbd>Delete</kbd> 删除
     </p>
-    <h3>说明</h3>
-    <p class="hint">坐标约定：世界坐标 Y 向上、1 图素 = 1 单位、帧原点在单元格中心；配置里 <code>transform.x/y</code> 即该动画的原点位置。循环动画不会触发结束跳转。目录读写依赖 File System Access API，Firefox / Safari 会降级为「选文件夹 + 下载 JSON」。</p>
+
+    <details class="helpDetail">
+      <summary>❓ 目录、导入、同步与删除</summary>
+      <ul>
+        <li><b>目录</b>：配置文件 <code>&lt;工程名&gt;.fca.json</code> 放根目录，图片放 <code>sprites/</code>。</li>
+        <li><b>URL path</b>：地址带 <code>?path=D:\proj\hero</code>（建议 URL 编码）时顶栏显示 path 徽标；首次打开会弹「需要授权工程目录」引导（显示完整路径），点「选择目录并授权」会自动复制路径并打开选择器，在底部「文件夹」栏粘贴回车即可；选一次后同一链接自动绑定。</li>
+        <li><b>绑定</b>：目录里只有 1 个配置会自动加载，多个会弹选择；≥2 个时顶栏出现「切换配置」。</li>
+        <li><b>同步</b>：绑定或加载后自动扫描 <code>sprites/</code>，没有动画的图片会补建（12fps / 循环 / 自动识别）；点动画栏 <b>⟳</b> 手动刷新。</li>
+        <li><b>命名</b>：动画名严格等于图片文件名（去扩展名），不能单独改名。</li>
+        <li><b>重名</b>：导入同名图片会询问是否覆盖；覆盖已被使用的图片时，沿用原动画的行列 / 播放 / 对齐，只换图。</li>
+        <li><b>删除</b>：确认后同时删除 <code>sprites/</code> 里的图片（被其它动画共用时保留文件），不可撤销。</li>
+      </ul>
+    </details>
+
+    <details class="helpDetail">
+      <summary>❓ 切分顺序与自动识别</summary>
+      <ul>
+        <li><b>顺序</b>：默认列优先（从上到下取满一列再换列），可切行优先；切分编号、帧轨缩略图、播放取帧都按它算。</li>
+        <li><b>自动识别</b>：先找透明分隔带，再用周期打分，最后按近似方格兜底；失败会回到 1×1 并提示手动填写。</li>
+        <li><b>帧数</b>：不超过 行×列，未使用的格子会在切分预览里标红。</li>
+      </ul>
+    </details>
+
+    <details class="helpDetail">
+      <summary>❓ 保存、坐标与配置</summary>
+      <ul>
+        <li><b>坐标</b>：世界坐标 Y 向上、1 图素 = 1 单位，帧原点在单元格中心；<code>transform.x/y</code> 就是该动画的原点位置。</li>
+        <li><b>保存</b>：<kbd>Ctrl</kbd>+<kbd>S</kbd> 写回配置；已有文件名时改动后自动保存；未绑定目录时改为下载 JSON。</li>
+        <li><b>工程名</b>：同时是配置文件名。修改后下一次保存会写入 <code>&lt;新工程名&gt;.fca.json</code> 并删除旧文件；目标文件已存在时会拒绝改名。</li>
+        <li><b>配置字段</b>：<code>rows / cols / frameCount / order / fps / loop / next / transform</code>，完整格式见工具文档。</li>
+      </ul>
+    </details>
+
+    <details class="helpDetail">
+      <summary>❓ 兼容性与降级</summary>
+      <ul>
+        <li>推荐 Chrome / Edge：可绑定目录、直接读写配置。</li>
+        <li>Firefox / Safari：改为选文件夹，资源进入内存，保存下载 JSON。</li>
+        <li>浏览器不暴露目录绝对路径，也无法打开资源管理器，因此没有「复制路径 / 打开目录」。</li>
+      </ul>
+    </details>
+
     <div class="foot"><button class="btn primary" id="btnHelpClose">知道了</button></div>
+  </div>
+</div>
+
+<div id="ovAuth" class="ov hidden">
+  <div class="modal authModal">
+    <h2>🔐 需要授权工程目录</h2>
+    <p>编辑器要读取 <code>sprites/</code> 里的图片、保存 <code>.fca.json</code>，需要先授权这个目录：</p>
+    <div class="authPath" id="authPath"></div>
+    <div class="authSteps"><span>1 · 点下方按钮</span><span>2 · 粘贴路径</span><span>3 · 选择文件夹</span></div>
+    <p class="hint">浏览器不允许网页直接打开路径。点按钮后会自动复制路径，在系统选择器底部「文件夹」栏粘贴并回车即可定位。</p>
+    <div class="foot">
+      <button class="btn" id="btnAuthLater">稍后</button>
+      <button class="btn primary" id="btnAuthPick">选择目录并授权</button>
+    </div>
   </div>
 </div>
 
@@ -448,6 +545,7 @@ const IDB_NAME = 'gdrwt_fca';
 const IDB_VERSION = 1;
 const IDB_STORE = 'kv';
 const IDB_KEY_DIR = 'lastDir';
+const IDB_KEY_PATHS = 'dirPathHandles';   // { 归一化路径: FileSystemDirectoryHandle }
 const SPRITE_DIR = 'sprites';
 
 const $ = (id) => document.getElementById(id);
@@ -616,6 +714,8 @@ const state = {
   selectedId: null,
   projectName: 'hero',
   fileName: null,
+  diskFileName: null,   // 磁盘上实际存在的配置文件名（改名时用于清理旧文件）
+  renameFrom: null,     // 改名后待删除的旧文件名
   dirty: false,
   savedAt: 0,
 
@@ -643,6 +743,9 @@ const state = {
   undo: [],
   redo: [],
   pendingHandle: null,
+  launchPath: null,       // URL ?path= 指定的本地目录
+  launchKey: null,        // 归一化后的路径键（IndexedDB 映射用）
+  launchMatched: false,   // 当前绑定目录是否与 path 末尾同名
   lastFrameKey: '',
 };
 
@@ -1973,13 +2076,26 @@ async function saveConfig(opts) {
   if (FS.mode === 'fs' && FS.handle) {
     try {
       await fsWrite(fileName, new Blob([json], { type: 'application/json' }));
+      // 工程名改过：旧配置文件已经写进新文件，删掉旧的，避免目录里出现两份
+      const oldName = state.renameFrom;
+      let renamed = false;
+      if (oldName && oldName !== fileName) {
+        try {
+          await fsDelete(oldName);
+          renamed = true;
+        } catch (e) {
+          toast('新配置已保存，但旧配置 ' + oldName + ' 删除失败：' + (e.message || e.name), 'warn', 4600);
+        }
+      }
       state.fileName = fileName;
+      state.diskFileName = fileName;
+      state.renameFrom = null;
       state.dirty = false;
       state.savedAt = Date.now();
       updateSaveState();
       await refreshConfigUI();
-      if (!auto) toast('已保存 ' + fileName, 'ok');
-      setStatus('已保存 ' + fileName, '');
+      if (!auto) toast(renamed ? '已重命名为 ' + fileName : '已保存 ' + fileName, 'ok');
+      setStatus((renamed ? '已重命名为 ' : '已保存 ') + fileName, '');
       return true;
     } catch (e) {
       toast('保存失败：' + e.message, 'err', 4200);
@@ -1989,6 +2105,7 @@ async function saveConfig(opts) {
 
   downloadBlob(new Blob([json], { type: 'application/json' }), fileName);
   state.fileName = fileName;
+  state.renameFrom = null;   // 下载分支没有磁盘文件可清理
   state.dirty = false;
   state.savedAt = Date.now();
   updateSaveState();
@@ -2098,6 +2215,8 @@ async function loadConfigFile(file, name) {
   state.animations = list;
   state.projectName = cfg.name || (name ? name.replace(/\.fca\.json$/i, '') : 'hero');
   state.fileName = name || file.name || (sanitizeFile(state.projectName) + '.fca.json');
+  state.diskFileName = state.fileName;
+  state.renameFrom = null;
   state.defaultId = (cfg.defaultAnimation && list.some((a) => a.id === cfg.defaultAnimation))
     ? cfg.defaultAnimation : list[0].id;
   state.selectedId = list[0].id;
@@ -2222,6 +2341,21 @@ async function useDirHandle(handle) {
   spriteCache = null;
   state.pendingHandle = null;
   updateDirUI();
+  hideAuthOverlay();
+
+  // URL ?path= 指定了目录：校验末尾名称，一致就记住「路径 → 句柄」，下次自动绑定
+  if (state.launchPath) {
+    const base = launchPathBase(state.launchPath);
+    const name = handle.name || '';
+    if (base && name.toLowerCase() === base.toLowerCase()) {
+      state.launchMatched = true;
+      await rememberPathHandle(state.launchKey, handle);
+    } else {
+      state.launchMatched = false;
+      toast('注意：所选目录「' + name + '」与 URL path 末尾「' + base + '」不一致，已按所选目录打开', 'warn', 5800);
+    }
+    updatePathChip();
+  }
 
   try { await idbSet(IDB_KEY_DIR, handle); } catch (e) { console.warn('目录句柄缓存失败', e); }
   try { localStorage.setItem(LS_LAST_DIR, handle.name || ''); } catch (e) { }
@@ -2263,6 +2397,8 @@ async function useDirHandle(handle) {
     if (picked) await openConfigByName(picked);
   } else {
     state.fileName = null;
+    state.diskFileName = null;
+    state.renameFrom = null;
     updateSaveState();
     const n = await syncSpritesFromDir({ silent: true });
     toast('目录已绑定：' + FS.dirName +
@@ -2299,15 +2435,170 @@ async function bindDirectory() {
     $('dirInput').click();
     return;
   }
+  // 从当前已绑定目录（或上次恢复的句柄）开始，打开时直接定位到当前项目
+  const startIn = (FS.mode === 'fs' && FS.handle) ? FS.handle : (state.pendingHandle || null);
+  const opts = { id: 'fca-project-dir', mode: 'readwrite' };
+  if (startIn) opts.startIn = startIn;
+
   let handle;
   try {
-    handle = await window.showDirectoryPicker({ id: 'fca-project-dir', mode: 'readwrite' });
+    handle = await window.showDirectoryPicker(opts);
   } catch (e) {
     if (e && e.name === 'AbortError') return;
-    toast('打开目录失败：' + (e.message || e.name), 'err', 4200);
-    return;
+    if (!startIn) {
+      toast('打开目录失败：' + (e.message || e.name), 'err', 4200);
+      return;
+    }
+    // startIn 句柄失效（权限过期等）时退回不带起始目录
+    try {
+      handle = await window.showDirectoryPicker({ id: 'fca-project-dir', mode: 'readwrite' });
+    } catch (e2) {
+      if (e2 && e2.name === 'AbortError') return;
+      toast('打开目录失败：' + (e2.message || e2.name), 'err', 4200);
+      return;
+    }
   }
   await useDirHandle(handle);
+}
+
+/* ---------- URL ?path=本地目录：首次授权，之后按路径自动恢复 ---------- */
+function normLaunchPath(raw) {
+  let s = String(raw || '').trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
+function launchPathKey(p) {
+  return normLaunchPath(p).replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+}
+
+function launchPathBase(p) {
+  const s = normLaunchPath(p).replace(/[\\/]+$/, '');
+  return s.split(/[\\/]/).pop() || '';
+}
+
+function looksLikeLocalPath(p) {
+  return /^[a-zA-Z]:[\\/]/.test(p) || /^\\\\[^\\]/.test(p) || /^\//.test(p);
+}
+
+async function readPathHandleMap() {
+  try { return (await idbGet(IDB_KEY_PATHS)) || {}; } catch (e) { return {}; }
+}
+
+async function rememberPathHandle(key, handle) {
+  if (!key || !handle) return;
+  try {
+    const map = await readPathHandleMap();
+    map[key] = handle;
+    await idbSet(IDB_KEY_PATHS, map);
+  } catch (e) {
+    console.warn('path 目录句柄保存失败', e);
+  }
+}
+
+function showAuthOverlay() {
+  const ov = $('ovAuth');
+  if (!ov || !state.launchPath) return;
+  const el = $('authPath');
+  if (el) el.textContent = state.launchPath;
+  ov.classList.remove('hidden');
+}
+
+function hideAuthOverlay() {
+  const ov = $('ovAuth');
+  if (ov) ov.classList.add('hidden');
+}
+
+async function copyLaunchPath() {
+  const p = state.launchPath;
+  if (!p) return false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(p);
+      return true;
+    }
+  } catch (e) { /* 走兜底 */ }
+  const ta = document.createElement('textarea');
+  ta.value = p;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
+
+function updatePathChip() {
+  const chip = $('pathChip');
+  if (!chip) return;
+  if (!state.launchPath) { chip.classList.add('hidden'); return; }
+  chip.classList.remove('hidden');
+  chip.className = 'chip' + (state.launchMatched ? ' on' : ' warn');
+  chip.querySelector('.p').textContent = 'path: ' + (launchPathBase(state.launchPath) || state.launchPath);
+  chip.title = '启动路径：' + state.launchPath +
+    (state.launchMatched ? '（已绑定）' : '（点击选择该目录授权一次）');
+}
+
+/**
+ * 解析 URL ?path=。
+ * 浏览器不允许直接用路径打开目录，只能：
+ *   1. 之前授权过 → 从 IndexedDB 取出句柄，权限还在就直接绑定；
+ *   2. 否则在顶栏显示 path 徽标，用户点它选一次目录，句柄按路径记住。
+ * 返回 true 表示 URL 带了 path（此时不再自动恢复「上次目录」）。
+ */
+async function initLaunchPath() {
+  const raw = new URLSearchParams(location.search).get('path');
+  if (raw == null) return false;
+  const p = normLaunchPath(raw);
+  if (!p) return false;
+  if (!looksLikeLocalPath(p)) {
+    toast('URL 的 path 参数不是合法的绝对路径：' + p, 'warn', 4600);
+    return false;
+  }
+
+  state.launchPath = p;
+  state.launchKey = launchPathKey(p);
+  state.launchMatched = false;
+  updatePathChip();
+
+  const map = await readPathHandleMap();
+  let handle = map[state.launchKey] || null;
+
+  // 没有该路径的记录时，如果「上次目录」名字与 path 末尾一致，也可以复用
+  if (!handle) {
+    let last = null;
+    try { last = await idbGet(IDB_KEY_DIR); } catch (e) { last = null; }
+    if (last && typeof last.entries === 'function' &&
+        (last.name || '').toLowerCase() === launchPathBase(p).toLowerCase()) {
+      handle = last;
+    }
+  }
+
+  if (!handle) {
+    showAuthOverlay();
+    return true;
+  }
+
+  let perm = 'prompt';
+  try {
+    perm = handle.queryPermission ? await handle.queryPermission({ mode: 'readwrite' }) : 'granted';
+  } catch (e) { perm = 'prompt'; }
+
+  if (perm === 'granted') {
+    hideAuthOverlay();
+    await useDirHandle(handle);
+    return true;
+  }
+
+  state.pendingHandle = handle;
+  updateDirUI();
+  showAuthOverlay();
+  return true;
 }
 
 async function restoreLastDir() {
@@ -2356,6 +2647,16 @@ function setupMemDir(fileList) {
   spriteCache = null;
   FS.dirName = root ? root.replace(/\/$/, '') : '内存目录';
   state.pendingHandle = null;
+  hideAuthOverlay();
+
+  if (state.launchPath) {
+    const base = launchPathBase(state.launchPath);
+    state.launchMatched = !!base && FS.dirName.toLowerCase() === base.toLowerCase();
+    updatePathChip();
+    if (!state.launchMatched) {
+      toast('注意：所选文件夹「' + FS.dirName + '」与 URL path 末尾「' + base + '」不一致', 'warn', 5600);
+    }
+  }
   for (const f of files) {
     const rel = f.webkitRelativePath || f.name;
     let key = rel;
@@ -3022,6 +3323,27 @@ function bindToolbar() {
   });
 
   $('btnDir').addEventListener('click', bindDirectory);
+  $('pathChip').addEventListener('click', async () => {
+    if (!state.launchPath) return;
+    // 先把路径放进剪贴板（选择器里可直接粘贴），然后立即打开系统选择器
+    const copied = await copyLaunchPath();
+    toast(copied
+      ? '已复制路径；若选择器没定位到，可在底部「文件夹」栏粘贴'
+      : '请手动定位到：' + state.launchPath, copied ? '' : 'warn', 8000);
+    bindDirectory();
+  });
+
+  $('btnAuthLater').addEventListener('click', hideAuthOverlay);
+  $('btnAuthPick').addEventListener('click', async () => {
+    hideAuthOverlay();
+    const copied = await copyLaunchPath();
+    if (copied) toast('已复制路径；在「文件夹」栏粘贴并回车即可定位', '', 7000);
+    if (state.pendingHandle) await restoreWithGesture();
+    else await bindDirectory();
+  });
+  $('ovAuth').addEventListener('click', (e) => {
+    if (e.target === $('ovAuth')) hideAuthOverlay();
+  });
   $('btnRestore').addEventListener('click', restoreWithGesture);
   $('btnOpen').addEventListener('click', openConfigDialog);
   $('btnSave').addEventListener('click', () => saveConfig({}));
@@ -3031,11 +3353,38 @@ function bindToolbar() {
     if (e.target === $('ovHelp')) $('ovHelp').classList.add('hidden');
   });
 
-  $('inpProjName').addEventListener('change', () => {
-    state.projectName = sanitizeFile($('inpProjName').value) || 'hero';
-    $('inpProjName').value = state.projectName;
-    if (!state.fileName) markDirty();
-    else markDirty();
+  // 工程名 = 配置文件名：改动后下一次保存写入新文件名，并删除旧文件
+  $('inpProjName').addEventListener('change', async () => {
+    const name = sanitizeFile($('inpProjName').value) || 'hero';
+    $('inpProjName').value = name;
+    if (name === state.projectName) return;
+
+    const prev = state.projectName;
+    const nextFile = name + '.fca.json';
+    const hasConfig = !!state.fileName;
+    const nameChanged = hasConfig && nextFile !== state.fileName;
+
+    // 目标文件名已存在时不允许直接占用，避免覆盖别的工程
+    if (nameChanged && FS.mode !== 'none') {
+      let exists = false;
+      try { exists = !!(await fsRead(nextFile)); } catch (e) { exists = false; }
+      if (exists) {
+        state.projectName = prev;
+        $('inpProjName').value = prev;
+        toast('目录里已有「' + nextFile + '」，请换一个工程名', 'warn', 4600);
+        return;
+      }
+    }
+
+    state.projectName = name;
+    if (nameChanged) {
+      state.renameFrom = FS.mode === 'none' ? null : (state.diskFileName || state.fileName);
+      state.fileName = nextFile;
+      toast('工程名已改为「' + name + '」，保存后重命名为 ' + nextFile, '', 3200);
+    } else if (!hasConfig) {
+      toast('工程名已改为「' + name + '」，首次保存会写入 ' + nextFile, '', 2800);
+    }
+    markDirty();
   });
 
   document.querySelectorAll('#vpTools [data-tool]').forEach((b) => {
@@ -3318,6 +3667,12 @@ function bindKeyboard() {
     const t = e.target;
     const inField = t && t.closest && t.closest('input,textarea,select');
 
+    // 授权引导打开时屏蔽编辑器快捷键，Esc 关闭
+    if (!$('ovAuth').classList.contains('hidden')) {
+      if (e.key === 'Escape') { e.preventDefault(); hideAuthOverlay(); }
+      return;
+    }
+
     if (e.key === 'F1') { e.preventDefault(); $('ovHelp').classList.toggle('hidden'); return; }
     if (!inField) {
       if (e.key === ' ' || e.code === 'Space') {
@@ -3486,7 +3841,10 @@ function init() {
 
   renderAll();
   setTimeout(resizeCanvases, 0);
-  restoreLastDir();
+  // URL 带 ?path= 时优先按路径恢复；否则沿用「上次目录」
+  initLaunchPath()
+    .then((handled) => { if (!handled) restoreLastDir(); })
+    .catch((e) => { console.warn('path 初始化失败', e); restoreLastDir(); });
 }
 
 init();
