@@ -444,7 +444,7 @@
     <h2>🎭 序列帧动画角色组装器<span class="verBadge" id="editorVer">v1.0.0</span></h2>
     <p>把「一张图 = 一个动画」的序列帧图对齐原点，配好播完后的回退，保存成 <code>xxx.fca.json</code>。</p>
     <p class="verLine">编辑器 <b id="editorVerText">v1.0.0</b> · 配置格式 <b id="formatVerText">v1</b></p>
-    <p class="hint">推荐 Chrome / Edge；Firefox / Safari 会降级为「选文件夹 + 下载项目 zip」。</p>
+    <p class="hint">推荐 Chrome / Edge；Firefox / Safari 会降级为「选文件夹 + 下载 JSON」。</p>
 
     <div class="helpSteps">
       <div><b>1 · 绑定目录</b><span>图片和配置都放这里</span></div>
@@ -511,7 +511,7 @@
     <details class="helpDetail">
       <summary>❓ 保存、工程名与配置</summary>
       <ul>
-        <li><b>保存</b>：<kbd>Ctrl</kbd>+<kbd>S</kbd> 写回配置；已有文件名时改动后 1.5s 自动保存；未绑定目录 / 降级时下载项目 zip（<code>&lt;工程名&gt;/</code> 下含配置与 <code>sprites/</code> 图片）。</li>
+        <li><b>保存</b>：<kbd>Ctrl</kbd>+<kbd>S</kbd> 写回配置；已有文件名时改动后 1.5s 自动保存；未绑定目录时改为下载 JSON。</li>
         <li><b>工程名</b>：同时是配置文件名。输入时状态栏先显示 <code>&lt;新名&gt;.fca.json（待保存）</code>，失焦 / 回车后下一次保存写入新文件并删除旧文件；目标文件名已存在时拒绝改名并还原。</li>
         <li><b>配置字段</b>：<code>rows / cols / frameCount / order / fps / loop / next / transform</code>；<code>version</code> 是配置格式版本，<code>editorVersion</code> 是生成该文件的编辑器版本。完整格式见工具文档。</li>
       </ul>
@@ -683,134 +683,6 @@ function downloadBlob(blob, filename) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-}
-
-/* ---------- 零依赖 ZIP（store，不压缩）：用于未绑定目录时导出完整项目 ---------- */
-const CRC32_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-    t[n] = c >>> 0;
-  }
-  return t;
-})();
-
-function crc32(u8) {
-  let c = 0xFFFFFFFF;
-  for (let i = 0; i < u8.length; i++) c = CRC32_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
-  return (c ^ 0xFFFFFFFF) >>> 0;
-}
-
-function zipDateTime(d) {
-  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
-  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
-  return { time, date };
-}
-
-/** entries: [{ name, data: Uint8Array }] → Blob（application/zip） */
-function buildZip(entries) {
-  const enc = new TextEncoder();
-  const dt = zipDateTime(new Date());
-  const locals = [];
-  const centrals = [];
-  let offset = 0;
-
-  for (const e of entries) {
-    const name = enc.encode(e.name);
-    const data = e.data;
-    const crc = crc32(data);
-
-    const lh = new DataView(new ArrayBuffer(30));
-    lh.setUint32(0, 0x04034b50, true);
-    lh.setUint16(4, 20, true);
-    lh.setUint16(6, 0x0800, true);   // UTF-8 文件名
-    lh.setUint16(8, 0, true);        // store
-    lh.setUint16(10, dt.time, true);
-    lh.setUint16(12, dt.date, true);
-    lh.setUint32(14, crc, true);
-    lh.setUint32(18, data.length, true);
-    lh.setUint32(22, data.length, true);
-    lh.setUint16(26, name.length, true);
-    lh.setUint16(28, 0, true);
-    locals.push(new Uint8Array(lh.buffer), name, data);
-
-    const cd = new DataView(new ArrayBuffer(46));
-    cd.setUint32(0, 0x02014b50, true);
-    cd.setUint16(4, 20, true);
-    cd.setUint16(6, 20, true);
-    cd.setUint16(8, 0x0800, true);
-    cd.setUint16(10, 0, true);
-    cd.setUint16(12, dt.time, true);
-    cd.setUint16(14, dt.date, true);
-    cd.setUint32(16, crc, true);
-    cd.setUint32(20, data.length, true);
-    cd.setUint32(24, data.length, true);
-    cd.setUint16(28, name.length, true);
-    cd.setUint16(30, 0, true);
-    cd.setUint16(32, 0, true);
-    cd.setUint16(34, 0, true);
-    cd.setUint16(36, 0, true);
-    cd.setUint32(38, 0, true);
-    cd.setUint32(42, offset, true);
-    centrals.push(new Uint8Array(cd.buffer), name);
-
-    offset += 30 + name.length + data.length;
-  }
-
-  const centralSize = centrals.reduce((s, p) => s + p.length, 0);
-  const eocd = new DataView(new ArrayBuffer(22));
-  eocd.setUint32(0, 0x06054b50, true);
-  eocd.setUint16(4, 0, true);
-  eocd.setUint16(6, 0, true);
-  eocd.setUint16(8, entries.length, true);
-  eocd.setUint16(10, entries.length, true);
-  eocd.setUint32(12, centralSize, true);
-  eocd.setUint32(16, offset, true);
-  eocd.setUint16(20, 0, true);
-
-  return new Blob([...locals, ...centrals, new Uint8Array(eocd.buffer)], { type: 'application/zip' });
-}
-
-/**
- * 收集「完整项目」：<工程名>/<配置>.fca.json + <工程名>/sprites 等文件。
- * - none：配置 + 每个动画的原始文件 / 对象 URL；
- * - mem：配置（以新内容为准）+ 内存目录里的全部文件。
- */
-async function collectProjectZip(fileName, json) {
-  const root = (sanitizeFile(state.projectName || 'hero') || 'project') + '/';
-  const entries = [];
-  const seen = new Set();
-  let missing = 0;
-  const add = async (name, blob) => {
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    entries.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
-  };
-
-  await add(root + fileName, new Blob([json], { type: 'application/json' }));
-
-  if (FS.mode === 'mem') {
-    for (const [p, f] of FS.mem) {
-      const rel = normalizeRel(p);
-      if (!rel) continue;
-      if (rel.toLowerCase() === normalizeRel(fileName).toLowerCase()) continue;
-      await add(root + rel, f);
-    }
-  } else {
-    for (const a of anims()) {
-      const rel = normalizeRel(a.image);
-      if (!rel) continue;
-      let blob = a.localFile || null;
-      if (!blob && a.url) {
-        try { blob = await (await fetch(a.url)).blob(); } catch (e) { blob = null; }
-      }
-      if (blob) await add(root + rel, blob);
-      else missing++;
-    }
-  }
-
-  return { root, entries, missing };
 }
 
 /* ---------- IndexedDB（目录句柄缓存） ---------- */
@@ -2359,16 +2231,7 @@ async function saveConfig(opts) {
     }
   }
 
-  // 未绑定目录（或降级模式）：下载完整项目 zip（配置 + sprites 图片 + 目录内其它文件）
-  const zipName = (sanitizeFile(state.projectName || 'hero') || 'project') + '.zip';
-  let pack;
-  try {
-    pack = await collectProjectZip(fileName, json);
-  } catch (e) {
-    toast('打包失败：' + (e.message || e.name), 'err', 4600);
-    return false;
-  }
-  downloadBlob(buildZip(pack.entries), zipName);
+  downloadBlob(new Blob([json], { type: 'application/json' }), fileName);
   state.fileName = fileName;
   state.renameFrom = null;   // 下载分支没有磁盘文件可清理
   state.projectNamePending = null;
@@ -2376,11 +2239,8 @@ async function saveConfig(opts) {
   state.savedAt = Date.now();
   updateSaveState();
   if (!auto) {
-    toast('已下载 ' + zipName + '（共 ' + pack.entries.length + ' 个文件' +
-      (pack.missing ? '，' + pack.missing + ' 张图缺少原始文件未打包' : '') + '）',
-      pack.missing ? 'warn' : 'ok', 4200);
+    toast('已下载 ' + fileName + (FS.mode === 'fs' ? '' : '（图片需自行放到 sprites/ 目录）'), 'warn', 4200);
   }
-  setStatus('已下载 ' + zipName + '（含配置与 sprites/ 图片）' + (pack.missing ? '，部分图片缺失' : ''), pack.missing ? 'warn' : '');
   return true;
 }
 
@@ -3138,11 +2998,12 @@ function autoAlignToDefault() {
 }
 
 function bindPropEvents(a) {
-  const applySplit = () => {
+  // toMax: 改行 / 列时，帧数直接顶到上限（行×列）；直接改帧数时按上限收敛
+  const applySplit = (toMax) => {
     const rows = clamp(parseInt($('pRows').value, 10) || 1, 1, 64);
     const cols = clamp(parseInt($('pCols').value, 10) || 1, 1, 64);
     const max = rows * cols;
-    let frames = clamp(parseInt($('pFrames').value, 10) || max, 1, max);
+    const frames = toMax ? max : clamp(parseInt($('pFrames').value, 10) || max, 1, max);
     if (a.rows === rows && a.cols === cols && a.frameCount === frames) return;
     pushUndo();
     a.rows = rows;
@@ -3156,9 +3017,9 @@ function bindPropEvents(a) {
     renderProps();
     requestRender();
   };
-  $('pRows').addEventListener('change', applySplit);
-  $('pCols').addEventListener('change', applySplit);
-  $('pFrames').addEventListener('change', applySplit);
+  $('pRows').addEventListener('change', () => applySplit(true));
+  $('pCols').addEventListener('change', () => applySplit(true));
+  $('pFrames').addEventListener('change', () => applySplit(false));
 
   $('pFps').addEventListener('change', () => {
     const v = clamp(parseFloat($('pFps').value) || 12, 1, 120);
@@ -3343,13 +3204,28 @@ function drawSplitPreview() {
   if (cw >= 3 && ch >= 3) {
     ctx.save();
 
-    // 未使用的格子先铺红（顺序影响哪些格子未用）
+    // 未使用的格子先铺底（顺序影响哪些格子未用）：暗色遮罩 + 斜纹 + 红框，避免被图片吃掉辨识度
     if (a.frameCount < a.rows * a.cols) {
-      ctx.fillStyle = 'rgba(248,81,73,.18)';
       for (let j = 0; j < a.rows; j++) {
         for (let i = 0; i < a.cols; i++) {
           if (cellFrameIndex(a, i, j) < a.frameCount) continue;
-          ctx.fillRect(g.ox + i * cw, g.oy + j * ch, cw, ch);
+          const x = g.ox + i * cw, y = g.oy + j * ch;
+          ctx.fillStyle = 'rgba(8,12,18,.62)';
+          ctx.fillRect(x, y, cw, ch);
+          ctx.save();
+          ctx.beginPath(); ctx.rect(x, y, cw, ch); ctx.clip();
+          ctx.strokeStyle = 'rgba(248,81,73,.5)';
+          ctx.lineWidth = 1;
+          for (let d = 0; d < cw + ch; d += 6) {
+            ctx.beginPath();
+            ctx.moveTo(x + d, y);
+            ctx.lineTo(x + d - ch, y + ch);
+            ctx.stroke();
+          }
+          ctx.restore();
+          ctx.strokeStyle = 'rgba(248,81,73,.95)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 1, y + 1, cw - 2, ch - 2);
         }
       }
     }
@@ -3365,17 +3241,27 @@ function drawSplitPreview() {
       ctx.beginPath(); ctx.moveTo(g.ox, y); ctx.lineTo(g.ox + g.dw, y); ctx.stroke();
     }
 
-    // 帧序号：按当前行列顺序编号
+    // 帧序号：左上角深色徽章 + 白字，压在浅色图上也清晰
     if (cw >= 22 && ch >= 16) {
-      ctx.fillStyle = 'rgba(255,255,255,.9)';
-      ctx.font = '10px system-ui,sans-serif';
-      ctx.textAlign = 'center';
+      ctx.font = 'bold 10px system-ui,sans-serif';
+      ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
+      const bh = clamp(ch - 6, 12, 16);
       for (let j = 0; j < a.rows; j++) {
         for (let i = 0; i < a.cols; i++) {
           const idx = cellFrameIndex(a, i, j);
           if (idx >= a.frameCount) continue;
-          ctx.fillText(String(idx + 1), g.ox + (i + 0.5) * cw, g.oy + (j + 0.5) * ch);
+          const label = String(idx + 1);
+          const bw = Math.ceil(ctx.measureText(label).width) + 6;
+          const bx = g.ox + i * cw + 2;
+          const by = g.oy + j * ch + 2;
+          ctx.fillStyle = 'rgba(8,12,18,.85)';
+          ctx.fillRect(bx, by, bw, bh);
+          ctx.strokeStyle = 'rgba(255,255,255,.3)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(label, bx + 3, by + bh / 2 + 0.5);
         }
       }
     }
