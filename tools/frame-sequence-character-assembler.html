@@ -444,6 +444,7 @@
     <h2>🎭 序列帧动画角色组装器<span class="verBadge" id="editorVer">v1.0.0</span></h2>
     <p>把「一张图 = 一个动画」的序列帧图对齐原点，配好播完后的回退，保存成 <code>xxx.fca.json</code>。</p>
     <p class="verLine">编辑器 <b id="editorVerText">v1.0.0</b> · 配置格式 <b id="formatVerText">v1</b></p>
+    <p class="hint">推荐 Chrome / Edge；Firefox / Safari 会降级为「选文件夹 + 下载 JSON」。</p>
 
     <div class="helpSteps">
       <div><b>1 · 绑定目录</b><span>图片和配置都放这里</span></div>
@@ -457,6 +458,7 @@
       <li><b>对齐</b>：<kbd>W</kbd> 位移、<kbd>E</kbd> 等比缩放，<kbd>Shift</kbd> 吸附；「自动对齐」按首帧墨迹对齐到默认动画。</li>
       <li><b>状态</b>：单次动作设「结束后」目标，循环动作不触发。</li>
       <li><b>预览</b>：右栏切动作试播，播完按配置自动回退。</li>
+      <li><b>工程名</b>：同时是配置文件名，改名会在下次保存时重命名配置文件。</li>
     </ul>
 
     <h3>快捷键</h3>
@@ -489,21 +491,29 @@
     </details>
 
     <details class="helpDetail">
-      <summary>❓ 保存、坐标与配置</summary>
+      <summary>❓ 对齐、Gizmo 与自动对齐</summary>
       <ul>
-        <li><b>坐标</b>：世界坐标 Y 向上、1 图素 = 1 单位，帧原点在单元格中心；<code>transform.x/y</code> 就是该动画的原点位置。</li>
-        <li><b>保存</b>：<kbd>Ctrl</kbd>+<kbd>S</kbd> 写回配置；已有文件名时改动后自动保存；未绑定目录时改为下载 JSON。</li>
-        <li><b>工程名</b>：同时是配置文件名。修改后下一次保存会写入 <code>&lt;新工程名&gt;.fca.json</code> 并删除旧文件；目标文件已存在时会拒绝改名。</li>
-        <li><b>配置字段</b>：<code>rows / cols / frameCount / order / fps / loop / next / transform</code>，完整格式见工具文档。</li>
+        <li><b>坐标</b>：世界坐标 Y 向上、1 图素 = 1 单位，帧原点在单元格中心；<code>transform.x/y</code> 就是该动画原点的世界位置。</li>
+        <li><b>Gizmo</b>：<kbd>W</kbd> 位移（X 红 / Y 绿），<kbd>E</kbd> 等比缩放（中心方块）；<kbd>Shift</kbd> 吸附 1px / 0.05；宽高始终同比。</li>
+        <li><b>自动对齐</b>：取默认动画与当前动画首帧的墨迹（非透明内容）包围盒，按墨迹高度算缩放、按墨迹底边中心算位置；没有墨迹时退回帧底边中心。只改当前动画，可撤销。</li>
       </ul>
     </details>
 
     <details class="helpDetail">
-      <summary>❓ 兼容性与降级</summary>
+      <summary>❓ 状态机、播放与预览</summary>
       <ul>
-        <li>推荐 Chrome / Edge：可绑定目录、直接读写配置。</li>
-        <li>Firefox / Safari：改为选文件夹，资源进入内存，保存下载 JSON。</li>
-        <li>浏览器不暴露目录绝对路径，也无法打开资源管理器，因此没有「复制路径 / 打开目录」。</li>
+        <li><b>结束跳转</b>：循环动画不会结束；非循环动画在末帧播满 <code>1 / fps</code> 后跳到「结束后」目标，没设目标就停在末帧。</li>
+        <li><b>防死循环</b>（仅预览）：记录最近 8 次自动跳转，出现 A→B→A→B 时停止跳转并提示，不改配置。</li>
+        <li><b>预览画布</b>：按全部动画的联合包围盒自适应，切换动作比例不跳；播完按配置自动回退。</li>
+      </ul>
+    </details>
+
+    <details class="helpDetail">
+      <summary>❓ 保存、工程名与配置</summary>
+      <ul>
+        <li><b>保存</b>：<kbd>Ctrl</kbd>+<kbd>S</kbd> 写回配置；已有文件名时改动后 1.5s 自动保存；未绑定目录时改为下载 JSON。</li>
+        <li><b>工程名</b>：同时是配置文件名。输入时状态栏先显示 <code>&lt;新名&gt;.fca.json（待保存）</code>，失焦 / 回车后下一次保存写入新文件并删除旧文件；目标文件名已存在时拒绝改名并还原。</li>
+        <li><b>配置字段</b>：<code>rows / cols / frameCount / order / fps / loop / next / transform</code>；<code>version</code> 是配置格式版本，<code>editorVersion</code> 是生成该文件的编辑器版本。完整格式见工具文档。</li>
       </ul>
     </details>
 
