@@ -27,3 +27,6 @@ desktop.ini
 npm-debug.log*
 *.tmp
 *.bak
+
+# Playwright CLI 测试产物（页面快照、控制台日志、下载文件等）
+.playwright-cli/
