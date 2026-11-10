@@ -66,6 +66,7 @@
   #pathChip{cursor:pointer;max-width:220px;}
   #pathChip .p{direction:ltr;max-width:180px;}
   #pathChip:hover{border-color:var(--accent);}
+  #pathChip.on{cursor:default;}
   #pathChip.warn{animation:pathPulse 1.8s ease-in-out infinite;}
   @keyframes pathPulse{
     0%,100%{border-color:var(--border-soft);box-shadow:none;}
@@ -282,6 +283,13 @@
   .modal .hint{color:var(--text-faint);font-size:11px;}
   /* 使用说明：三步概览 + 折叠的详细说明（❓ 可点开） */
   .helpModal{width:min(620px,94vw);}
+  .helpModal .verBadge{
+    display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;
+    background:var(--accent-soft);border:1px solid rgba(78,161,255,.4);
+    color:var(--accent);font-size:10.5px;font-weight:500;vertical-align:2px;
+  }
+  .helpModal .verLine{color:var(--text-faint);font-size:11px;margin-top:2px;}
+  .helpModal .verLine b{color:var(--text-dim);font-weight:600;}
   .helpSteps{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 2px;}
   .helpSteps > div{
     flex:1 1 150px;min-width:0;display:flex;flex-direction:column;gap:1px;
@@ -433,8 +441,9 @@
 
 <div id="ovHelp" class="ov hidden">
   <div class="modal helpModal">
-    <h2>🎭 序列帧动画角色组装器</h2>
+    <h2>🎭 序列帧动画角色组装器<span class="verBadge" id="editorVer">v1.0.0</span></h2>
     <p>把「一张图 = 一个动画」的序列帧图对齐原点，配好播完后的回退，保存成 <code>xxx.fca.json</code>。</p>
+    <p class="verLine">编辑器 <b id="editorVerText">v1.0.0</b> · 配置格式 <b id="formatVerText">v1</b></p>
 
     <div class="helpSteps">
       <div><b>1 · 绑定目录</b><span>图片和配置都放这里</span></div>
@@ -445,7 +454,7 @@
     <h3>常用操作</h3>
     <ul class="helpBrief">
       <li><b>切分</b>：行 / 列 / 顺序 / 帧数，识别不准就手动改。</li>
-      <li><b>对齐</b>：<kbd>W</kbd> 位移、<kbd>E</kbd> 等比缩放，<kbd>Shift</kbd> 吸附。</li>
+      <li><b>对齐</b>：<kbd>W</kbd> 位移、<kbd>E</kbd> 等比缩放，<kbd>Shift</kbd> 吸附；「自动对齐」按首帧墨迹对齐到默认动画。</li>
       <li><b>状态</b>：单次动作设「结束后」目标，循环动作不触发。</li>
       <li><b>预览</b>：右栏切动作试播，播完按配置自动回退。</li>
     </ul>
@@ -461,7 +470,7 @@
       <summary>❓ 目录、导入、同步与删除</summary>
       <ul>
         <li><b>目录</b>：配置文件 <code>&lt;工程名&gt;.fca.json</code> 放根目录，图片放 <code>sprites/</code>。</li>
-        <li><b>URL path</b>：地址带 <code>?path=D:\proj\hero</code>（建议 URL 编码）时顶栏显示 path 徽标；首次打开会弹「需要授权工程目录」引导（显示完整路径），点「选择目录并授权」会自动复制路径并打开选择器，在底部「文件夹」栏粘贴回车即可；选一次后同一链接自动绑定。</li>
+        <li><b>URL path</b>：地址带 <code>?path=D:\proj\hero</code>（建议 URL 编码）时顶栏显示 path 徽标；首次打开会弹「需要授权工程目录」引导（显示完整路径），点「选择目录并授权」会自动复制路径并打开选择器，在底部「文件夹」栏粘贴回车即可；选一次后同一链接自动绑定，绿色徽标点击只提示、不再打开选择器。</li>
         <li><b>绑定</b>：目录里只有 1 个配置会自动加载，多个会弹选择；≥2 个时顶栏出现「切换配置」。</li>
         <li><b>同步</b>：绑定或加载后自动扫描 <code>sprites/</code>，没有动画的图片会补建（12fps / 循环 / 自动识别）；点动画栏 <b>⟳</b> 手动刷新。</li>
         <li><b>命名</b>：动画名严格等于图片文件名（去扩展名），不能单独改名。</li>
@@ -545,7 +554,8 @@
  * 0. 常量与工具
  * ================================================================ */
 const APP_ID = 'frame-sequence-character-assembler';
-const APP_VERSION = 1;
+const APP_VERSION = 1;                 // 配置文件格式版本
+const EDITOR_VERSION = '1.0.0';        // 编辑器版本（显示在使用说明，并写入 .fca.json）
 const LS_LAST_DIR = 'fca_last_dir';
 const IDB_NAME = 'gdrwt_fca';
 const IDB_VERSION = 1;
@@ -1609,6 +1619,74 @@ function guessCrossAxis(axisLen, cellLen) {
   return bestDiff <= 0.16 ? best : 0;
 }
 
+/**
+ * 动画某一帧里「非透明 / 非背景」内容的包围盒（相对帧左上角，单位=源图素）。
+ * 用于自动对齐：比整帧尺寸更能反映角色实际占据的位置。
+ */
+function inkBoxOf(a, frameIndex) {
+  if (!a || !a.img) return null;
+  const r = frameRect(a, frameIndex);
+  const fw = Math.max(1, r.sw), fh = Math.max(1, r.sh);
+  const MAX = 512;
+  const sc = Math.min(1, MAX / Math.max(fw, fh));
+  const w = Math.max(1, Math.round(fw * sc));
+  const h = Math.max(1, Math.round(fh * sc));
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  cx.clearRect(0, 0, w, h);
+  cx.drawImage(a.img, r.sx, r.sy, r.sw, r.sh, 0, 0, w, h);
+  const d = cx.getImageData(0, 0, w, h).data;
+
+  let transparent = 0;
+  for (let i = 3; i < d.length; i += 4) if (d[i] < 250) transparent++;
+  const alphaMode = transparent > w * h * 0.01;
+
+  let br = 0, bg = 0, bb = 0, cnt = 0;
+  if (!alphaMode) {
+    const sxStep = Math.max(1, Math.floor(w / 80));
+    const syStep = Math.max(1, Math.floor(h / 80));
+    const sample = (x, y) => {
+      const o = (y * w + x) * 4;
+      br += d[o]; bg += d[o + 1]; bb += d[o + 2]; cnt++;
+    };
+    for (let x = 0; x < w; x += sxStep) { sample(x, 0); sample(x, h - 1); }
+    for (let y = 0; y < h; y += syStep) { sample(0, y); sample(w - 1, y); }
+    br /= cnt || 1; bg /= cnt || 1; bb /= cnt || 1;
+  }
+
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      let isInk;
+      if (alphaMode) {
+        isInk = d[o + 3] > 24;
+      } else {
+        const dr = d[o] - br, dg = d[o + 1] - bg, db = d[o + 2] - bb;
+        isInk = (dr * dr + dg * dg + db * db) > 1200;
+      }
+      if (!isInk) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+
+  const kx = fw / w, ky = fh / h;
+  const x0 = minX * kx, y0 = minY * ky;
+  const x1 = (maxX + 1) * kx, y1 = (maxY + 1) * ky;
+  return {
+    x0, y0, x1, y1,
+    w: x1 - x0,
+    h: y1 - y0,
+    cx: (x0 + x1) / 2,
+    cy: (y0 + y1) / 2,
+  };
+}
+
 function analyzeGrid(img) {
   const prof = inkData(img);
   const cx = chooseSplit(prof.col);
@@ -2004,6 +2082,7 @@ function buildConfig() {
   return {
     app: APP_ID,
     version: APP_VERSION,
+    editorVersion: EDITOR_VERSION,
     name: state.projectName || 'hero',
     savedAt: new Date().toISOString(),
     defaultAnimation: state.defaultId,
@@ -2078,9 +2157,16 @@ function updateSaveState() {
     chip.className = 'chip';
     txt.textContent = '未保存';
   }
-  $('statInfo').textContent =
-    anims().length + ' 个动画 · ' + (state.selectedId ? '当前：' + (selectedAnim() ? selectedAnim().name : '-') : '未选中');
+  updateStatInfo();
   updatePathInfo();
+}
+
+/** 底部右侧：动画数量与当前选中动画 */
+function updateStatInfo() {
+  const el = $('statInfo');
+  if (!el) return;
+  el.textContent = anims().length + ' 个动画 · ' +
+    (state.selectedId ? '当前：' + (selectedAnim() ? selectedAnim().name : '-') : '未选中');
 }
 
 let autoTimer = 0;
@@ -2728,6 +2814,7 @@ function setupMemDir(fileList) {
 function renderList() {
   const wrap = $('animList');
   $('animCount').textContent = anims().length;
+  updateStatInfo();
   if (!anims().length) {
     wrap.innerHTML = '<div class="empty">还没有动画<br>点击「＋ 导入图片」<br>或把序列帧图拖进窗口</div>';
     return;
@@ -2814,7 +2901,9 @@ function renderProps() {
     '</div>' +
 
     '<div class="prGroup">' +
-    '  <div class="prTitle">对齐（位移 + 缩放）<span class="spacer"></span><button class="btn sm" id="btnResetTf">重置</button></div>' +
+    '  <div class="prTitle">对齐（位移 + 缩放）<span class="spacer"></span>' +
+    '<button class="btn sm" id="btnAutoAlign" title="按首帧墨迹的底边中心对齐到默认动画" style="color:var(--accent)">自动对齐</button>' +
+    '<button class="btn sm" id="btnResetTf">重置</button></div>' +
     '  <div class="prGrid">' +
     '    <label><span>X</span><input type="number" id="pTx" step="1" value="' + fmtNum(a.transform.x) + '"></label>' +
     '    <label><span>Y</span><input type="number" id="pTy" step="1" value="' + fmtNum(a.transform.y) + '"></label>' +
@@ -2838,6 +2927,64 @@ function renderProps() {
   bindPropEvents(a);
   bindSplitCanvas(a);
   requestAnimationFrame(drawSplitPreview);
+}
+
+/**
+ * 自动对齐：把当前动画的等比缩放与位置，按「首帧墨迹」对齐到默认动画。
+ * 以墨迹的底边中心为基准（人形角色通常是脚底），比整帧尺寸更接近视觉效果。
+ */
+function autoAlignToDefault() {
+  const a = selectedAnim();
+  const def = animById(state.defaultId);
+  if (!a || !a.img) { toast('请先选择一个有图片的动画', 'warn'); return; }
+  if (!def || !def.img) { toast('当前没有可对齐的默认动画', 'warn'); return; }
+  if (a.id === def.id) { toast('当前动画就是默认动画，无需对齐', 'warn'); return; }
+
+  const fa = frameRect(a, 0);
+  const fd = frameRect(def, 0);
+  const ba = inkBoxOf(a, 0);
+  const bd = inkBoxOf(def, 0);
+
+  let s;
+  let byInk = false;
+  if (ba && bd && ba.h > 0.01 && bd.h > 0.01) {
+    s = def.transform.scaleX * (bd.h / ba.h);
+    byInk = true;
+  } else {
+    // 没有可识别的墨迹（全透明 / 纯色）：退回按帧高对齐
+    s = def.transform.scaleX * (fd.fh / Math.max(1, fa.fh));
+  }
+  s = clamp(isFinite(s) && s > 0 ? round2(s) : 1, 0.01, 100);
+
+  let tx, ty;
+  if (byInk) {
+    // 默认动画首帧墨迹的底边中心（世界坐标）
+    const wx = def.transform.x + (bd.cx - fd.fw / 2) * def.transform.scaleX;
+    const wy = def.transform.y + (fd.fh / 2 - bd.y1) * def.transform.scaleX;
+    // 当前动画首帧墨迹底边中心相对帧中心的偏移（应用新缩放后）
+    const dx = (ba.cx - fa.fw / 2) * s;
+    const dy = (fa.fh / 2 - ba.y1) * s;
+    tx = wx - dx;
+    ty = wy - dy;
+  } else {
+    const bottom = def.transform.y - (fd.fh / 2) * def.transform.scaleX;
+    tx = def.transform.x;
+    ty = bottom + (fa.fh / 2) * s;
+  }
+
+  pushUndo();
+  a.transform.x = round2(tx);
+  a.transform.y = round2(ty);
+  a.transform.scaleX = s;
+  a.transform.scaleY = s;
+  state.playing = false;
+  state.time = 0;
+  markDirty();
+  renderProps();
+  requestRender();
+  toast(byInk
+    ? '已按首帧墨迹的底边中心对齐到「' + def.name + '」（缩放 ' + s + '）'
+    : '已按首帧底边中心对齐到「' + def.name + '」（缩放 ' + s + '）', 'ok', 3600);
 }
 
 function bindPropEvents(a) {
@@ -2947,6 +3094,8 @@ function bindPropEvents(a) {
       applyTf();
     });
   });
+
+  $('btnAutoAlign').addEventListener('click', autoAlignToDefault);
 
   $('btnResetTf').addEventListener('click', () => {
     pushUndo();
@@ -3365,7 +3514,12 @@ function bindToolbar() {
   $('btnDir').addEventListener('click', bindDirectory);
   $('pathChip').addEventListener('click', async () => {
     if (!state.launchPath) return;
-    // 先把路径放进剪贴板（选择器里可直接粘贴），然后立即打开系统选择器
+    // 已授权（绿色）：只提示，不再打开目录选择器
+    if (state.launchMatched) {
+      toast('已绑定目录：' + state.launchPath, 'ok', 2800);
+      return;
+    }
+    // 未授权（黄色）：把路径放进剪贴板，然后直接打开系统选择器
     const copied = await copyLaunchPath();
     toast(copied
       ? '已复制路径；若选择器没定位到，可在底部「文件夹」栏粘贴'
@@ -3860,6 +4014,12 @@ function bindSplitters() {
  * 14. 启动
  * ================================================================ */
 function init() {
+  // 版本号统一从常量注入，避免界面与写入配置的值不一致
+  const setVer = (id, txt) => { const el = $(id); if (el) el.textContent = txt; };
+  setVer('editorVer', 'v' + EDITOR_VERSION);
+  setVer('editorVerText', 'v' + EDITOR_VERSION);
+  setVer('formatVerText', 'v' + APP_VERSION);
+
   bindToolbar();
   bindViewport();
   bindTimeline();

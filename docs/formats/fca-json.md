@@ -49,6 +49,7 @@
 {
   "app": "frame-sequence-character-assembler",
   "version": 1,
+  "editorVersion": "1.0.0",
   "name": "hero",
   "savedAt": "2026-11-10T08:30:00.000Z",
   "defaultAnimation": "idle",
@@ -144,8 +145,9 @@
 | 字段 | 类型 | 必填 | 写入 | 说明 |
 | --- | --- | --- | --- | --- |
 | `app` | string | ✅ | 固定 | 恒为 `"frame-sequence-character-assembler"`，用于识别文件归属。非该值时工具会弹确认框，仍允许强行加载 |
-| `version` | number | ✅ | 固定 | 格式版本，当前 **`1`**。与读取方版本不一致时提示后「按当前版本尽力加载」，不阻断 |
-| `name` | string | ✅ | 工程名 | 显示用工程名；读取时缺失则回退为配置文件名的去后缀形式 |
+| `version` | number | ✅ | 固定 | **配置格式**版本，当前 **`1`**。与读取方版本不一致时提示后「按当前版本尽力加载」，不阻断 |
+| `editorVersion` | string | ❌ | 编辑器版本 | 写入该文件的编辑器版本（如 `"1.0.0"`），与工具内 ❓ 使用说明显示一致；**仅记录，不参与格式校验**，可安全忽略 |
+| `name` | string | ✅ | 工程名 | 工程名，**与配置文件名（去 `.fca.json`）一致**；读取时一律以实际文件名为准，该字段仅作冗余记录 |
 | `savedAt` | string | ✅ | ISO 8601 | 写入时间，**仅用于展示**，不参与逻辑 |
 | `defaultAnimation` | string \| null | ✅ | 默认动画 id | 启动 / 停止时播放它；指向不存在的 id 时回退为 `animations[0].id` |
 | `assets` | object[] | ✅ | 由 `animations` 派生 | 图片清单，与 `animations` 一一对应（同序），仅用于加载校验（尺寸/存在性），**只提示不阻断** |
@@ -357,6 +359,7 @@ canvas 左上角   = (transform.x - dw / 2, originScreenY - transform.y - dh / 2
   "properties": {
     "app": { "const": "frame-sequence-character-assembler" },
     "version": { "type": "integer", "minimum": 1 },
+    "editorVersion": { "type": "string" },
     "name": { "type": "string" },
     "savedAt": { "type": "string" },
     "defaultAnimation": { "type": ["string", "null"] },
@@ -449,6 +452,7 @@ canvas 左上角   = (transform.x - dw / 2, originScreenY - transform.y - dh / 2
 ## 12. 版本与兼容策略
 
 - `version` 只在**破坏性变更**时递增；新增可选字段不递增，读取方忽略未知字段、写入方不保证保留。
+- `editorVersion` 是纯记录字段（编辑器版本），既不参与 `version` 兼容判断，也不影响加载；旧文件没有该字段同样合法。
 - 当前唯一的兼容分支：`order` 缺失 → 按 `"row"`（行优先）解释，保证早期配置的播放顺序不变。
 - 读取方与写入方的版本不一致时，**不拒绝加载**，只提示并尽力解析；保存时总是写自己支持的 `version`。
 - 已废弃 / 未启用的预留字段：`pivot`（写入但不可编辑；未来若支持九宫格锚点，语义仍为归一化帧原点）。
