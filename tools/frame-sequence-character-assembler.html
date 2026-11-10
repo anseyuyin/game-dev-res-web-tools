@@ -282,10 +282,9 @@
   <button id="btnDir" class="btn">📁 绑定目录</button>
   <span id="dirChip" class="chip"><i class="dot"></i><span class="p">未绑定</span></span>
   <button id="btnRestore" class="btn hidden">恢复上次目录</button>
-  <button id="btnOpen" class="btn" disabled>打开配置</button>
+  <button id="btnOpen" class="btn hidden" disabled>切换配置</button>
   <label class="proj">工程名 <input id="inpProjName" type="text" value="hero" spellcheck="false"></label>
   <button id="btnSave" class="btn primary">💾 保存</button>
-  <button id="btnDownload" class="btn">下载 JSON</button>
   <span class="spacer"></span>
   <span id="saveState" class="chip"><i class="dot"></i><span>未保存</span></span>
   <button id="btnHelp" class="btn ghost" title="使用说明">❓</button>
@@ -427,7 +426,7 @@
 
 <div id="ovPick" class="ov hidden">
   <div class="modal" style="width:min(480px,92vw)">
-    <h2>选择要打开的配置</h2>
+    <h2>切换配置</h2>
     <div id="pickList"></div>
     <div class="foot"><button class="btn" id="btnPickCancel">取消</button></div>
   </div>
@@ -539,7 +538,7 @@ function uiPick(names) {
     const ov = $('ovPick');
     const list = $('pickList');
     list.innerHTML = names.map((n) => (
-      '<button class="pickItem" data-name="' + esc(n) + '"><span class="p">' + esc(n) + '</span><span class="dim">打开</span></button>'
+      '<button class="pickItem" data-name="' + esc(n) + '"><span class="p">' + esc(n) + '</span><span class="dim">切换</span></button>'
     )).join('');
     ov.classList.remove('hidden');
     const done = (v) => { ov.classList.add('hidden'); list.onclick = null; $('btnPickCancel').onclick = null; resolve(v); };
@@ -1978,6 +1977,7 @@ async function saveConfig(opts) {
       state.dirty = false;
       state.savedAt = Date.now();
       updateSaveState();
+      await refreshConfigUI();
       if (!auto) toast('已保存 ' + fileName, 'ok');
       setStatus('已保存 ' + fileName, '');
       return true;
@@ -2162,6 +2162,8 @@ async function openConfigDialog() {
   if (FS.mode === 'none') { toast('请先绑定目录', 'warn'); return; }
   let names = [];
   try { names = await fsListConfigs(); } catch (e) { toast('读取目录失败：' + e.message, 'err'); return; }
+  dirConfigs = names;
+  updateConfigButton();
   if (!names.length) { toast('目录里没有 .fca.json 配置', 'warn'); return; }
   if (names.length === 1) { await openConfigByName(names[0]); return; }
   const picked = await uiPick(names);
@@ -2171,6 +2173,29 @@ async function openConfigDialog() {
 /* ================================================================
  * 10. 目录绑定
  * ================================================================ */
+/* 目录内 .fca.json 列表缓存：只有 ≥2 个配置时才显示「切换配置」按钮 */
+let dirConfigs = [];
+
+function updateConfigButton() {
+  const btn = $('btnOpen');
+  if (!btn) return;
+  btn.textContent = '切换配置';
+  btn.disabled = FS.mode === 'none';
+  btn.classList.toggle('hidden', dirConfigs.length <= 1);
+  btn.title = dirConfigs.length > 1
+    ? '切换当前目录里的 .fca.json 配置（共 ' + dirConfigs.length + ' 个）'
+    : '';
+}
+
+async function refreshConfigUI() {
+  if (FS.mode === 'none') {
+    dirConfigs = [];
+  } else {
+    try { dirConfigs = await fsListConfigs(); } catch (e) { /* 读取失败保留上次结果 */ }
+  }
+  updateConfigButton();
+}
+
 function updateDirUI() {
   const chip = $('dirChip');
   const txt = chip.querySelector('.p');
@@ -2208,12 +2233,25 @@ async function useDirHandle(handle) {
 
   let names = [];
   try { names = await fsListConfigs(); } catch (e) { console.warn(e); }
+  dirConfigs = names;
+  updateConfigButton();
 
   if (anims().length) {
     // 当前会话已有内容：不覆盖配置，但把 sprites/ 里新增的图片补成动画
     const n = await syncSpritesFromDir({ silent: true });
-    if (names.length) toast('目录已绑定：' + FS.dirName + '（目录内有 ' + names.length + ' 个配置，可点「打开配置」）', 'ok', 3600);
-    else toast('目录已绑定：' + FS.dirName, 'ok');
+    if (names.length === 1) {
+      // 只有一个配置时「切换配置」按钮是隐藏的，这里给一次加载机会
+      const ok = await uiConfirm(
+        '目录里有配置 <b>' + esc(names[0]) + '</b>，是否现在加载？<br><span class="hint">会替换当前编辑内容' +
+        (state.dirty ? '（当前有未保存修改）' : '') + '。</span>',
+        '加载目录配置', '加载'
+      );
+      if (ok) await openConfigByName(names[0]);
+    } else if (names.length > 1) {
+      toast('目录已绑定：' + FS.dirName + '（目录内有 ' + names.length + ' 个配置，可点「切换配置」）', 'ok', 3600);
+    } else {
+      toast('目录已绑定：' + FS.dirName, 'ok');
+    }
     setStatus('目录已绑定：' + FS.dirName + (n ? '，并从 sprites/ 补建 ' + n + ' 个动画' : ''), '');
     return;
   }
@@ -2327,6 +2365,8 @@ function setupMemDir(fileList) {
   }
   updateDirUI();
   const names = [...FS.mem.keys()].filter((p) => /\.fca\.json$/i.test(p));
+  dirConfigs = names;
+  updateConfigButton();
   setStatus('已载入文件夹「' + FS.dirName + '」（' + files.length + ' 个文件，降级模式：保存为下载）', '');
   if (names.length === 1) {
     openConfigByName(names[0]);
@@ -2985,12 +3025,6 @@ function bindToolbar() {
   $('btnRestore').addEventListener('click', restoreWithGesture);
   $('btnOpen').addEventListener('click', openConfigDialog);
   $('btnSave').addEventListener('click', () => saveConfig({}));
-  $('btnDownload').addEventListener('click', async () => {
-    if (!anims().length) { toast('还没有动画可导出', 'warn'); return; }
-    const name = sanitizeFile(state.projectName || 'hero') + '.fca.json';
-    downloadBlob(new Blob([JSON.stringify(buildConfig(), null, 2)], { type: 'application/json' }), name);
-    toast('已下载 ' + name, 'ok');
-  });
   $('btnHelp').addEventListener('click', () => $('ovHelp').classList.remove('hidden'));
   $('btnHelpClose').addEventListener('click', () => $('ovHelp').classList.add('hidden'));
   $('ovHelp').addEventListener('click', (e) => {
