@@ -240,6 +240,11 @@
   }
   #footerBar .spacer{flex:1 1 auto;}
   #statusText{overflow:hidden;text-overflow:ellipsis;}
+  #pathInfo{
+    max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    border-right:1px solid var(--border-soft);padding-right:12px;
+  }
+  #pathInfo.hidden{display:none;}
   #statusText.err{color:var(--err);}
   #statusText.warn{color:var(--warn);}
   #toastWrap{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;}
@@ -419,6 +424,7 @@
 <div id="footerBar">
   <span id="statusText">就绪 · 选择一个本地目录，导入序列帧图开始对齐</span>
   <span class="spacer"></span>
+  <span id="pathInfo" class="dim hidden"></span>
   <span id="statInfo" class="dim"></span>
 </div>
 
@@ -545,7 +551,7 @@ const IDB_NAME = 'gdrwt_fca';
 const IDB_VERSION = 1;
 const IDB_STORE = 'kv';
 const IDB_KEY_DIR = 'lastDir';
-const IDB_KEY_PATHS = 'dirPathHandles';   // { 归一化路径: FileSystemDirectoryHandle }
+const IDB_KEY_PATHS = 'dirPathHandlesV2'; // { 归一化完整路径: FileSystemDirectoryHandle }（v2：只认完整路径，不再按文件夹名复用）
 const SPRITE_DIR = 'sprites';
 
 const $ = (id) => document.getElementById(id);
@@ -746,6 +752,7 @@ const state = {
   launchPath: null,       // URL ?path= 指定的本地目录
   launchKey: null,        // 归一化后的路径键（IndexedDB 映射用）
   launchMatched: false,   // 当前绑定目录是否与 path 末尾同名
+  projectNamePending: null, // 工程名输入中、尚未提交的配置文件名（状态栏预览用）
   lastFrameKey: '',
 };
 
@@ -2035,6 +2042,29 @@ function buildConfig() {
   };
 }
 
+/** 底部状态栏：当前项目路径 / 配置文件名 */
+function updatePathInfo() {
+  const el = $('pathInfo');
+  if (!el) return;
+  let dir = '';
+  if (state.launchPath) dir = state.launchPath;
+  else if (FS.mode === 'fs' || FS.mode === 'mem') dir = FS.dirName || '';
+  let cfg = state.fileName || '';
+  if (state.projectNamePending) cfg = state.projectNamePending + '（待保存）';
+  let txt = '';
+  if (dir) txt = '📁 ' + dir;
+  if (cfg) txt += (txt ? '  ·  ' : '📄 ') + cfg;
+  if (!txt) {
+    el.textContent = '';
+    el.title = '';
+    el.classList.add('hidden');
+    return;
+  }
+  el.textContent = txt;
+  el.title = txt + (state.launchPath ? '' : '\n（浏览器只暴露文件夹名；用 ?path= 启动时显示完整路径）');
+  el.classList.remove('hidden');
+}
+
 function updateSaveState() {
   const chip = $('saveState');
   const txt = chip.querySelector('span');
@@ -2050,6 +2080,7 @@ function updateSaveState() {
   }
   $('statInfo').textContent =
     anims().length + ' 个动画 · ' + (state.selectedId ? '当前：' + (selectedAnim() ? selectedAnim().name : '-') : '未选中');
+  updatePathInfo();
 }
 
 let autoTimer = 0;
@@ -2090,6 +2121,7 @@ async function saveConfig(opts) {
       state.fileName = fileName;
       state.diskFileName = fileName;
       state.renameFrom = null;
+      state.projectNamePending = null;
       state.dirty = false;
       state.savedAt = Date.now();
       updateSaveState();
@@ -2106,6 +2138,7 @@ async function saveConfig(opts) {
   downloadBlob(new Blob([json], { type: 'application/json' }), fileName);
   state.fileName = fileName;
   state.renameFrom = null;   // 下载分支没有磁盘文件可清理
+  state.projectNamePending = null;
   state.dirty = false;
   state.savedAt = Date.now();
   updateSaveState();
@@ -2213,7 +2246,10 @@ async function loadConfigFile(file, name) {
   for (const a of anims()) if (a.url) URL.revokeObjectURL(a.url);
 
   state.animations = list;
-  state.projectName = cfg.name || (name ? name.replace(/\.fca\.json$/i, '') : 'hero');
+  // 工程名 = 配置文件名：以实际文件名称为准（旧配置里手改过的 name 会被纠正）
+  const cfgBase = String(name || file.name || '').split(/[\\/]/).pop().replace(/\.fca\.json$/i, '');
+  state.projectName = cfgBase || cfg.name || 'hero';
+  state.projectNamePending = null;
   state.fileName = name || file.name || (sanitizeFile(state.projectName) + '.fca.json');
   state.diskFileName = state.fileName;
   state.renameFrom = null;
@@ -2246,6 +2282,7 @@ async function loadConfigFile(file, name) {
   state.ghostPlay = ed.ghostMode === 'play';
 
   $('inpProjName').value = state.projectName;
+  updatePathInfo();
   renderAll();
   updateViewButtons();
 
@@ -2331,6 +2368,7 @@ function updateDirUI() {
   }
   $('btnOpen').disabled = FS.mode === 'none';
   $('btnRestore').classList.toggle('hidden', !state.pendingHandle);
+  updatePathInfo();
 }
 
 async function useDirHandle(handle) {
@@ -2565,17 +2603,19 @@ async function initLaunchPath() {
   state.launchKey = launchPathKey(p);
   state.launchMatched = false;
   updatePathChip();
+  updatePathInfo();
+
+  // 清掉 v1 的「按名字复用」缓存：它可能把不同磁盘上的同名目录混在一起
+  try { await idbDel('dirPathHandles'); } catch (e) { /* 忽略 */ }
 
   const map = await readPathHandleMap();
   let handle = map[state.launchKey] || null;
 
-  // 没有该路径的记录时，如果「上次目录」名字与 path 末尾一致，也可以复用
-  if (!handle) {
-    let last = null;
-    try { last = await idbGet(IDB_KEY_DIR); } catch (e) { last = null; }
-    if (last && typeof last.entries === 'function' &&
-        (last.name || '').toLowerCase() === launchPathBase(p).toLowerCase()) {
-      handle = last;
+  // 只认完整路径的映射；同时校验文件夹名，防止缓存条目失效 / 目录被改名
+  if (handle) {
+    const base = launchPathBase(p);
+    if (base && (handle.name || '').toLowerCase() !== base.toLowerCase()) {
+      handle = null;
     }
   }
 
@@ -3353,11 +3393,23 @@ function bindToolbar() {
     if (e.target === $('ovHelp')) $('ovHelp').classList.add('hidden');
   });
 
+  // 输入过程中先在状态栏预览「待保存」的配置文件名（真正的重命名在 change 时执行）
+  $('inpProjName').addEventListener('input', () => {
+    const name = sanitizeFile($('inpProjName').value) || '';
+    state.projectNamePending = (name && name !== state.projectName) ? name + '.fca.json' : null;
+    updatePathInfo();
+  });
+
   // 工程名 = 配置文件名：改动后下一次保存写入新文件名，并删除旧文件
   $('inpProjName').addEventListener('change', async () => {
     const name = sanitizeFile($('inpProjName').value) || 'hero';
     $('inpProjName').value = name;
-    if (name === state.projectName) return;
+    state.projectNamePending = null;
+
+    if (name === state.projectName) {
+      updatePathInfo();
+      return;
+    }
 
     const prev = state.projectName;
     const nextFile = name + '.fca.json';
@@ -3371,6 +3423,7 @@ function bindToolbar() {
       if (exists) {
         state.projectName = prev;
         $('inpProjName').value = prev;
+        updatePathInfo();
         toast('目录里已有「' + nextFile + '」，请换一个工程名', 'warn', 4600);
         return;
       }
@@ -3385,6 +3438,7 @@ function bindToolbar() {
       toast('工程名已改为「' + name + '」，首次保存会写入 ' + nextFile, '', 2800);
     }
     markDirty();
+    updatePathInfo();
   });
 
   document.querySelectorAll('#vpTools [data-tool]').forEach((b) => {
