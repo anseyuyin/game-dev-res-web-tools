@@ -49,7 +49,7 @@
 {
   "app": "frame-sequence-character-assembler",
   "version": 1,
-  "editorVersion": "1.0.0",
+  "editorVersion": "1.0.1",
   "name": "hero",
   "savedAt": "2026-11-10T08:30:00.000Z",
   "defaultAnimation": "idle",
@@ -146,7 +146,7 @@
 | --- | --- | --- | --- | --- |
 | `app` | string | ✅ | 固定 | 恒为 `"frame-sequence-character-assembler"`，用于识别文件归属。非该值时工具会弹确认框，仍允许强行加载 |
 | `version` | number | ✅ | 固定 | **配置格式**版本，当前 **`1`**。与读取方版本不一致时提示后「按当前版本尽力加载」，不阻断 |
-| `editorVersion` | string | ❌ | 编辑器版本 | 写入该文件的编辑器版本（如 `"1.0.0"`），与工具内 ❓ 使用说明显示一致；**仅记录，不参与格式校验**，可安全忽略 |
+| `editorVersion` | string | ❌ | 编辑器版本 | 写入该文件的编辑器版本（如 `"1.0.1"`），与工具 ❓ 使用说明显示一致；加载时若不同仅提示，**不参与格式校验、不阻断**，可安全忽略 |
 | `name` | string | ✅ | 工程名 | 工程名，**与配置文件名（去 `.fca.json`）一致**；读取时一律以实际文件名为准，该字段仅作冗余记录 |
 | `savedAt` | string | ✅ | ISO 8601 | 写入时间，**仅用于展示**，不参与逻辑 |
 | `defaultAnimation` | string \| null | ✅ | 默认动画 id | 启动 / 停止时播放它；指向不存在的 id 时回退为 `animations[0].id` |

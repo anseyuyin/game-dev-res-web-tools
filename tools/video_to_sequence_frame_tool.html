@@ -318,11 +318,16 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 /* 帧列表内的图集参数条：列数 / 行 / 顺序 一行（间隔固定 1px） */
 .atlasParams{padding:8px 9px;border-bottom:1px solid var(--line);background:#151a21;flex:0 0 auto}
 .atlasParams .row{gap:6px;flex-wrap:nowrap}
+.atlasParams .row+.row{margin-top:6px}
 .atlasParams .row>label{flex:0 0 auto;color:var(--fg3);font-size:12px}
 .atlasParams .row>input[type=number]{flex:1 1 0;min-width:44px;max-width:84px}
 .atlasParams .row>select{flex:0 0 100px;min-width:0}
 /* 图集页工具栏的帧分辨率下拉（原生 / x16–x512） */
 #selAtlasRes{width:auto;flex:0 0 auto}
+/* 帧列表页顶部「自动规划」条的图集纹理下拉（x128–x4096） */
+#selPlanMax{flex:1 1 96px;min-width:96px;max-width:none}
+/* 同一行最右侧：当前帧分辨率限制值（只读回显） */
+#lblPlanRes{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .atlasParams input.over{border-color:var(--err);background:#2a1618}
 .atlasParams .capWarn{margin-top:6px;font-size:11.5px;line-height:1.5;color:var(--err)}
 
@@ -620,8 +625,22 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 
     <!-- 帧列表 -->
     <div class="tabPane active" id="pane-frames">
-      <!-- 图集参数：列数 / 行 / 顺序（单元间隔固定 1px） -->
+      <!-- 自动规划：图集纹理（边长上限）+ 当前帧分辨率 → 列 / 行 / 保留帧数 -->
       <div class="atlasParams">
+        <div class="row">
+          <label>图集纹理</label>
+          <select id="selPlanMax" title="自动规划时的图集纹理边长上限（纹理最大尺寸）：列数 × 单帧宽 + 间隔 与 行数 × 单帧高 + 间隔 都不超过该值。">
+            <option value="128">图集纹理 x128</option>
+            <option value="256">图集纹理 x256</option>
+            <option value="512">图集纹理 x512</option>
+            <option value="1024">图集纹理 x1024</option>
+            <option value="2048" selected>图集纹理 x2048</option>
+            <option value="4096">图集纹理 x4096</option>
+          </select>
+          <button class="btn mini primary" id="btnAutoPlan" title="按图集纹理上限与帧分辨率自动规划列 / 行 / 保留帧数，并立即抽帧">自动规划</button>
+          <span class="tip" data-tip="<b>自动规划</b>：<br>1. 单帧分辨率沿用「图集 / 播放」页的<b>帧分辨率</b>（原生 / x16–x512），据此算出单帧像素；<br>2. 在「列 × 单帧宽 + 间隔 ≤ 图集纹理」且「行 × 单帧高 + 间隔 ≤ 图集纹理」的前提下取最大可用列 / 行；<br>3. 保留帧数 N = 列 × 行（不超过当前显示范围的帧数），在容量内挑空格最少、最接近正方形的排布；<br>4. 当前帧分辨率放不下 2 帧时自动降档，随后按 N 抽帧（首尾帧保留）。"></span>
+          <span class="badge" id="lblPlanRes" title="当前单帧像素上限：来自「图集 / 播放」页的「帧分辨率」下拉。单帧宽或高超出该值时等比缩小，自动规划按它计算单帧像素。">帧分辨率 原生</span>
+        </div>
         <div class="row">
           <label>列数</label><input type="number" id="inpCols" class="grow" min="1" max="64" value="6">
           <label>行</label><input type="number" id="inpRows" class="grow" min="1" max="64" value="4">
@@ -864,7 +883,6 @@ const state = {
   clips: [],                // 切片配置：[{id,name,start,end,note,fps,...}]
   clipActive: null,         // 当前选中的切片 id
   uiGroups: null,           // 各折叠分组（details[data-group]）的展开状态快照，存入 project.json 的 ui.groups
-  frameFollowClip: true,    // 帧列表是否跟随当前切片（只显示该切片帧区间内的帧）
   frameOut: DIR_FRAMES,     // 序列帧输出子目录（相对项目目录）
   picking: false,
   job: null,                // {cancelled:boolean, label:string}
@@ -1958,13 +1976,12 @@ function clearFrames(silent) {
 }
 /* ---------------- 帧列表显示范围：跟随当前视频切片 ----------------
  * 帧列表（缩略图网格）与左侧「视频切片」对应：切到哪条切片，网格里就只显示
- * 该切片帧区间（c.start–c.end）内的帧；未选中切片（或关闭「跟随切片」）时显示全部帧。
+ * 该切片帧区间（c.start–c.end）内的帧；未选中切片时显示全部帧。
  * 抽帧 / 全选 等针对帧列表的操作，作用范围也都是「当前显示的帧」。
  */
 let frameScopeKey = null;               // 上次渲染网格用的范围键（避免重复重建 DOM）
-/** 当前帧列表跟随的切片（null = 不跟随 / 显示全部帧） */
+/** 当前帧列表跟随的切片（null = 未选中切片 / 显示全部帧） */
 function frameScopeClip() {
-  if (state.frameFollowClip === false) return null;
   return clipById(state.clipActive);
 }
 /** 当前帧列表显示的帧（跟随切片时 = 该切片帧区间内的帧） */
@@ -2014,40 +2031,27 @@ function makeScopeBtnGroup(btns) {
 function renderFrameScopeBar() {
   const bar = $('frameScopeBar');
   if (!bar) return;
-  const c = clipById(state.clipActive);
   const scope = frameScopeClip();
   const total = state.frames.length;
   if (!scope) {
-    if (!c) {
-      // 还没有切片：仍可按当前处理范围刷新帧（默认图集的帧图来源）
-      if (!state.video.loaded) {
-        if (!total) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
-        bar.className = 'scopeBar off';
-        bar.style.display = '';
-        bar.innerHTML = '';
-        bar.appendChild(makeEl('span', null, '全部 ' + total + ' 帧'));
-        bar.appendChild(makeEl('span', 'spacer'));
-        bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn()]));
-        return;
-      }
-      const r0 = getRange();
+    // 未选中切片：显示全部帧，仍可按当前处理范围刷新帧（默认图集的帧图来源）
+    if (!state.video.loaded) {
+      if (!total) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
       bar.className = 'scopeBar off';
       bar.style.display = '';
       bar.innerHTML = '';
-      bar.appendChild(makeEl('span', null, '还没有切片：可按当前处理范围 帧 ' + r0.start + '–' + r0.end + ' 刷新帧到内存列表，供「默认图集」拣选'));
+      bar.appendChild(makeEl('span', null, '全部 ' + total + ' 帧'));
       bar.appendChild(makeEl('span', 'spacer'));
-      bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn(), makeRefreshFramesBtn(null)]));
+      bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn()]));
       return;
     }
+    const r0 = getRange();
     bar.className = 'scopeBar off';
     bar.style.display = '';
-    const inRange = state.frames.filter((f) => f.i >= c.start && f.i <= c.end).length;
     bar.innerHTML = '';
-    bar.appendChild(makeEl('span', null, '未跟随切片：当前显示全部 ' + total + ' 帧；选中切片「' + c.name + '」帧 ' + c.start + '–' + c.end + '（' + inRange + ' 帧）'));
+    bar.appendChild(makeEl('span', null, '还没有切片：可按当前处理范围 帧 ' + r0.start + '–' + r0.end + ' 刷新帧到内存列表，供「默认图集」拣选'));
     bar.appendChild(makeEl('span', 'spacer'));
-    const b = makeEl('button', 'btn mini', '只看「' + c.name + '」');
-    b.onclick = () => setFrameFollowClip(true);
-    bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn(), b, makeRefreshFramesBtn(c)]));
+    bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn(), makeRefreshFramesBtn(null)]));
     return;
   }
   bar.className = 'scopeBar';
@@ -2059,18 +2063,7 @@ function renderFrameScopeBar() {
   sp.appendChild(document.createTextNode(' · 帧 ' + scope.start + '–' + scope.end));   // 帧数统计在上方计数条里，这里只留范围
   bar.appendChild(sp);
   bar.appendChild(makeEl('span', 'spacer'));
-  const b = makeEl('button', 'btn mini ghost', '显示全部帧');
-  b.title = '临时查看全部帧（不改变当前切片与图集归属）';
-  b.onclick = () => setFrameFollowClip(false);
-  bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn(), b, makeRefreshFramesBtn(scope)]));   // 刷新帧：按该切片区间抽帧到内存，供图集拣选
-}
-/** 开 / 关「帧列表跟随切片」 */
-function setFrameFollowClip(on) {
-  state.frameFollowClip = !!on;     // 默认恒为跟随切片；这里只供范围条的「显示全部帧 / 只看切片」临时切换
-  renderFrameGrid();
-  toast(state.frameFollowClip
-    ? ('帧列表已跟随切片：' + atlasOwnerLabel(state.clipActive || null))
-    : '帧列表已改为显示全部帧', '', 2600);
+  bar.appendChild(makeScopeBtnGroup([makeSelectAllBtn(), makeRefreshFramesBtn(scope)]));   // 刷新帧：按该切片区间抽帧到内存，供图集拣选
 }
 function updateFrameCounters() {
   const total = state.frames.length;
@@ -2096,7 +2089,7 @@ function updateFrameCounters() {
     tip.innerHTML = '';
     tip.appendChild(document.createTextNode('切片「' + scopeClip.name + '」帧 ' + scopeClip.start + '–' + scopeClip.end + ' 内暂无帧图'));
     tip.appendChild(document.createElement('br'));
-    tip.appendChild(makeEl('span', 'hint', '点「刷新帧」抽取该区间 · 点「显示全部帧」查看全部 ' + total + ' 帧'));
+    tip.appendChild(makeEl('span', 'hint', '点「刷新帧」按该区间抽帧到内存（全集已有 ' + total + ' 帧）'));
   } else {
     tip.style.display = '';
     tip.innerHTML = '';
@@ -2444,8 +2437,9 @@ async function importExternalFrames(fileList) {
   markDirty();
 }
 
-/** 自动抽帧：在当前显示范围（跟随切片时 = 该切片区间）内保留 N 帧，首尾强制保留 */
-function autoSelectFrames(N) {
+/** 自动抽帧：在当前显示范围（跟随切片时 = 该切片区间）内保留 N 帧，首尾强制保留；opts.quiet = 不弹成功提示（自动规划调用时自己出提示） */
+function autoSelectFrames(N, opts) {
+  const quiet = !!(opts && opts.quiet);
   if (!state.frames.length) { toast('还没有帧图，请先导出帧或导入 PNG 序列', 'warn'); return; }
   const scope = frameScopeClip();
   const list = frameScopeList();          // 只处理当前显示的帧（切片外的不动）
@@ -2458,7 +2452,7 @@ function autoSelectFrames(N) {
     list.forEach((f) => (f.selected = true));
     renderFrameGrid();
     markDirty();
-    toast(where + '共 ' + L + ' 帧，N=' + N + ' ≥ 该范围帧数，无需抽帧（已全选）', 'warn', 4200);
+    if (!quiet) toast(where + '共 ' + L + ' 帧，N=' + N + ' ≥ 该范围帧数，无需抽帧（已全选）', 'warn', 4200);
     return;
   }
   const keep = new Set();
@@ -2467,6 +2461,7 @@ function autoSelectFrames(N) {
   list.forEach((f, i) => (f.selected = keep.has(i)));
   renderFrameGrid();
   markDirty();
+  if (quiet) return;
   const sel = list.filter((f) => f.selected).length;
   toast('自动抽帧完成：' + where + '选中 ' + sel + ' 帧 / 共 ' + L + ' 帧（首尾帧已保留）' +
     (sel !== N ? '（去重后与设定值差 ' + (N - sel) + '）' : ''), 'ok', 4200);
@@ -2650,6 +2645,15 @@ function syncAtlasParamsFromUI() {
   state.atlas.showIndex = state.atlas.showGrid;
   $('lblAtlasOrder').textContent = state.atlas.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
   updateAtlasCapacityUI();
+  updatePlanResBadge();
+}
+/** 帧列表顶部「自动规划」行最右侧：回显当前单帧像素上限（来自图集页「帧分辨率」） */
+function updatePlanResBadge() {
+  const el = $('lblPlanRes');
+  if (!el) return;
+  const r = state.atlas.res | 0;
+  const txt = '帧分辨率 ' + (r ? 'x' + r : '原生');
+  if (el.textContent !== txt) el.textContent = txt;
 }
 /** 容量提示：参与合成的帧数 > 列 × 行 时，列 / 行输入框标红并给出提示 */
 function updateAtlasCapacityUI() {
@@ -2675,6 +2679,7 @@ function syncAtlasUIFromState() {
   $('lblAtlasOrder').textContent = state.atlas.order === 'column' ? '列优先（上→下，左→右）' : '行优先（左→右，上→下）';
   syncAutoNToCapacity();
   updateAtlasCapacityUI();
+  updatePlanResBadge();
   renderAtlasOwnerList();
 }
 /** 自动抽帧的「保留总帧数 N」与图集容量保持一致：N = 列数 × 行数（至少 2，首尾帧必须保留） */
@@ -2684,6 +2689,95 @@ function syncAutoNToCapacity() {
   const cap = Math.max(1, Math.round(state.atlas.cols || 1)) * Math.max(1, Math.round(state.atlas.rows || 1));
   const n = Math.max(2, cap);
   if (inp.value !== String(n)) inp.value = String(n);
+}
+
+/* ---------------- 自动规划：图集纹理（边长上限）+ 帧分辨率 → 列 / 行 / 保留帧数 ---------------- */
+/** 图集纹理上限可选项（与下拉一致）；选择结果记在 localStorage，刷新 / 重开页面自动沿用 */
+const PLAN_MAX_OPTIONS = [128, 256, 512, 1024, 2048, 4096];
+const PLAN_MAX_DEFAULT = 2048;
+const LS_PLAN_MAX = 'gs_plan_max_res';
+/** 取本地缓存里的图集纹理上限（无缓存 / 非法值 → 默认 2048） */
+function cachedPlanMaxRes() {
+  let v = 0;
+  try { v = Math.round(Number(localStorage.getItem(LS_PLAN_MAX))); } catch (e) { }
+  return PLAN_MAX_OPTIONS.indexOf(v) >= 0 ? v : PLAN_MAX_DEFAULT;
+}
+/** 把图集纹理上限写进下拉并写入本地缓存（非法值回落默认） */
+function applyPlanMaxRes(v) {
+  let n = Math.round(nf(v, PLAN_MAX_DEFAULT));
+  if (PLAN_MAX_OPTIONS.indexOf(n) < 0) n = PLAN_MAX_DEFAULT;
+  const sel = $('selPlanMax');
+  if (sel) sel.value = String(n);
+  try { localStorage.setItem(LS_PLAN_MAX, String(n)); } catch (e) { console.warn('图集纹理缓存写入失败', e); }
+  return n;
+}
+/** 给定单帧分辨率上限 res 与图集纹理边长上限 maxSide：返回单帧实际像素与最多可排下的列 / 行 */
+function planGridForRes(fw, fh, res, maxSide) {
+  const s = frameResScale(fw, fh, res);
+  const cellW = Math.max(1, Math.round(fw * s));
+  const cellH = Math.max(1, Math.round(fh * s));
+  const fit = (cell) => clamp(Math.floor((maxSide + ATLAS_GAP) / (cell + ATLAS_GAP)), 1, 128);   // 128 = 列 / 行上限
+  return { cellW, cellH, cols: fit(cellW), rows: fit(cellH) };
+}
+/**
+ * 自动规划：以「图集纹理」为图集边长上限，参考「帧分辨率」，反推列数 / 行数 / 保留帧数 N，
+ * 写回参数后立即按 N 抽帧（范围 = 帧列表当前显示范围，跟随切片时即该切片区间）。
+ */
+function autoPlanAtlas(maxSide) {
+  maxSide = clamp(Math.round(nf(maxSide, 2048)), 64, 8192);
+  if (!state.frames.length) { toast('还没有帧图：请先在左栏导出帧，或把 PNG 序列拖进来', 'warn', 4200); return; }
+  const scope = frameScopeClip();
+  const list = frameScopeList();
+  const where = scope ? ('切片「' + scope.name + '」内') : '';
+  if (!list.length) { toast(where + '没有帧图，无法自动规划', 'warn'); return; }
+  const L = list.length;
+  if (L < 2) { toast(where + '只有 ' + L + ' 帧，无法抽帧（至少需要 2 帧）', 'warn', 4200); return; }
+  const fw = Math.max(1, list[0].w | 0), fh = Math.max(1, list[0].h | 0);   // 与合成图集一致：以首帧像素为单元
+
+  // 1) 单帧分辨率：默认沿用当前「帧分辨率」（0 = 原生）；连 2 帧都放不下时逐档下调
+  const curRes = state.atlas.res | 0;
+  const desc = ATLAS_RES_OPTIONS.filter((r) => r > 0).sort((a, b) => b - a);
+  const cand = curRes > 0 ? [curRes].concat(desc.filter((r) => r < curRes)) : [0].concat(desc);
+  let res = curRes, grid = planGridForRes(fw, fh, curRes, maxSide);
+  for (const r of cand) {
+    const g = planGridForRes(fw, fh, r, maxSide);
+    if (g.cols * g.rows >= 2) { res = r; grid = g; break; }
+  }
+  if (grid.cols * grid.rows < 2) {
+    toast('图集纹理 x' + maxSide + ' 放不下 2 帧（单帧 ' + grid.cellW + '×' + grid.cellH + '），请调高图集纹理上限', 'warn', 5200);
+    return;
+  }
+
+  // 2) 保留帧数 N = min(当前范围帧数, 满容量)
+  const N = Math.min(L, grid.cols * grid.rows);
+  // 3) 容量内挑「空格最少 + 图集最接近正方形」的 列 × 行
+  let best = null;
+  for (let cols = 1; cols <= grid.cols; cols++) {
+    const rows = Math.ceil(N / cols);
+    if (rows > grid.rows) continue;
+    const W = cols * grid.cellW + (cols - 1) * ATLAS_GAP;
+    const H = rows * grid.cellH + (rows - 1) * ATLAS_GAP;
+    const score = (cols * rows - N) * 100 + (Math.max(W, H) / Math.max(1, Math.min(W, H)) - 1) * 10;
+    if (!best || score < best.score) best = { cols, rows, W, H, score };
+  }
+  if (!best) { toast('自动规划失败：当前帧尺寸在图集纹理 x' + maxSide + ' 内排不下', 'err', 4600); return; }
+
+  // 4) 先按 N 抽帧，再写回列 / 行 / 帧分辨率（避免容量提示闪红）
+  autoSelectFrames(N, { quiet: true });
+  state.atlas.cols = clamp(best.cols, 1, 128);
+  state.atlas.rows = clamp(best.rows, 1, 128);
+  state.atlas.res = res;
+  syncAtlasUIFromState();
+  $('inpAutoN').value = String(N);     // 保留帧数 = 规划值（可能小于满容量）
+  invalidateCurrentAtlasSheet();       // 参数变了：已合成的图集作废，切到图集页会按新参数重新合成
+  commitAtlasToOwner();
+  markDirty();
+  updateProjectUI();
+  const sel = frameScopeList().filter((f) => f.selected).length;
+  toast('自动规划：图集纹理 x' + maxSide + ' · 单帧 ' + grid.cellW + '×' + grid.cellH
+    + (res ? '（帧分辨率 x' + res + '）' : '（原生像素）')
+    + ' · ' + best.cols + '×' + best.rows + ' = ' + (best.cols * best.rows) + ' 格 · 图集 ' + best.W + '×' + best.H
+    + ' · 保留 ' + sel + '/' + L + ' 帧', 'ok', 5200);
 }
 /** 当前图集参数 + 成果快照 */
 function atlasConfigSnapshot() {
@@ -4592,7 +4686,7 @@ async function refreshClipFrames(clipId) {
     label: '刷新帧' + (c ? '「' + c.name + '」' : '（当前范围）')
   });
 }
-/** 「刷新帧」按钮：跟随切片 / 未跟随切片 两种提示条共用一个工厂 */
+/** 「刷新帧」按钮：帧列表跟随切片 / 未选中切片（全部帧）两种提示条共用一个工厂 */
 function makeRefreshFramesBtn(clip) {
   const b = makeEl('button', 'btn mini primary', '刷新帧');
   b.disabled = !state.video.loaded;
@@ -5095,6 +5189,10 @@ function bindUI() {
 
   // 帧列表（全选 / 全不选 二合一按钮在范围提示条里，作用于当前显示范围：跟随切片时 = 该切片区间内的帧）
   $('btnAutoSelect').onclick = () => autoSelectFrames(nf($('inpAutoN').value, 24));
+  // 自动规划：图集纹理 + 帧分辨率 → 列 / 行 / 保留帧数（同时抽帧）
+  applyPlanMaxRes(cachedPlanMaxRes());                                        // 自动缓存：沿用上次选的图集纹理
+  $('selPlanMax').onchange = () => applyPlanMaxRes($('selPlanMax').value);    // 改了就写回本地缓存
+  $('btnAutoPlan').onclick = () => autoPlanAtlas(nf($('selPlanMax').value, 2048));
 
   // 图集（合成 / 写入 / 下载 都在「图集 / 播放」页，切到该页会自动合成）
   $('btnAtlasRefresh').onclick = () => { atlasAutoKey = ''; buildAtlas(); };   // 手动强制重合成

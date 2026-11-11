@@ -142,6 +142,21 @@
   .animItem.sel{background:var(--accent-soft);border-color:rgba(78,161,255,.5);}
   .animItem.missing .thumb{border-color:rgba(248,81,73,.65);color:var(--err);}
   .animItem.missing .sub{color:rgba(248,81,73,.8);}
+  .animItem.overlimit{border-color:rgba(248,81,73,.5);background:rgba(248,81,73,.06);}
+  .animItem.overlimit .thumb{border-color:rgba(248,81,73,.6);}
+  .animItem.overlimit .sub{color:rgba(248,81,73,.9);}
+  .overTag{
+    display:inline-block;padding:0 5px;border-radius:4px;font-size:9.5px;font-weight:500;
+    color:var(--err);background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.35);
+  }
+  .texLimitTag{
+    display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;font-size:9.5px;
+    color:var(--warn);background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.3);
+  }
+  .texLimitTag.hidden{display:none;}
+  .overBox{border-color:rgba(248,81,73,.35);background:rgba(248,81,73,.05);}
+  .overBox p{font-size:11.5px;line-height:1.75;color:var(--text-dim);margin:0 0 6px;}
+  .overBox code{color:var(--err);}
   .animItem .thumb{
     width:38px;height:38px;flex:0 0 38px;border-radius:6px;overflow:hidden;
     background:#0a0e14;border:1px solid var(--border-soft);
@@ -152,6 +167,16 @@
   .animItem .nm{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .animItem .sub{font-size:10.5px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .animItem .star{color:var(--bone);}
+  .animItem[draggable="true"]{cursor:grab;}
+  .animItem.dragging{opacity:.35;}
+  .animItem{position:relative;}
+  .animItem.dropTop::before,
+  .animItem.dropBottom::after{
+    content:'';position:absolute;left:6px;right:6px;height:2px;border-radius:2px;
+    background:var(--accent);pointer-events:none;box-shadow:0 0 6px rgba(78,161,255,.6);
+  }
+  .animItem.dropTop::before{top:-2px;}
+  .animItem.dropBottom::after{bottom:-2px;}
   .mini{
     width:21px;height:21px;flex:0 0 21px;padding:0;border:none;border-radius:4px;
     background:transparent;color:var(--text-faint);cursor:pointer;opacity:0;transition:opacity .15s;
@@ -349,7 +374,7 @@
   <div id="mainCols">
     <aside id="left">
       <div class="panelHead">
-        <span>动画 <b id="animCount">0</b></span>
+        <span>动画 <b id="animCount">0</b><span id="texLimitTag" class="texLimitTag hidden"></span></span>
         <span class="spacer"></span>
         <button id="btnSync" class="btn sm" title="扫描 sprites/ 目录，把还没有配置的图片补成动画">⟳</button>
         <button id="btnImport" class="btn sm primary">＋ 导入图片</button>
@@ -441,9 +466,9 @@
 
 <div id="ovHelp" class="ov hidden">
   <div class="modal helpModal">
-    <h2>🎭 序列帧动画角色组装器<span class="verBadge" id="editorVer">v1.0.0</span></h2>
+    <h2>🎭 序列帧动画角色组装器<span class="verBadge" id="editorVer">v1.0.1</span></h2>
     <p>把「一张图 = 一个动画」的序列帧图对齐原点，配好播完后的回退，保存成 <code>xxx.fca.json</code>。</p>
-    <p class="verLine">编辑器 <b id="editorVerText">v1.0.0</b> · 配置格式 <b id="formatVerText">v1</b></p>
+    <p class="verLine">编辑器 <b id="editorVerText">v1.0.1</b> · 配置格式 <b id="formatVerText">v1</b></p>
     <p class="hint">推荐 Chrome / Edge；Firefox / Safari 会降级为「选文件夹 + 下载 JSON」。</p>
 
     <div class="helpSteps">
@@ -459,6 +484,7 @@
       <li><b>状态</b>：单次动作设「结束后」目标，循环动作不触发。</li>
       <li><b>预览</b>：右栏切动作试播，播完按配置自动回退。</li>
       <li><b>工程名</b>：同时是配置文件名，改名会在下次保存时重命名配置文件。</li>
+      <li><b>排序</b>：按住动画行上下拖动可调整列表顺序，保存后写入配置。</li>
     </ul>
 
     <h3>快捷键</h3>
@@ -513,7 +539,18 @@
       <ul>
         <li><b>保存</b>：<kbd>Ctrl</kbd>+<kbd>S</kbd> 写回配置；已有文件名时改动后 1.5s 自动保存；未绑定目录时改为下载 JSON。</li>
         <li><b>工程名</b>：同时是配置文件名。输入时状态栏先显示 <code>&lt;新名&gt;.fca.json（待保存）</code>，失焦 / 回车后下一次保存写入新文件并删除旧文件；目标文件名已存在时拒绝改名并还原。</li>
-        <li><b>配置字段</b>：<code>rows / cols / frameCount / order / fps / loop / next / transform</code>；<code>version</code> 是配置格式版本，<code>editorVersion</code> 是生成该文件的编辑器版本。完整格式见工具文档。</li>
+        <li><b>配置字段</b>：<code>rows / cols / frameCount / order / fps / loop / next / transform</code>；<code>version</code> 是配置格式版本，<code>editorVersion</code> 是生成该文件的编辑器版本（不同只提示、不阻断）。完整格式见工具文档。</li>
+      </ul>
+    </details>
+
+    <details class="helpDetail">
+      <summary>❓ 纹理上限（maxTexSize）</summary>
+      <ul>
+        <li><b>启用</b>：地址带 <code>?maxTexSize=2048</code> 时生效，可与 <code>?path=</code> 同时使用；不带该参数不做任何限制。</li>
+        <li><b>判定</b>：按图片<b>实际像素宽 / 高</b>判断（不是切分后的帧尺寸），任一超过上限即标记「超限制」；导入、目录同步、加载配置、重名覆盖都会检查。</li>
+        <li><b>限制</b>：列表标红并显示尺寸对比，标题栏显示当前上限；属性面板只保留说明，Gizmo、切分、对齐、设为默认与删除全部锁定（仍可拖动调整列表顺序）。动画仍可在场景 / 合成预览中查看和播放。</li>
+        <li><b>保存</b>：超限动画及其 <code>assets</code> 不会写入 <code>.fca.json</code>；默认动画回退到第一个可保存动画，<code>next</code> 指向被排除动画时自动置空；全部动画都超限时直接拒绝保存。</li>
+        <li><b>解除</b>：把图片缩小到上限以内，或用较小的同名图覆盖该动画，标记会自动消失并恢复编辑。</li>
       </ul>
     </details>
 
@@ -565,7 +602,7 @@
  * ================================================================ */
 const APP_ID = 'frame-sequence-character-assembler';
 const APP_VERSION = 1;                 // 配置文件格式版本
-const EDITOR_VERSION = '1.0.0';        // 编辑器版本（显示在使用说明，并写入 .fca.json）
+const EDITOR_VERSION = '1.0.1';        // 编辑器版本（显示在顶栏 / 使用说明，并写入 .fca.json）
 const LS_LAST_DIR = 'fca_last_dir';
 const IDB_NAME = 'gdrwt_fca';
 const IDB_VERSION = 1;
@@ -772,6 +809,7 @@ const state = {
   launchPath: null,       // URL ?path= 指定的本地目录
   launchKey: null,        // 归一化后的路径键（IndexedDB 映射用）
   launchMatched: false,   // 当前绑定目录是否与 path 末尾同名
+  maxTexSize: null,       // URL ?maxTexSize= 纹理宽/高的像素上限
   projectNamePending: null, // 工程名输入中、尚未提交的配置文件名（状态栏预览用）
   lastFrameKey: '',
 };
@@ -1217,7 +1255,7 @@ function distToSeg(px, py, ax, ay, bx, by) {
 
 function pickGizmo(sx, sy) {
   const a = selectedAnim();
-  if (!a || !a.img) return null;
+  if (!a || !a.img || a.overLimit) return null;
   const g = gizmoGeom(a);
   if (Math.abs(sx - g.o.x) <= GZ.sq + 5 && Math.abs(sy - g.o.y) <= GZ.sq + 5) return 'xy';
   // 缩放只有中心等比手柄，不再提供单轴手柄
@@ -1245,6 +1283,7 @@ function drawArrowHead(ctx, o, tip, color, scale) {
 }
 
 function drawGizmo(ctx, a) {
+  if (!a || a.overLimit) return;
   const g = gizmoGeom(a);
   const hot = state.drag && state.drag.kind === 'gizmo' ? state.drag.handle : state.hover;
   const cx = hot === 'x' ? '#ffffff' : '#ff4d4d';
@@ -1772,6 +1811,39 @@ async function storeSprite(file, opts) {
   throw new Error('无法生成唯一的图片文件名');
 }
 
+/**
+ * 纹理上限检查：URL 带 ?maxTexSize=2048 时，
+ * 图片像素宽或高 > 2048 的动画标记为超限（禁止编辑、保存时排除）。
+ */
+function applyTexLimit(a) {
+  const max = state.maxTexSize;
+  if (!a) return false;
+  const w = Number(a.width) || 0;
+  const h = Number(a.height) || 0;
+  const over = !!(max && (w > max || h > max));
+  a.overLimit = over;
+  a.overLimitMsg = over ? ('纹理 ' + w + '×' + h + ' 超过上限 ' + max + 'px') : '';
+  return over;
+}
+
+function initMaxTexSize() {
+  const raw = new URLSearchParams(location.search).get('maxTexSize');
+  if (raw == null) return;
+  const n = parseInt(raw, 10);
+  if (Number.isFinite(n) && n > 0) {
+    state.maxTexSize = n;
+    anims().forEach(applyTexLimit);
+    const tag = $('texLimitTag');
+    if (tag) {
+      tag.textContent = '纹理上限 ' + n + 'px';
+      tag.title = 'URL maxTexSize：纹理宽/高超过 ' + n + 'px 的动画禁止编辑，保存时自动排除';
+      tag.classList.remove('hidden');
+    }
+    return;
+  }
+  toast('URL 的 maxTexSize 参数无效：' + raw, 'warn', 4200);
+}
+
 /** 图片相对路径 → 动画显示名（文件名去扩展名）。严格保持「图片名 = 动画名」 */
 function animNameFromPath(path) {
   const file = normalizeRel(path).split('/').pop() || '';
@@ -1786,7 +1858,7 @@ function uniqueAnimMeta(baseName) {
 
 /** 统一的动画记录（导入 / 目录补建 / 覆盖共用） */
 function makeAnimRecord(o) {
-  return {
+  const rec = {
     id: o.id,
     name: o.name,
     image: o.image,
@@ -1805,6 +1877,8 @@ function makeAnimRecord(o) {
     detect: null,
     splitView: { z: 1, x: 0, y: 0 },
   };
+  applyTexLimit(rec);
+  return rec;
 }
 
 function autoSplitAnim(a) {
@@ -1885,6 +1959,7 @@ async function importOne(file) {
     existing.height = img.naturalHeight;
     existing.bytes = file.size;
     existing.frameCount = clamp(existing.frameCount, 1, existing.rows * existing.cols);
+    applyTexLimit(existing);
     existing.detect = null;
     existing.thumbUrl = null;
     makeThumb(existing);
@@ -1925,13 +2000,14 @@ async function importFiles(files) {
     try { await fsListSprites(true); } catch (e) { /* 忽略，后面按无缓存处理 */ }
   }
   const before = anims().length;
-  let ok = 0, skip = 0, fail = 0, replaced = 0;
+  let ok = 0, skip = 0, fail = 0, replaced = 0, over = 0;
   for (const f of list) {
     try {
       const res = await importOne(f);
       if (res) {
         ok++;
         if (res.overwritten) replaced++;
+        if (res.anim && res.anim.overLimit) over++;
       } else {
         skip++;
       }
@@ -1957,10 +2033,14 @@ async function importFiles(files) {
     } else if (replaced) {
       setStatus('已覆盖 ' + replaced + ' 张图（沿用原动画配置）', '');
     }
+    if (over) {
+      setStatus(over + ' 个动画纹理超过 maxTexSize=' + state.maxTexSize + '，已标记为超限制（禁止编辑，保存时排除）', 'warn');
+    }
   }
   toast('导入完成：' + ok + ' 个成功' + (replaced ? '（覆盖 ' + replaced + '）' : '') +
+    (over ? '，' + over + ' 个超出纹理限制' : '') +
     (skip ? '，' + skip + ' 个跳过' : '') + (fail ? '，' + fail + ' 个失败' : ''),
-    (fail || skip) ? 'warn' : 'ok');
+    (fail || skip || over) ? 'warn' : 'ok', over ? 5600 : undefined);
 }
 
 /**
@@ -2017,9 +2097,16 @@ async function syncSpritesFromDir(opts) {
   markDirty();
   renderAll();
   if (beforeCount === 0) fitView();
+  const over = added.filter((a) => a.overLimit).length;
+  if (over) {
+    toast(over + ' 个补建动画的纹理超过 maxTexSize=' + state.maxTexSize +
+      '，已标记为超限制（禁止编辑，保存时排除）', 'warn', 6200);
+  }
   if (notify) {
-    toast('已从 sprites/ 补建 ' + added.length + ' 个动画', 'ok', 3200);
-    setStatus('已从 sprites/ 补建 ' + added.length + ' 个动画（尚未写入配置，记得保存）', '');
+    toast('已从 sprites/ 补建 ' + added.length + ' 个动画' + (over ? '（其中 ' + over + ' 个超限）' : ''),
+      over ? 'warn' : 'ok', 3600);
+    setStatus('已从 sprites/ 补建 ' + added.length + ' 个动画（尚未写入配置，记得保存）' +
+      (over ? '，其中 ' + over + ' 个超限' : ''), over ? 'warn' : '');
   }
   return added.length;
 }
@@ -2050,6 +2137,18 @@ function applySnapshot(s) {
   let o;
   try { o = JSON.parse(s); } catch (e) { return; }
   state.defaultId = o.defaultId;
+  // 先按快照恢复列表顺序（拖拽排序的撤销 / 重做依赖它）
+  const order = (o.anims || []).map((x) => x.id);
+  if (order.length) {
+    const byId = new Map(state.animations.map((a) => [a.id, a]));
+    const next = [];
+    for (const id of order) {
+      const a = byId.get(id);
+      if (a) { next.push(a); byId.delete(id); }
+    }
+    for (const a of state.animations) if (byId.has(a.id)) next.push(a);
+    state.animations = next;
+  }
   for (const src of o.anims || []) {
     const a = animById(src.id);
     if (!a) continue;
@@ -2089,20 +2188,27 @@ function redo() {
  * 9. 保存 / 加载
  * ================================================================ */
 function buildConfig() {
+  // 超限动画不写入配置：连同它的图片、默认动画与 next 链一起排除
+  const savable = anims().filter((a) => !a.overLimit);
+  const ids = new Set(savable.map((a) => a.id));
+  const defaultId = ids.has(state.defaultId)
+    ? state.defaultId
+    : (savable[0] ? savable[0].id : null);
+
   return {
     app: APP_ID,
     version: APP_VERSION,
     editorVersion: EDITOR_VERSION,
     name: state.projectName || 'hero',
     savedAt: new Date().toISOString(),
-    defaultAnimation: state.defaultId,
-    assets: anims().map((a) => ({
+    defaultAnimation: defaultId,
+    assets: savable.map((a) => ({
       path: a.image || '',
       width: a.width || 0,
       height: a.height || 0,
       bytes: a.bytes || 0,
     })),
-    animations: anims().map((a) => ({
+    animations: savable.map((a) => ({
       id: a.id,
       name: animNameFromPath(a.image) || a.name,   // 图片名 = 动画名
       image: a.image || '',
@@ -2112,7 +2218,7 @@ function buildConfig() {
       order: a.order === 'row' ? 'row' : 'col',
       fps: a.fps,
       loop: a.loop,
-      next: a.next || null,
+      next: (a.next && ids.has(a.next)) ? a.next : null,
       pivot: { x: a.pivot ? a.pivot.x : 0.5, y: a.pivot ? a.pivot.y : 0.5 },
       transform: {
         x: round2(a.transform.x),
@@ -2195,7 +2301,17 @@ function markDirty(silent) {
 
 async function saveConfig(opts) {
   const auto = !!(opts && opts.auto);
-  if (!anims().length) { if (!auto) toast('还没有动画可保存', 'warn'); return false; }
+  const savable = anims().filter((a) => !a.overLimit);
+  const excluded = anims().length - savable.length;
+  const exNote = excluded ? '，已排除 ' + excluded + ' 个超限动画' : '';
+  if (!savable.length) {
+    if (!auto) {
+      toast(state.maxTexSize
+        ? '所有动画的纹理都超过 maxTexSize=' + state.maxTexSize + '，没有可保存的内容'
+        : '还没有动画可保存', 'warn', 4800);
+    }
+    return false;
+  }
   const cfg = buildConfig();
   const json = JSON.stringify(cfg, null, 2);
   const fileName = state.fileName || (sanitizeFile(state.projectName || 'hero') + '.fca.json');
@@ -2222,8 +2338,8 @@ async function saveConfig(opts) {
       state.savedAt = Date.now();
       updateSaveState();
       await refreshConfigUI();
-      if (!auto) toast(renamed ? '已重命名为 ' + fileName : '已保存 ' + fileName, 'ok');
-      setStatus((renamed ? '已重命名为 ' : '已保存 ') + fileName, '');
+      if (!auto) toast((renamed ? '已重命名为 ' + fileName : '已保存 ' + fileName) + exNote, 'ok', 4600);
+      setStatus((renamed ? '已重命名为 ' : '已保存 ') + fileName + exNote, '');
       return true;
     } catch (e) {
       toast('保存失败：' + e.message, 'err', 4200);
@@ -2239,8 +2355,10 @@ async function saveConfig(opts) {
   state.savedAt = Date.now();
   updateSaveState();
   if (!auto) {
-    toast('已下载 ' + fileName + (FS.mode === 'fs' ? '' : '（图片需自行放到 sprites/ 目录）'), 'warn', 4200);
+    toast('已下载 ' + fileName + (FS.mode === 'fs' ? '' : '（图片需自行放到 sprites/ 目录）') + exNote,
+      (excluded || FS.mode !== 'fs') ? 'warn' : 'ok', 4400);
   }
+  setStatus('已下载 ' + fileName + exNote, excluded ? 'warn' : '');
   return true;
 }
 
@@ -2262,6 +2380,9 @@ async function loadConfigFile(file, name) {
   }
   if (Number(cfg.version) !== APP_VERSION) {
     toast('配置版本 v' + cfg.version + ' 与当前 v' + APP_VERSION + ' 不一致，按当前版本尽力加载', 'warn', 4200);
+  }
+  if (cfg.editorVersion && String(cfg.editorVersion) !== EDITOR_VERSION) {
+    toast('该配置由编辑器 v' + cfg.editorVersion + ' 生成，当前 v' + EDITOR_VERSION + '，按当前版本加载', 'warn', 4800);
   }
 
   const assetMap = new Map((cfg.assets || []).map((it) => [normalizeRel(it.path), it]));
@@ -2329,6 +2450,7 @@ async function loadConfigFile(file, name) {
         issues.push((image || a.id) + '：' + e.message);
       }
     }
+    applyTexLimit(a);
     makeThumb(a);
     list.push(a);
   }
@@ -2388,6 +2510,13 @@ async function loadConfigFile(file, name) {
   } else {
     toast('已加载 ' + state.fileName + '（' + list.length + ' 个动画）', 'ok');
     setStatus('已加载 ' + state.fileName, '');
+  }
+
+  const overCount = list.filter((a) => a.overLimit).length;
+  if (overCount) {
+    toast(overCount + ' 个动画的纹理超过 maxTexSize=' + state.maxTexSize +
+      '，已标记为超限制（禁止编辑，保存时排除）', 'warn', 6400);
+    setStatus('已加载 ' + state.fileName + '，其中 ' + overCount + ' 个动画超出纹理限制', 'warn');
   }
 
   // 配置加载后：sprites/ 里还没有对应动画的图片，自动补建
@@ -2830,15 +2959,25 @@ function renderList() {
     return;
   }
   wrap.innerHTML = anims().map((a) => {
+    const over = !!a.overLimit;
     const nextTxt = a.loop ? '循环' : (a.next && animById(a.next) ? '→ ' + esc(animById(a.next).name) : '停末帧');
-    return '<div class="animItem ' + (a.id === state.selectedId ? 'sel' : '') + (a.img ? '' : ' missing') + '" data-id="' + esc(a.id) + '">' +
+    const sub = over
+      ? '⚠ ' + a.width + '×' + a.height + ' > ' + state.maxTexSize + 'px · 禁止编辑'
+      : a.frameCount + ' 帧 · ' + a.fps + 'fps · ' + nextTxt;
+    return '<div class="animItem ' + (a.id === state.selectedId ? 'sel' : '') +
+      (a.img ? '' : ' missing') + (over ? ' overlimit' : '') +
+      '" data-id="' + esc(a.id) + '" draggable="true"' +
+      ' title="' + (over ? esc(a.overLimitMsg + '；禁止编辑，保存时自动排除；可拖动调整顺序') : '拖动可调整动画顺序') + '">' +
       '<div class="thumb">' + (a.thumbUrl ? '<img src="' + a.thumbUrl + '" alt="">' : '🖼') + '</div>' +
       '<div class="meta">' +
-      '<div class="nm">' + esc(a.name) + (a.id === state.defaultId ? ' <span class="star">⭐</span>' : '') + '</div>' +
-      '<div class="sub">' + a.frameCount + ' 帧 · ' + a.fps + 'fps · ' + nextTxt + '</div>' +
+      '<div class="nm">' + esc(a.name) + (over
+        ? ' <span class="overTag">超限制</span>'
+        : (a.id === state.defaultId ? ' <span class="star">⭐</span>' : '')) + '</div>' +
+      '<div class="sub">' + sub + '</div>' +
       '</div>' +
-      '<button class="mini" data-act="default" title="设为默认动画">☆</button>' +
-      '<button class="mini" data-act="del" title="删除动画">🗑</button>' +
+      (over ? '' :
+        '<button class="mini" data-act="default" title="设为默认动画">☆</button>' +
+        '<button class="mini" data-act="del" title="删除动画">🗑</button>') +
       '</div>';
   }).join('');
 }
@@ -2881,6 +3020,16 @@ function renderProps() {
   const a = selectedAnim();
   if (!a) {
     box.innerHTML = '<div class="empty">在左侧选择一个动画<br>即可编辑切分与对齐参数</div>';
+    return;
+  }
+  if (a.overLimit) {
+    box.innerHTML =
+      '<div class="prGroup overBox">' +
+      '  <div class="prTitle" style="color:var(--err)">⚠ 超出纹理限制</div>' +
+      '  <p>该动画的纹理为 <b>' + (a.width || '?') + ' × ' + (a.height || '?') + '</b>，超过 URL 参数 <code>maxTexSize=' + state.maxTexSize + '</code>。</p>' +
+      '  <p>超限动画禁止编辑：切分、对齐与列表操作均已锁定；保存时会从 <code>.fca.json</code> 中自动排除（默认动画与 next 链会同步修正）。</p>' +
+      '  <p class="dim">请把图片缩小到 ' + state.maxTexSize + 'px 以内，或换一张图后重新导入。</p>' +
+      '</div>';
     return;
   }
   box.innerHTML = '' +
@@ -2947,6 +3096,7 @@ function autoAlignToDefault() {
   const a = selectedAnim();
   const def = animById(state.defaultId);
   if (!a || !a.img) { toast('请先选择一个有图片的动画', 'warn'); return; }
+  if (a.overLimit) { toast('该动画超出纹理限制，禁止编辑', 'warn'); return; }
   if (!def || !def.img) { toast('当前没有可对齐的默认动画', 'warn'); return; }
   if (a.id === def.id) { toast('当前动画就是默认动画，无需对齐', 'warn'); return; }
 
@@ -3405,6 +3555,11 @@ function selectAnim(id) {
 }
 
 function setDefaultAnim(id) {
+  const a = animById(id);
+  if (a && a.overLimit) {
+    toast('该动画超出纹理限制，不能设为默认动画', 'warn', 3600);
+    return;
+  }
   if (state.defaultId === id) return;
   pushUndo();
   state.defaultId = id;
@@ -3415,6 +3570,10 @@ function setDefaultAnim(id) {
 async function deleteAnim(id) {
   const a = animById(id);
   if (!a) return;
+  if (a.overLimit) {
+    toast('该动画超出纹理限制，禁止编辑；保存时会自动排除', 'warn', 4200);
+    return;
+  }
 
   const image = normalizeRel(a.image);
   const shared = image
@@ -3745,6 +3904,86 @@ function bindToolbar() {
   });
 }
 
+/** 动画列表拖拽排序：拖动行到目标位置的上/下半区，松手后写入新顺序 */
+function bindListDrag() {
+  const list = $('animList');
+  if (!list) return;
+  let dragId = null;
+  let blocked = false;
+
+  list.addEventListener('mousedown', (e) => {
+    blocked = !!e.target.closest('.mini');
+  });
+
+  const clearMarks = () => {
+    list.querySelectorAll('.animItem.dropTop, .animItem.dropBottom').forEach((el) => {
+      el.classList.remove('dropTop', 'dropBottom');
+    });
+  };
+
+  list.addEventListener('dragstart', (e) => {
+    if (blocked) { e.preventDefault(); blocked = false; return; }
+    const item = e.target.closest('.animItem');
+    if (!item) return;
+    dragId = item.dataset.id;
+    item.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', dragId); } catch (err) { /* 忽略 */ }
+  });
+
+  list.addEventListener('dragover', (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const item = e.target.closest('.animItem');
+    clearMarks();
+    if (item) {
+      const r = item.getBoundingClientRect();
+      item.classList.add(e.clientY < r.top + r.height / 2 ? 'dropTop' : 'dropBottom');
+    }
+    const lr = list.getBoundingClientRect();
+    if (e.clientY < lr.top + 24) list.scrollTop -= 12;
+    else if (e.clientY > lr.bottom - 24) list.scrollTop += 12;
+  });
+
+  list.addEventListener('dragleave', (e) => {
+    if (!list.contains(e.relatedTarget)) clearMarks();
+  });
+
+  list.addEventListener('drop', (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    const item = e.target.closest('.animItem');
+    const targetId = item ? item.dataset.id : null;
+    const before = item
+      ? (e.clientY < item.getBoundingClientRect().top + item.offsetHeight / 2)
+      : false;
+    clearMarks();
+    if (!targetId || targetId === dragId) { dragId = null; return; }
+
+    const from = anims().findIndex((a) => a.id === dragId);
+    if (from < 0) { dragId = null; return; }
+
+    pushUndo();
+    const [moved] = state.animations.splice(from, 1);
+    let idx = state.animations.findIndex((a) => a.id === targetId);
+    if (idx < 0) idx = state.animations.length;
+    if (!before) idx++;
+    state.animations.splice(idx, 0, moved);
+
+    markDirty();
+    renderAll();
+    setStatus('已调整「' + moved.name + '」的顺序（保存后写入配置）', '');
+    dragId = null;
+  });
+
+  list.addEventListener('dragend', () => {
+    dragId = null;
+    clearMarks();
+    list.querySelectorAll('.animItem.dragging').forEach((el) => el.classList.remove('dragging'));
+  });
+}
+
 function bindViewport() {
   const canvas = vpCanvas;
 
@@ -4057,6 +4296,7 @@ function init() {
   setVer('formatVerText', 'v' + APP_VERSION);
 
   bindToolbar();
+  bindListDrag();
   bindViewport();
   bindTimeline();
   bindKeyboard();
@@ -4088,6 +4328,8 @@ function init() {
   if (!window.showDirectoryPicker) {
     setStatus('当前浏览器不支持目录读写，已启用降级：绑定目录改为选择文件夹，保存为下载 JSON', 'warn');
   }
+
+  initMaxTexSize();
 
   renderAll();
   setTimeout(resizeCanvases, 0);
