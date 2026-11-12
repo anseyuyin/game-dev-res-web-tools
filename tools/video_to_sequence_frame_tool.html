@@ -637,8 +637,8 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
             <option value="2048" selected>图集纹理 x2048</option>
             <option value="4096">图集纹理 x4096</option>
           </select>
-          <button class="btn mini primary" id="btnAutoPlan" title="按图集纹理上限与帧分辨率自动规划列 / 行 / 保留帧数，并立即抽帧">自动规划</button>
-          <span class="tip" data-tip="<b>自动规划</b>：<br>1. 单帧分辨率沿用「图集 / 播放」页的<b>帧分辨率</b>（原生 / x16–x512），据此算出单帧像素；<br>2. 在「列 × 单帧宽 + 间隔 ≤ 图集纹理」且「行 × 单帧高 + 间隔 ≤ 图集纹理」的前提下取最大可用列 / 行；<br>3. 保留帧数 N = 列 × 行（不超过当前显示范围的帧数），在容量内挑空格最少、最接近正方形的排布；<br>4. 当前帧分辨率放不下 2 帧时自动降档，随后按 N 抽帧（首尾帧保留）。"></span>
+          <button class="btn mini primary" id="btnAutoPlan" title="按图集纹理上限与帧分辨率自动规划列 / 行 / 保留帧数（图集必须填满，宽高比优先 1:1），并立即抽帧">自动规划</button>
+          <span class="tip" data-tip="<b>自动规划</b>：<br>1. 单帧分辨率沿用「图集 / 播放」页的<b>帧分辨率</b>（原生 / x16–x512），据此算出单帧像素；<br>2. 在「列 × 单帧宽 + 间隔 ≤ 图集纹理」且「行 × 单帧高 + 间隔 ≤ 图集纹理」的前提下取最大可用列 / 行；<br>3. <b>图集必须填满</b>：只考虑保留帧数 N = 列 × 行（无空格）的排布；范围帧数多于 N 时按 N <b>抽帧</b>（首尾帧保留），少于 N 的方案直接不参与评选；<br>4. 评选优先级：<b>图集像素宽高比最接近 1:1</b> → 偏差在容差（约 5%）内的方案里取格数最多（抽掉的帧最少）；<br>5. 当前帧分辨率放不下 2 帧时自动降档，随后按 N 抽帧。"></span>
           <span class="badge" id="lblPlanRes" title="当前单帧像素上限：来自「图集 / 播放」页的「帧分辨率」下拉。单帧宽或高超出该值时等比缩小，自动规划按它计算单帧像素。">帧分辨率 原生</span>
         </div>
         <div class="row">
@@ -2722,6 +2722,8 @@ function planGridForRes(fw, fh, res, maxSide) {
 /**
  * 自动规划：以「图集纹理」为图集边长上限，参考「帧分辨率」，反推列数 / 行数 / 保留帧数 N，
  * 写回参数后立即按 N 抽帧（范围 = 帧列表当前显示范围，跟随切片时即该切片区间）。
+ * 排布规则：只允许「列 × 行 = N 且无空格」的方案（帧数不足时抽帧补齐），
+ * 并按「图集像素宽高比最接近 1:1 → 容差内格数最多」挑选。
  */
 function autoPlanAtlas(maxSide) {
   maxSide = clamp(Math.round(nf(maxSide, 2048)), 64, 8192);
@@ -2748,36 +2750,53 @@ function autoPlanAtlas(maxSide) {
     return;
   }
 
-  // 2) 保留帧数 N = min(当前范围帧数, 满容量)
-  const N = Math.min(L, grid.cols * grid.rows);
-  // 3) 容量内挑「空格最少 + 图集最接近正方形」的 列 × 行
-  let best = null;
+  // 2) 枚举所有「填满」可行的 列 × 行：N = 列 × 行（不留空格），且 N ≤ 当前范围帧数（不够就抽帧）
+  const cands = [];
   for (let cols = 1; cols <= grid.cols; cols++) {
-    const rows = Math.ceil(N / cols);
-    if (rows > grid.rows) continue;
-    const W = cols * grid.cellW + (cols - 1) * ATLAS_GAP;
-    const H = rows * grid.cellH + (rows - 1) * ATLAS_GAP;
-    const score = (cols * rows - N) * 100 + (Math.max(W, H) / Math.max(1, Math.min(W, H)) - 1) * 10;
-    if (!best || score < best.score) best = { cols, rows, W, H, score };
+    for (let rows = 1; rows <= grid.rows; rows++) {
+      const N = cols * rows;
+      if (N < 2 || N > L) continue;
+      const W = cols * grid.cellW + (cols - 1) * ATLAS_GAP;
+      const H = rows * grid.cellH + (rows - 1) * ATLAS_GAP;
+      const dev = Math.abs(Math.log(W / H));     // 与 1:1 的偏差（对数尺度，方向对称；0 = 正方）
+      cands.push({ cols, rows, N, W, H, dev });
+    }
   }
-  if (!best) { toast('自动规划失败：当前帧尺寸在图集纹理 x' + maxSide + ' 内排不下', 'err', 4600); return; }
+  if (!cands.length) {
+    toast('图集纹理 x' + maxSide + ' 内排不下 2 帧（单帧 ' + grid.cellW + '×' + grid.cellH + '），请调高图集纹理上限', 'warn', 5200);
+    return;
+  }
 
-  // 4) 先按 N 抽帧，再写回列 / 行 / 帧分辨率（避免容量提示闪红）
+  // 3) 排布优先级：图集像素宽高比最接近 1:1 → 容差内取格数最多（尽量少抽帧）
+  let dMin = Infinity;
+  for (const c of cands) if (c.dev < dMin) dMin = c.dev;
+  const tol = Math.max(0.05, dMin * 0.35);       // 容差 ≈ 5% 宽高比偏差；最佳方案本身很扁时按比例放宽
+  let best = null;
+  for (const c of cands) {
+    if (c.dev > dMin + tol) continue;
+    if (!best || c.N > best.N
+      || (c.N === best.N && (c.dev < best.dev || (c.dev === best.dev && c.cols > best.cols)))) best = c;
+  }
+
+  // 4) 先按 N = 列 × 行 抽帧（保证图集填满），再写回列 / 行 / 帧分辨率（避免容量提示闪红）
+  const N = best.N;
   autoSelectFrames(N, { quiet: true });
   state.atlas.cols = clamp(best.cols, 1, 128);
   state.atlas.rows = clamp(best.rows, 1, 128);
   state.atlas.res = res;
   syncAtlasUIFromState();
-  $('inpAutoN').value = String(N);     // 保留帧数 = 规划值（可能小于满容量）
+  $('inpAutoN').value = String(N);     // 保留帧数 = 列 × 行（图集无空格）
   invalidateCurrentAtlasSheet();       // 参数变了：已合成的图集作废，切到图集页会按新参数重新合成
   commitAtlasToOwner();
   markDirty();
   updateProjectUI();
   const sel = frameScopeList().filter((f) => f.selected).length;
+  const cut = L - N;
   toast('自动规划：图集纹理 x' + maxSide + ' · 单帧 ' + grid.cellW + '×' + grid.cellH
     + (res ? '（帧分辨率 x' + res + '）' : '（原生像素）')
-    + ' · ' + best.cols + '×' + best.rows + ' = ' + (best.cols * best.rows) + ' 格 · 图集 ' + best.W + '×' + best.H
-    + ' · 保留 ' + sel + '/' + L + ' 帧', 'ok', 5200);
+    + ' · ' + best.cols + '×' + best.rows + ' = ' + N + ' 格（已填满） · 图集 ' + best.W + '×' + best.H
+    + '（宽高比 ' + (best.W === best.H ? '1:1' : (best.W / best.H).toFixed(2) + ':1') + '）'
+    + ' · 保留 ' + sel + '/' + L + ' 帧' + (cut > 0 ? '（抽掉 ' + cut + ' 帧）' : ''), 'ok', 5600);
 }
 /** 当前图集参数 + 成果快照 */
 function atlasConfigSnapshot() {
