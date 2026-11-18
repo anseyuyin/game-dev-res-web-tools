@@ -637,8 +637,8 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
             <option value="2048" selected>图集纹理 x2048</option>
             <option value="4096">图集纹理 x4096</option>
           </select>
-          <button class="btn mini primary" id="btnAutoPlan" title="按图集纹理上限与帧分辨率自动规划列 / 行 / 保留帧数（图集必须填满，宽高比优先 1:1），并立即抽帧">自动规划</button>
-          <span class="tip" data-tip="<b>自动规划</b>：<br>1. 单帧分辨率沿用「图集 / 播放」页的<b>帧分辨率</b>（原生 / x16–x512），据此算出单帧像素；<br>2. 在「列 × 单帧宽 + 间隔 ≤ 图集纹理」且「行 × 单帧高 + 间隔 ≤ 图集纹理」的前提下取最大可用列 / 行；<br>3. <b>图集必须填满</b>：只考虑保留帧数 N = 列 × 行（无空格）的排布；范围帧数多于 N 时按 N <b>抽帧</b>（首尾帧保留），少于 N 的方案直接不参与评选；<br>4. 评选优先级：<b>图集像素宽高比最接近 1:1</b> → 偏差在容差（约 5%）内的方案里取格数最多（抽掉的帧最少）；<br>5. 当前帧分辨率放不下 2 帧时自动降档，随后按 N 抽帧。"></span>
+          <button class="btn mini primary" id="btnAutoPlan" title="按图集纹理上限与帧分辨率自动规划列 / 行 / 保留帧数（图集必须填满；先保证格数最多、再取图集面积最大，宽高比控制在 0.7–1.43 内），并立即抽帧">自动规划</button>
+          <span class="tip" data-tip="<b>自动规划</b>：<br>1. 单帧分辨率沿用「图集 / 播放」页的<b>帧分辨率</b>（原生 / x16–x512），据此算出单帧像素；<br>2. 在「列 × 单帧宽 + 间隔 ≤ 图集纹理」且「行 × 单帧高 + 间隔 ≤ 图集纹理」的前提下取最大可用列 / 行；<br>3. <b>图集必须填满</b>：只考虑保留帧数 N = 列 × 行（无空格）的排布；范围帧数多于 N 时按 N <b>抽帧</b>（首尾帧保留），多于范围的方案不参与评选；<br>4. 评选优先级：<b>宽高比落在 0.7–1.43（|ln| ≤ 0.36）的方案里取格数最多</b>（抽掉的帧最少、图集铺得最满）→ 同格数取<b>图集面积最大</b>（纹理利用率最高）→ 再取更接近正方 → 列少者优先；<br>5. 所有方案都超出宽高比区间时（如 16:9 的帧）退化为「最方的一批 → 格数最多」，不会报错；<br>6. 当前帧分辨率放不下 2 帧时自动降档，随后按 N 抽帧。"></span>
           <span class="badge" id="lblPlanRes" title="当前单帧像素上限：来自「图集 / 播放」页的「帧分辨率」下拉。单帧宽或高超出该值时等比缩小，自动规划按它计算单帧像素。">帧分辨率 原生</span>
         </div>
         <div class="row">
@@ -2741,7 +2741,7 @@ function planGridForRes(fw, fh, res, maxSide) {
  * 自动规划：以「图集纹理」为图集边长上限，参考「帧分辨率」，反推列数 / 行数 / 保留帧数 N，
  * 写回参数后立即按 N 抽帧（范围 = 帧列表当前显示范围，跟随切片时即该切片区间）。
  * 排布规则：只允许「列 × 行 = N 且无空格」的方案（帧数不足时抽帧补齐），
- * 并按「图集像素宽高比最接近 1:1 → 容差内格数最多」挑选。
+ * 挑选顺序：宽高比在 0.7–1.43 内的方案 → 格数最多 → 图集面积最大 → 更接近正方 → 列少。
  */
 function autoPlanAtlas(maxSide) {
   maxSide = clamp(Math.round(nf(maxSide, 2048)), 64, 8192);
@@ -2785,15 +2785,27 @@ function autoPlanAtlas(maxSide) {
     return;
   }
 
-  // 3) 排布优先级：图集像素宽高比最接近 1:1 → 容差内取格数最多（尽量少抽帧）
-  let dMin = Infinity;
-  for (const c of cands) if (c.dev < dMin) dMin = c.dev;
-  const tol = Math.max(0.05, dMin * 0.35);       // 容差 ≈ 5% 宽高比偏差；最佳方案本身很扁时按比例放宽
+  // 3) 排布优先级（不再死盯 1:1）：
+  //    ① 宽高比落在可接受区间（|ln(W/H)| ≤ 0.36 ≈ 0.7:1 – 1.43:1）的方案才算合格；
+  //    ② 合格方案里取「格数最多」——格数 = 保留帧数，直接决定少抽多少帧、图集铺得多满；
+  //    ③ 同格数取「图集面积最大」——最大化纹理利用率；
+  //    ④ 再取更接近正方的；最后列少者优先（列优先排布时行多更顺序）。
+  //    全都超出宽高比区间时（如 16:9 的帧）退化为「最方的一批 → 格数最多」。
+  const ASPECT_BAND = 0.36;
+  let pool = cands.filter((c) => c.dev <= ASPECT_BAND);
+  if (!pool.length) {
+    let dMin = Infinity;
+    for (const c of cands) if (c.dev < dMin) dMin = c.dev;
+    pool = cands.filter((c) => c.dev <= dMin + 0.05);
+  }
   let best = null;
-  for (const c of cands) {
-    if (c.dev > dMin + tol) continue;
-    if (!best || c.N > best.N
-      || (c.N === best.N && (c.dev < best.dev || (c.dev === best.dev && c.cols > best.cols)))) best = c;
+  for (const c of pool) {
+    if (!best) { best = c; continue; }
+    const area = c.W * c.H, aBest = best.W * best.H;
+    if (c.N !== best.N) { if (c.N > best.N) best = c; continue; }
+    if (area !== aBest) { if (area > aBest) best = c; continue; }
+    if (c.dev !== best.dev) { if (c.dev < best.dev) best = c; continue; }
+    if (c.cols < best.cols) best = c;
   }
 
   // 4) 先按 N = 列 × 行 抽帧（保证图集填满），再写回列 / 行 / 帧分辨率（避免容量提示闪红）
