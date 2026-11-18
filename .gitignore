@@ -10,6 +10,8 @@ build/
 .idea/
 *.swp
 *.swo
+.workbuddy/
+.codebuddy
 
 # 操作系统
 .DS_Store

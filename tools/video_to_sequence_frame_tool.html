@@ -315,7 +315,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 #playerPane .paneBar{padding:6px 8px;gap:5px}
 #playerPane #playerStage{padding:0}
 
-/* 帧列表内的图集参数条：列数 / 行 / 顺序 一行（间隔固定 1px） */
+/* 帧列表内的图集参数条：列数 / 行 / 顺序 一行（间隔固定 0px） */
 .atlasParams{padding:8px 9px;border-bottom:1px solid var(--line);background:#151a21;flex:0 0 auto}
 .atlasParams .row{gap:6px;flex-wrap:nowrap}
 .atlasParams .row+.row{margin-top:6px}
@@ -515,14 +515,14 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
 
     <!-- 项目 -->
     <details class="group" data-group="project" open>
-      <summary>项目（绑定目录）<span class="tip end" data-tip="保存内容：<b>project.json</b>（参数 + 切片 + 资源索引 + 界面状态）、<b>clips.json</b>（切片与各切片图集配置），以及尚未落盘的资源（<code>video/</code> · <code>frames/</code> · <code>atlas/</code>）。"></span></summary>
+      <summary>项目（绑定目录）<span class="tip end" data-tip="保存内容：<b>project.json</b>（参数 + 切片 + 资源索引 + 界面状态）、<b>clips.json</b>（切片与各切片图集配置），以及尚未落盘的资源（<code>video/</code> · <code>frames/</code> · <code>atlas/</code>）。<br><b>导出项目 ZIP</b> = 配置 + 源视频原文件 + 图集 + manifest.json；<b>序列帧不打包</b>（可由视频重建）。视频没复制进目录也没关系：会从导入时的本地缓存取，取不到会让你现场选文件。"></span></summary>
       <div class="groupBody">
         <div class="row"><label>项目名</label><input type="text" id="inpProjectName" value="green_action"></div>
         <div class="row"><label>项目目录</label><span class="chip" id="projChip2"><span class="dot"></span><span id="projChipText2">未绑定</span></span></div>
         <div class="btnRow">
           <button class="btn mini" id="btnPickDir2" title="绑定 / 切换项目目录（选择器直接定位到当前项目目录）">绑定 / 切换目录</button>
           <button class="btn mini" id="btnReloadDir">从目录重新读取</button>
-          <button class="btn mini" id="btnExportProjectZip">导出项目 ZIP</button>
+          <button class="btn mini" id="btnExportProjectZip" title="打包整个项目下载：project.json / clips.json / manifest.json（包内清单）/ 源视频原文件（video/）/ 图集（atlas/）。序列帧 frames/ 不打包（可由视频重建）。视频来源按序兜底：内存原文件 → 项目目录副本 → 导入时缓存的本地原文件 → 导出时手动选择">导出项目 ZIP</button>
         </div>
         <div class="row"><label>源视频</label><span class="hint" id="lblVideoAsset">未导入</span></div>
         <label class="row hint" style="cursor:pointer"><input type="checkbox" id="chkAutoCopyVideo" checked> 导入视频时复制到项目目录</label>
@@ -646,7 +646,7 @@ input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px}
           <label>行</label><input type="number" id="inpRows" class="grow" min="1" max="64" value="4">
           <label>顺序</label>
           <select id="selOrder" class="grow" title="列优先：先上→下，再左→右；行优先：先左→右，再上→下"><option value="column">列优先 ↓→</option><option value="row">行优先 →↓</option></select>
-          <span class="tip" data-tip="图集尺寸 = cols×w + (cols−1)×gap ／ rows×h + (rows−1)×gap（单元间隔固定 <b>1px</b>）。帧图默认按原始像素排布；可在「图集 / 播放」页选<b>帧分辨率</b>压缩像素（原生 / x16–x512：单帧宽或高超出时该帧等比缩小，图集尺寸随之变小）。<br>点选左栏切片即切到该切片的图集（再点一次回到「默认 · 全部帧」）。"></span>
+          <span class="tip" data-tip="图集尺寸 = cols×w + (cols−1)×gap ／ rows×h + (rows−1)×gap（单元间隔固定 <b>0px</b>，帧与帧紧挨、无间隙）。帧图默认按原始像素排布；可在「图集 / 播放」页选<b>帧分辨率</b>压缩像素（原生 / x16–x512：单帧宽或高超出时该帧等比缩小，图集尺寸随之变小）。<br>点选左栏切片即切到该切片的图集（再点一次回到「默认 · 全部帧」）。"></span>
         </div>
         <div class="capWarn" id="atlasCapWarn" style="display:none"></div>
       </div>
@@ -876,7 +876,7 @@ const state = {
   chroma: { key: '#00ff00', keyR: 0, keyG: 255, keyB: 0, similarity: 30, smooth: 18, spill: 60, shrink: 0 },
   frames: [],               // {i, blob, url, thumbUrl, w, h, selected, bitmap, lastUse, file, rel}
   maxCache: 240,
-  atlas: { cols: 6, rows: 4, gap: 1, order: 'column', res: 0, selectedOnly: true, zoom: 100, showGrid: true, showIndex: true, fit: true, autoWrite: true, rel: null, written: false, ownerId: null },
+  atlas: { cols: 6, rows: 4, gap: 0, order: 'column', res: 0, selectedOnly: true, zoom: 100, showGrid: true, showIndex: true, fit: true, autoWrite: true, rel: null, written: false, ownerId: null },   // gap 与 ATLAS_GAP 一致（0 = 无间隙）
   atlasDefault: null,       // 「无切片」时的默认图集配置（惰性创建）
   play: { speed: 1, loop: true },   // 序列帧播放器：speed = 相对原速的倍速（0.1–10）
   project: { name: 'green_action', dirName: '', bound: false, kind: null, dirty: false, lastSavedAt: 0, autoSave: true, autoCopyVideo: true },
@@ -1061,6 +1061,7 @@ const V = {
     state.video.url = URL.createObjectURL(file);
     state.video.file = file;
     state.video.name = file.name.replace(/\.[^.]+$/, '');
+    cacheSourceVideo(file);          // 本地留一份原文件：未复制进项目目录时，导出 ZIP 仍能带上视频
     video.src = state.video.url;
     await new Promise((res, rej) => {
       const ok = () => { cleanup(); res(); };
@@ -2480,6 +2481,23 @@ function crc32(u8) {
   for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
   return (c ^ 0xFFFFFFFF) >>> 0;
 }
+/** 超过该体积的条目（基本都是源视频）不进内存：按块算 CRC 后把 Blob 原样交给打包器 */
+const ZIP_INLINE_MAX = 8 << 20;
+/** 分块计算 Blob 的 CRC32（不整体读入内存，避免大视频把标签页撑爆） */
+async function crc32OfBlob(blob, chunkSize) {
+  const CH = chunkSize || (4 << 20);
+  let c = 0xFFFFFFFF;
+  for (let p = 0; p < blob.size; p += CH) {
+    const part = new Uint8Array(await blob.slice(p, Math.min(p + CH, blob.size)).arrayBuffer());
+    for (let i = 0; i < part.length; i++) c = CRC_TABLE[(c ^ part[i]) & 0xFF] ^ (c >>> 8);
+  }
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+/**
+ * 打包 ZIP（store 模式）：entry.data 可为 Uint8Array，也可为 Blob（此时用 entry.crc）
+ * 文件名统一用 UTF-8，并在通用位标志里置 bit 11（0x0800）声明「名称是 UTF-8」——
+ * 不置这一位时 Windows 资源管理器 / 老解压器会按系统本地码页（简体中文 = GBK）解码，中文名会变乱码。
+ */
 function buildZip(entries) {
   const enc = new TextEncoder();
   const chunks = [], central = [];
@@ -2489,26 +2507,29 @@ function buildZip(entries) {
   const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
   for (const e of entries) {
     const name = enc.encode(e.name);
+    const flags = /[^\x00-\x7F]/.test(e.name) ? 0x0800 : 0;   // bit 11 = 文件名为 UTF-8
     const data = e.data;
-    const crc = crc32(data);
+    const isBlob = (typeof Blob !== 'undefined') && (data instanceof Blob);
+    const size = isBlob ? data.size : data.length;
+    const crc = isBlob ? (isNum(e.crc) ? (e.crc >>> 0) : 0) : crc32(data);
     const lh = new Uint8Array(30 + name.length);
     const dv = new DataView(lh.buffer);
-    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0, true); dv.setUint16(8, 0, true);
+    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, flags, true); dv.setUint16(8, 0, true);
     dv.setUint16(10, dosTime, true); dv.setUint16(12, dosDate, true); dv.setUint32(14, crc, true);
-    dv.setUint32(18, data.length, true); dv.setUint32(22, data.length, true);
+    dv.setUint32(18, size, true); dv.setUint32(22, size, true);
     dv.setUint16(26, name.length, true); dv.setUint16(28, 0, true);
     lh.set(name, 30);
     chunks.push(lh, data);
     const ch = new Uint8Array(46 + name.length);
     const cv = new DataView(ch.buffer);
     cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
-    cv.setUint16(8, 0, true); cv.setUint16(10, 0, true); cv.setUint16(12, dosTime, true); cv.setUint16(14, dosDate, true);
-    cv.setUint32(16, crc, true); cv.setUint32(20, data.length, true); cv.setUint32(24, data.length, true);
+    cv.setUint16(8, flags, true); cv.setUint16(10, 0, true); cv.setUint16(12, dosTime, true); cv.setUint16(14, dosDate, true);
+    cv.setUint32(16, crc, true); cv.setUint32(20, size, true); cv.setUint32(24, size, true);
     cv.setUint16(28, name.length, true); cv.setUint16(30, 0, true); cv.setUint16(32, 0, true);
     cv.setUint16(34, 0, true); cv.setUint16(36, 0, true); cv.setUint32(38, 0, true); cv.setUint32(42, offset, true);
     ch.set(name, 46);
     central.push(ch);
-    offset += lh.length + data.length;
+    offset += lh.length + size;
   }
   let cdSize = 0; for (const c of central) cdSize += c.length;
   const eocd = new Uint8Array(22);
@@ -2516,11 +2537,8 @@ function buildZip(entries) {
   ev.setUint32(0, 0x06054b50, true); ev.setUint16(4, 0, true); ev.setUint16(6, 0, true);
   ev.setUint16(8, central.length, true); ev.setUint16(10, central.length, true);
   ev.setUint32(12, cdSize, true); ev.setUint32(16, offset, true); ev.setUint16(20, 0, true);
-  const all = chunks.concat(central, [eocd]);
-  let total = 0; for (const c of all) total += c.length;
-  const out = new Uint8Array(total);
-  let p = 0; for (const c of all) { out.set(c, p); p += c.length; }
-  return new Blob([out], { type: 'application/zip' });
+  // 直接交给 Blob 拼装：Uint8Array 与 Blob 可以混合，省掉一次整体复制
+  return new Blob(chunks.concat(central, [eocd]), { type: 'application/zip' });
 }
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -2542,7 +2560,7 @@ let atlasMeta = null;   // {cols,rows,gap,order,res,scale,cellW,cellH,W,H,frameW
                         // res = 单帧像素分辨率上限（0 = 原生）；frameW/frameH = 单帧原始像素
 let atlasAutoKey = '';  // 自动合成去重键（同一状态只自动尝试一次）
 let atlasSig = '';      // 当前已合成图集对应的「数据签名」，用于判断是否已过期
-const ATLAS_GAP = 1;    // 图集单元间隔（固定 1px，不再提供配置项）
+const ATLAS_GAP = 0;    // 图集单元间隔（固定 0px = 单元紧挨、无间隙；不再提供配置项）
 const ATLAS_RES_OPTIONS = [0, 16, 32, 64, 128, 256, 512];   // 单帧像素分辨率上限可选项（0 = 原生不缩放）
 
 /* 帧对象的稳定标识：帧被重新刷新 / 导入时会生成新对象 → 签名变化 → 图集重合成 */
@@ -2574,7 +2592,7 @@ const ATLAS_CACHE_MAX = 8;
 /** 一个图集配置的默认值（res = 单帧像素分辨率上限：0 = 原生不缩放，否则为 16–512） */
 function newAtlasConfig(o) {
   return Object.assign({
-    cols: 6, rows: 4, gap: 1, order: 'column', res: 0, selectedOnly: true,
+    cols: 6, rows: 4, gap: ATLAS_GAP, order: 'column', res: 0, selectedOnly: true,
     zoom: 100, showGrid: true, showIndex: true, fit: true,
     asset: null, cell: null, native: null, count: 0, built: false, written: false
   }, o || {});
@@ -2887,7 +2905,7 @@ function refreshAtlasMetaTip() {
   tip.dataset.tip = [
     '图集：<b>' + atlasOwnerLabel() + '</b>' + (state.atlas.rel ? '　<code>' + state.atlas.rel + '</code>' : '　（尚未写入项目目录）'),
     '尺寸：<b>' + m.W + ' × ' + m.H + '</b>　单元：<b>' + Math.round(m.cellW) + ' × ' + Math.round(m.cellH) + '</b>',
-    '排布：<b>' + m.cols + ' × ' + m.rows + '</b> · 间隔 <b>' + (m.gap >= 1 ? Math.round(m.gap) : (+m.gap).toFixed(2)) + 'px</b>　' + orderTxt,
+    '排布：<b>' + m.cols + ' × ' + m.rows + '</b> · 间隔 <b>' + (Number.isInteger(+m.gap) ? Math.round(m.gap) : (+m.gap).toFixed(2)) + 'px</b>　' + orderTxt,
     '帧分辨率：<b>' + (m.res ? 'x' + m.res : '原生') + '</b>　' + (m.frameW && (m.frameW !== Math.round(m.cellW) || m.frameH !== Math.round(m.cellH))
       ? '（单帧已从 <b>' + m.frameW + '×' + m.frameH + '</b> 等比缩小为 <b>' + Math.round(m.cellW) + '×' + Math.round(m.cellH) + '</b>）'
       : '（单帧为原始像素）'),
@@ -3532,7 +3550,13 @@ async function targetWrite(t, path, blob) {
   } else if (t.kind === 'mem') {
     t.map.set(path, blob);
   } else if (t.kind === 'zip') {
-    t.entries.push({ name: path, data: new Uint8Array(await blob.arrayBuffer()) });
+    if (blob.size > 0xFFFFFFFF) throw new Error('文件超过 4GB，ZIP 不支持：' + path);
+    if (blob.size >= ZIP_INLINE_MAX) {
+      // 大文件（源视频等）：不读进内存，按块算 CRC 后直接把 Blob 交给打包器
+      t.entries.push({ name: path, data: blob, crc: await crc32OfBlob(blob) });
+    } else {
+      t.entries.push({ name: path, data: new Uint8Array(await blob.arrayBuffer()) });
+    }
   }
 }
 async function targetRead(t, path) {
@@ -3582,6 +3606,32 @@ async function targetList(t, dirPath) {
     return [...t.map.keys()].filter((k) => k.startsWith(pre) && !k.slice(pre.length).includes('/')).map((k) => k.slice(pre.length));
   }
   return [];
+}
+/** 递归列出目录下所有文件（返回相对 root 的完整路径；fs / mem 都支持） */
+async function targetListDeep(t, dirPath, depth) {
+  depth = depth || 0;
+  const out = [];
+  if (depth > 6) return out;                       // 防御：异常层级不无限递归
+  if (t.kind === 'fs') {
+    let d = t.dir;
+    try {
+      for (const p of pathJoin(dirPath).split('/').filter(Boolean)) d = await d.getDirectoryHandle(p, { create: false });
+    } catch (e) { return out; }
+    try {
+      for await (const [name, h] of d.entries()) {
+        const rel = pathJoin(dirPath, name);
+        if (h.kind === 'file') out.push(rel);
+        else if (h.kind === 'directory') out.push(...await targetListDeep(t, rel, depth + 1));
+      }
+    } catch (e) { /* 目录不可读：跳过 */ }
+    return out;
+  }
+  if (t.kind === 'mem') {
+    const pre = dirPath ? pathJoin(dirPath) + '/' : '';
+    for (const k of t.map.keys()) if (k.startsWith(pre)) out.push(k);
+    return out;
+  }
+  return out;
 }
 function targetLabel(t) {
   if (!t) return '未绑定';
@@ -3677,6 +3727,24 @@ async function idbDel(key) {
       tx.onerror = () => reject(tx.error || new Error('IndexedDB 删除失败'));
     });
   } finally { db.close(); }
+}
+
+/* ---------- 源视频原文件本地缓存：即便没复制进项目目录，导出项目 ZIP 也能带上 ---------- */
+const IDB_KEY_SRC_VIDEO = 'srcVideoCache';
+/** 记住最近一次导入的源视频原文件（配额不足时静默放弃，不打扰用户） */
+async function cacheSourceVideo(file) {
+  if (!file || !file.size) return false;
+  try {
+    await idbSet(IDB_KEY_SRC_VIDEO, { name: file.name || 'video.mp4', size: file.size, type: file.type || '', savedAt: Date.now(), blob: file });
+    return true;
+  } catch (e) { console.warn('源视频缓存失败（不影响使用）', e); return false; }
+}
+/** 取缓存的源视频（没有 / 已失效返回 null） */
+async function cachedSourceVideo() {
+  try {
+    const v = await idbGet(IDB_KEY_SRC_VIDEO);
+    return (v && v.blob && v.blob.size) ? v : null;
+  } catch (e) { return null; }
 }
 
 /* ---------- 元信息读写（localStorage） ---------- */
@@ -4153,7 +4221,79 @@ async function copyVideoToProject(silent) {
   }
 }
 
-/** 导出整个项目为 ZIP（备份 / 降级留存） */
+/** 源视频在项目 / ZIP 内的相对路径：配置路径与当前文件名一致就沿用，否则回落到 video/<文件名> */
+function videoRelForZip() {
+  const fname = (state.video.file && state.video.file.name) || '';
+  const base = fname || (state.video.name ? state.video.name + '.mp4' : 'video.mp4');
+  const rel = state.video.rel;
+  if (rel && (!fname || rel.split('/').pop() === fname)) return rel;
+  return pathJoin(DIR_VIDEO, safeName(base, 'video.mp4'));
+}
+/**
+ * 把「配置里使用的源视频原文件」放进 ZIP：
+ *   ① 内存中的原始 File（用户导入 / 载入项目时的那份）—— 最可靠，未复制到目录也能打包
+ *   ② 项目目录里已有的副本（配置路径 / 旧路径 / 扫描 video/）
+ *   ③ 导入时存进 IndexedDB 的原文件缓存（跨会话，目录里没副本也能带上）
+ * 都取不到则返回 {rel:null}，由调用方提示或让用户现场选文件。
+ * @param {string} [expectName] 配置里记录的视频文件名（用于校验缓存是否同一支视频）
+ */
+async function packSourceVideo(zipT, target, expectName) {
+  const mem = state.video.file || null;
+  let rel = videoRelForZip();
+  let blob = mem, from = mem ? '内存原始文件' : '';
+  if (!blob) {
+    // 配置记录的路径 / 旧路径，任一能读到就用
+    for (const p of [rel, state.video.rel]) {
+      if (!p) continue;
+      if (await targetExists(target, p)) { blob = await targetRead(target, p); rel = p; from = '项目目录副本'; break; }
+    }
+  }
+  if (!blob) {
+    // 兜底：配置里丢了视频路径时，直接扫 video/ 目录
+    const files = await targetListDeep(target, DIR_VIDEO);
+    const pick = files.find((p) => /\.(mp4|mov|webm|m4v|avi|mkv|flv|ogv)$/i.test(p)) || files[0];
+    if (pick) { blob = await targetRead(target, pick); rel = pick; from = '项目目录（扫描 video/）'; }
+  }
+  if (!blob) {
+    // 兜底：导入时缓存在 IndexedDB 里的原文件（目录没副本、页面也重开过时仍然可用）
+    const c = await cachedSourceVideo();
+    if (c) {
+      const bare = (s) => String(s || '').replace(/\.[^.]+$/, '').toLowerCase();
+      const known = [state.video.file && state.video.file.name, state.video.rel && state.video.rel.split('/').pop(), state.video.name, expectName].filter(Boolean);
+      if (!known.length || known.some((k) => bare(k) === bare(c.name))) {
+        blob = c.blob; rel = pathJoin(DIR_VIDEO, safeName(c.name, 'video.mp4')); from = '本地缓存（' + c.name + '）';
+      }
+    }
+  }
+  if (!blob) return { rel: null, size: 0, from: '' };
+  setProgress(0, 1, '打包源视频原文件…', rel + ' · ' + fmtBytes(blob.size) + (from ? '（' + from + '）' : ''));
+  await targetWrite(zipT, rel, blob);
+  return { rel, size: blob.size, from };
+}
+
+/** 把项目目录里还没进包的文件（视频 / 图集 / 其他资源）补进去，保证 ZIP = 内存 ∪ 目录；序列帧目录按需跳过 */
+async function packRemainingDirFiles(zipT, target, skipPrefixes) {
+  const has = new Set(zipT.entries.map((e) => e.name));
+  const skip = skipPrefixes || [];
+  let added = 0, bytes = 0;
+  for (const rel of await targetListDeep(target, '')) {
+    if (has.has(rel)) continue;
+    if (rel === PROJECT_FILE || rel === CLIPS_FILE) continue;      // 这两个用新生成的覆盖
+    if (skip.some((p) => rel.startsWith(p))) continue;             // 例：frames/（可重建，不进 ZIP）
+    try {
+      const blob = await targetRead(target, rel);
+      await targetWrite(zipT, rel, blob);
+      has.add(rel); added++; bytes += blob.size;
+    } catch (e) { console.warn('打包跳过 ' + rel, e); }
+  }
+  return { added, bytes };
+}
+
+/**
+ * 导出整个项目为 ZIP（备份 / 降级留存）：
+ *   project.json + clips.json + manifest.json + 源视频原文件 + 图集
+ *   序列帧（frames/）不打包 —— 可由源视频重建，进包只会让体积翻几倍。
+ */
 async function exportProjectZip() {
   const target = currentTarget();
   if (!target) { toast('请先绑定项目目录', 'warn'); return; }
@@ -4162,24 +4302,76 @@ async function exportProjectZip() {
     beginProgress('打包项目 ZIP');
     const proj = buildProjectData();
     const clips = buildClipsData();
-    if (state.video.rel && await targetExists(target, state.video.rel)) {
-      setProgress(0, 1, '打包源视频…', state.video.rel);
-      await targetWrite(zipT, state.video.rel, await targetRead(target, state.video.rel));
+
+    // 1) 源视频原文件：ZIP 必须自带，解压后才能「从文件夹导入项目」完整还原
+    let vid = await packSourceVideo(zipT, target, proj.video && proj.video.name);
+    if (!vid.rel) {
+      // 四处都没有 → 现场让用户指一下文件，避免导出个没视频的包
+      const ask = await uiConfirm('本次没有找到源视频原文件（内存、项目目录、本地缓存都没有）。<br>选择视频文件后会被一并打包，并记入本地缓存，以后导出不用再选。', '缺少源视频', '选择视频…');
+      if (ask) {
+        const files = await pickFilesViaInput($('fileVideo'));
+        const f = files && files[0];
+        if (f) {
+          const rel = pathJoin(DIR_VIDEO, safeName(f.name, 'video.mp4'));
+          await targetWrite(zipT, rel, f);
+          cacheSourceVideo(f);
+          vid = { rel, size: f.size, from: '导出时手动选择' };
+        }
+      }
     }
-    for (let k = 0; k < state.frames.length; k++) {
-      if (jobCancelled()) break;
-      const f = state.frames[k];
-      const rel = f.rel || f.pendingRel || pathJoin(resolvedFrameOut(), f.file || ('frame_' + pad0(k + 1, 4) + '.png'));
-      await targetWrite(zipT, rel, f.blob);
-      setProgress(k + 1, state.frames.length + 2, '打包序列帧 ' + (k + 1) + '/' + state.frames.length, rel);
-      if (k % 8 === 7) await yieldUI();
+    if (vid.rel) {
+      // 导出副本里的路径指向 ZIP 内实际位置（不改动内存 / 磁盘上的项目状态）
+      proj.video.name = vid.rel.split('/').pop();
+      proj.video.asset = vid.rel;
+      proj.video.size = vid.size;
+      clips.video.name = proj.video.name;
+      clips.video.asset = vid.rel;
     }
+    // 序列帧不进包：清单留空，避免解压后导入时提示“帧文件缺失”
+    proj.frames = [];
+    proj.export = Object.assign({}, proj.export, { framesPacked: false });
+
+    // 2) 图集 PNG（成品，不可由配置重建）
     await writeAllAtlasFiles(zipT, (i, n, rel) => setProgress(i, n + 2, '打包图集 ' + i + '/' + n, rel));
+
+    // 3) 目录兜底：内存里没有、但项目目录里有的资源一并带上（跳过序列帧目录）
+    setProgress(0, 1, '合并项目目录里的其余资源…', targetLabel(target));
+    const frameDirs = Array.from(new Set([pathJoin(DIR_FRAMES), pathJoin(resolvedFrameOut())])).map((d) => d + '/');
+    const rest = await packRemainingDirFiles(zipT, target, frameDirs);
+
+    // 4) 配置（新生成的覆盖目录里的旧文件）
     await targetWrite(zipT, PROJECT_FILE, blobFromText(JSON.stringify(proj, null, 2)));
     await targetWrite(zipT, CLIPS_FILE, blobFromText(JSON.stringify(clips, null, 2)));
+
+    // 5) 包内清单：一眼确认这次打包到底带了什么
+    const atlasCnt = zipT.entries.filter((e) => e.name.startsWith(DIR_ATLAS + '/')).length;
+    const manifest = {
+      app: APP_ID, version: APP_VERSION, exportedAt: new Date().toISOString(),
+      project: state.project.name,
+      video: vid.rel
+        ? { file: vid.rel, size: vid.size, bytes: fmtBytes(vid.size), from: vid.from }
+        : { file: null, size: 0, note: '未找到源视频原文件（内存 / 项目目录 / 本地缓存都没有）' },
+      atlases: atlasCnt,
+      framesPacked: false,
+      note: '序列帧 frames/ 不随 ZIP 导出：可由源视频重新抽帧重建。',
+      files: zipT.entries.map((e) => ({
+        name: e.name, size: e.data ? (e.data.size || e.data.length) : 0
+      }))
+    };
+    await targetWrite(zipT, 'manifest.json', blobFromText(JSON.stringify(manifest, null, 2)));
     endProgress();
+
+    // 打包结果自检：控制台 + toast 都写出实际内容，便于核对
+    const totalBytes = zipT.entries.reduce((n, e) => n + (e.data ? e.data.size || e.data.length : 0), 0);
+    console.log('[导出项目 ZIP] 源视频：' + (vid.rel ? vid.rel + ' · ' + fmtBytes(vid.size) + ' · ' + vid.from : '无') +
+      '；图集 ' + atlasCnt + ' 张；目录兜底补入 ' + rest.added + ' 个文件；序列帧已排除；共 ' +
+      zipT.entries.length + ' 个条目 / ' + fmtBytes(totalBytes));
+    console.table(zipT.entries.map((e) => ({ 文件: e.name, 大小: e.data ? (e.data.size || e.data.length) : 0 })));
+
     downloadBlob(buildZip(zipT.entries), safeName(state.project.name, 'project') + '_project.zip');
-    toast('项目已打包下载：' + zipT.entries.length + ' 个文件', 'ok', 4600);
+    toast('项目已打包：' + (vid.rel ? '源视频 ' + fmtBytes(vid.size) + ' · ' : '⚠️ 未含源视频 · ') +
+      atlasCnt + ' 图集 · 共 ' + zipT.entries.length + ' 个文件（序列帧不打包）',
+      vid.rel ? 'ok' : 'warn', 6000);
   } catch (e) {
     endProgress();
     console.error(e);
